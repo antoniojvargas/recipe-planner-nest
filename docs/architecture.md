@@ -48,6 +48,37 @@ Los consumidores lo importan por el nombre del paquete (`@recipe-planner/contrac
 El frontend lo transpila con `transpilePackages` en `next.config.ts` y el backend lo trata como
 una dependencia más del workspace.
 
+## Por qué Fastify y no Express
+
+La API arranca con `NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter())`
+en `backend/src/main.ts`. Express sigue siendo el adaptador por defecto de Nest, pero aquí se
+cambia por estas razones:
+
+- **Rendimiento**: Fastify gestiona más peticiones por segundo y con menos memoria que Express en
+  cargas JSON pequeñas, que es el perfil de esta API (listas, planes y marcas de la compra).
+- **Serialización por esquema**: Fastify compila esquemas JSON a serializadores, así que las
+  respuestas se generan sin recorrer objetos genéricos. Encaja con el sobre de error y con los
+  DTOs validados que se añaden más adelante.
+- **Ecosistema de plugins con primera parte del framework**: `@fastify/cookie`,
+  `@fastify/helmet`, `@fastify/rate-limit` y `@fastify/static` resuelven cookies, CSP, cuerpo
+  máximo y `trustProxy` sin capas de compatibilidad. Todo lo que la app necesita (CORS con
+  credenciales, CSP estricta, límite de cuerpo de 1 MiB, IP real detrás de Caddy) se configura
+  sobre el objeto `FastifyInstance`.
+- **Tipado**: `NestFastifyApplication` expone `app.getHttpAdapter().getInstance()`, de modo que
+  los hooks y plugins se registran con los tipos de Fastify y no con `any`.
+- **Un solo adaptador en todas partes**: los tests e2e crean la app con el mismo `FastifyAdapter`,
+  así que lo que se prueba es el servidor real y no una variante Express.
+
+Consecuencias que conviene tener presentes:
+
+- `@nestjs/platform-express` y los middlewares de Express no se usan; el andamiaje los trajo por
+  defecto y se han retirado. Cualquier middleware nuevo debe ser un plugin de Fastify.
+- Los controladores no cambian: Nest abstrae el adaptador. Lo que sí es específico son los
+  `@Res()`/`@Req()` sin `passthrough`, que aquí se evitan a favor del valor de retorno.
+- Fastify no escucha en `localhost` por defecto de la misma forma: `main.ts` pasa `0.0.0.0` para
+  que el contenedor sea accesible desde fuera.
+- `NestJS Observe` y `node:inspector` funcionan igual; el adaptador solo afecta a la capa HTTP.
+
 ## Reglas del workspace
 
 - Un único `package-lock.json` en la raíz; los workspaces (`backend`, `frontend`, `e2e`,
