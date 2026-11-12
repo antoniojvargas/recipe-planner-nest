@@ -48,6 +48,59 @@ Los consumidores lo importan por el nombre del paquete (`@recipe-planner/contrac
 El frontend lo transpila con `transpilePackages` en `next.config.ts` y el backend lo trata como
 una dependencia más del workspace.
 
+## Módulos del backend y capas
+
+`backend/src` se divide por funcionalidad. Cada carpeta es un módulo de Nest registrado en
+`AppModule` y dueño de sus controladores, servicios y repositorios:
+
+| Módulo | Responsabilidad |
+|---|---|
+| `auth` | Registro, login, refresh rotatorio, logout y emisión de cookies |
+| `users` | Perfil del usuario autenticado |
+| `households` | Hogares, membresías, roles e invitaciones con código |
+| `recipes` | CRUD, búsqueda y paginación de recetas |
+| `media` | URLs prefirmadas de MinIO, confirmación de subidas y miniaturas |
+| `imports` | Importación de recetas desde una URL y estado del trabajo |
+| `meal-plans` | Plan semanal y asignación de recetas a cada hueco |
+| `shopping` | Lista de la compra: generación, marcado y edición de ítems |
+| `pantry` | Despensa del hogar |
+| `realtime` | Gateway Socket.IO y publicador de eventos |
+| `common` | Filtros, interceptores, pipes y decoradores transversales |
+
+### Regla de dependencias
+
+La dirección es siempre **controlador → servicio → repositorio**. Nunca al revés y nunca
+saltándose una capa.
+
+**Los controladores solo validan y delegan.** Reciben la petición, dejan que el `ValidationPipe`
+global valide el DTO, extraen lo que aporta el decorador (`@CurrentUser()`,
+`@HouseholdRole('owner')`) y llaman a un único método del servicio. No contienen reglas de
+negocio, no construyen consultas, no importan modelos de Mongoose y no conocen detalles de
+persistencia. Devuelven el resultado del servicio tal cual o un DTO de respuesta.
+
+**Los servicios no conocen HTTP.** Son lógica de dominio: calculan, agregan, deciden y coordinan
+repositorios. No importan `Request`, `Response`, `@Res()`, cookies, códigos de estado ni nada de
+la capa de transporte, y por eso se pueden probar sin levantar un servidor. Cuando algo falla
+lanzan un error de dominio (`AppException` con su `code`), y es el `AllExceptionsFilter` global
+quien lo traduce al sobre HTTP; ningún servicio escribe una respuesta.
+
+**Los repositorios son los únicos que tocan Mongoose.** Solo ellos importan `@nestjs/mongoose`,
+los modelos y los `FilterQuery`. Encapsulan las consultas, los índices, `lean()` en las
+lecturas, `arrayFilters` en las actualizaciones atómicas y **siempre** filtran por
+`householdId` para que el aislamiento entre hogares no dependa del llamador. No contienen reglas
+de negocio: si hay que decidir algo, se decide en el servicio.
+
+Otras consecuencias de la organización:
+
+- Un módulo no usa el repositorio de otro módulo: si necesita datos ajenos, importa el módulo y
+  llama a su servicio exportado.
+- `common` es transversal y no depende de ningún módulo de funcionalidad: filtros, interceptores,
+  pipes y decoradores compartidos, sin lógica de negocio ni acceso a datos.
+- `realtime` expone la interfaz de publicación; los servicios emiten a través de ella y un fallo
+  al emitir nunca hace fallar la escritura.
+- Los nombres de carpetas son kebab-case (`meal-plans`) y las clases PascalCase con sufijo
+  (`MealPlansModule`, `MealPlansService`, `MealPlansRepository`).
+
 ## Por qué Fastify y no Express
 
 La API arranca con `NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter())`
