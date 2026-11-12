@@ -1,0 +1,40 @@
+# El contexto de build es la raíz del repo (`docker build -f backend/Dockerfile .`),
+# así que este único fichero aplica a las dos imágenes. Lo que excluimos se instala o
+# se genera dentro del contenedor, o no hace falta para arrancar.
+
+# Dependencias y artefactos generados
+**/node_modules
+**/dist
+**/.next
+**/build
+**/out
+**/coverage
+**/*.tsbuildinfo
+
+# Repositorio, CI e historial local
+.git
+.github
+.gitignore
+.gitattributes
+
+# Secretos y entorno local
+.env
+.env.*
+secrets
+*.log
+.DS_Store
+
+# Documentación y herramientas de desarrollo
+docs
+README.md
+INSTRUCCIONES.md
+MEJORAS.md
+*.md
+docker-compose*.yml
+Makefile
+
+# Pruebas end-to-end y configuración de infraestructura
+e2e
+infra
+playwright-report
+test-results

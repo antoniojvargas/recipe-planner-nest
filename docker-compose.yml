@@ -1,0 +1,178 @@
+name: recipe-planner
+
+x-backend-environment: &backend-environment
+  NODE_ENV: development
+  PORT: '3000'
+  APP_ENV: development
+  LOG_LEVEL: debug
+  MONGO_URL: mongodb://mongo:27017/recipes?replicaSet=rs0
+  REDIS_URL: redis://redis:6379
+  S3_ENDPOINT: http://minio:9000
+  # Host que se firma en las URLs que usa el navegador, no el de la red interna.
+  S3_PUBLIC_ENDPOINT: http://localhost:9000
+  S3_BUCKET: recipes
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+  SMTP_HOST: mailpit
+  SMTP_PORT: '1025'
+  MAIL_FROM: Recipe Planner <no-reply@recipe-planner.local>
+  FRONTEND_URL: http://localhost:3001
+  API_INTERNAL_URL: http://backend:3000
+
+services:
+  mongo:
+    image: mongo:7
+    # Un replica set de un solo nodo: las transacciones multi-documento lo exigen.
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # `rs.initiate` es idempotente: en el primer arranque inicializa; después lanza
+      # AlreadyInitialized, que se ignora. Solo hay healthy cuando el nodo ya es primario.
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval '
+          try { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] }); } catch (e) {}
+          db.hello().isWritablePrimary' | grep -q true
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+    ports:
+      - '9000:9000' # API S3
+      - '9001:9001' # consola web
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      S3_BUCKET: recipes
+    volumes:
+      - ./infra/minio/cors.json:/config/cors.json:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}"
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        # El bucket queda privado: el navegador sube y lee con URLs prefirmadas.
+        mc anonymous set none "local/$${S3_BUCKET}"
+        mc cors set "local/$${S3_BUCKET}" /config/cors.json
+    restart: 'no'
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # interfaz web
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      <<: *backend-environment
+    ports:
+      - '3000:3000'
+    # El código se monta para que `nest start --watch` recargue. Los volúmenes anónimos
+    # conservan lo que instaló la imagen y evitan que el bind mount lo tape.
+    volumes:
+      - ./backend:/app/backend
+      - ./packages/contracts:/app/packages/contracts
+      - /app/backend/node_modules
+      - /app/backend/dist
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    # El worker comparte imagen con la API y ejecuta el build de Nest.
+    # `dist/worker.js` llega con la fase de importación y miniaturas; hasta entonces
+    # el servicio arranca y sale con error, sin afectar al resto de la pila.
+    command: ['node', 'dist/worker.js']
+    environment:
+      <<: *backend-environment
+    volumes:
+      - ./backend:/app/backend
+      - ./packages/contracts:/app/packages/contracts
+      - /app/backend/node_modules
+      - /app/backend/dist
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      NODE_ENV: development
+      API_INTERNAL_URL: http://backend:3000
+      FRONTEND_URL: http://localhost:3001
+    ports:
+      - '3001:3001'
+    volumes:
+      - ./frontend:/app/frontend
+      - ./packages/contracts:/app/packages/contracts
+      - /app/frontend/node_modules
+      - /app/frontend/.next
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  mongo-data:
+  minio-data:
