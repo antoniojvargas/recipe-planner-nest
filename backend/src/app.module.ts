@@ -1,11 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { createObserveModule } from '@nestjs/observe';
+import { LoggerModule } from 'nestjs-pino';
 import { fileURLToPath } from 'node:url';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
-import { configProviders, validateEnvironment } from './config/index.js';
+import { appConfig } from './config/app.config.js';
+import { configProviders, validateEnvironment, type AppConfig } from './config/index.js';
+import { createLoggerOptions } from './config/logger.config.js';
 import { HouseholdsModule } from './households/households.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { MealPlansModule } from './meal-plans/meal-plans.module.js';
@@ -29,6 +32,10 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       load: configProviders,
       // Falla el arranque si falta una variable o un secreto no cumple el mínimo.
       validate: validateEnvironment,
+    }),
+    LoggerModule.forRootAsync({
+      inject: [appConfig.KEY],
+      useFactory: (config: AppConfig) => createLoggerOptions(config),
     }),
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com,

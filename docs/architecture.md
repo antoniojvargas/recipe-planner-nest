@@ -158,6 +158,25 @@ La configuración vive en `backend/src/config/` y se carga con un `ConfigModule`
   rellenan valores por defecto en `backend/test/setup-env.ts` sin pisar los del entorno.
 - **Cambiar un secreto exige reiniciar**: `cache: true` evita leer el entorno en cada acceso.
 
+## Logging y correlación de peticiones
+
+La API registra con `nestjs-pino` (`LoggerModule.forRootAsync`), enlazado en `main.ts` con
+`bufferLogs: true` + `app.useLogger(app.get(Logger))` para que incluso los logs de arranque pasen
+por pino.
+
+- **Formato**: en desarrollo (`APP_ENV=development`) se usa `pino-pretty` en una línea con hora
+  legible; en `test` y `production` se emite JSON, que es lo que consumen el colector y Observe. El
+  nivel sale de `LOG_LEVEL`, ya validado por el esquema del entorno.
+- **Redacción**: `redact` tapa `req.headers.cookie`, `req.headers.authorization` y
+  `res.headers["set-cookie"]` con `[Redacted]` antes de serializar. Como los tokens viven en
+  cookies `httpOnly`, esto evita filtrarlos al depurar. Hay un test que serializa una entrada con
+  cookie, `Authorization` y `Set-Cookie` y comprueba que ningún valor aparece en la salida.
+- **`X-Request-Id`**: se resuelve en el adaptador Fastify (`request-id.ts`) porque Fastify rellena
+  `request.id` antes de que corra el middleware y `pino-http` respeta ese id sin llamar a su
+  `genReqId`. La función reutiliza la cabecera entrante (recortada) o genera un UUID, y un hook
+  `onRequest` devuelve el id en la respuesta. Así el mismo id aparece en el log de la petición, en
+  la respuesta y en los logs del frontend, que lo reenvía como `X-Request-Id`.
+
 ## Reglas del workspace
 
 - Un único `package-lock.json` en la raíz; los workspaces (`backend`, `frontend`, `e2e`,
