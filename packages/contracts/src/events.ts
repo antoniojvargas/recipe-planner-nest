@@ -55,12 +55,12 @@ export interface MealPlanUpdatedPayload {
   householdId: string;
   weekStart: WeekStart;
   /** Huecos del plan que cambiaron. */
-  slots: Array<{
+  slots: {
     day: 0 | 1 | 2 | 3 | 4 | 5 | 6;
     meal: MealSlot;
     recipeId: string | null;
     servings: number;
-  }>;
+  }[];
 }
 
 export interface ImportFinishedPayload {

@@ -4,7 +4,12 @@ Tipos y constantes que la API, el worker y la web comparten: nombres y cargas ú
 eventos de Socket.IO, el sobre de errores y el catálogo de unidades de medida.
 
 ```ts
-import { SOCKET_EVENTS, UNITS, isUnit, type ShoppingItemUpdatedPayload } from '@recipe-planner/contracts';
+import {
+  SOCKET_EVENTS,
+  UNITS,
+  isUnit,
+  type ShoppingItemUpdatedPayload,
+} from '@recipe-planner/contracts';
 ```
 
 Solo datos: sin dependencias, sin lógica de servidor y sin acceso a Node ni al DOM. Se compila

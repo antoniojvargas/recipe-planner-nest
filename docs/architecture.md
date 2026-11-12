@@ -53,19 +53,19 @@ una dependencia más del workspace.
 `backend/src` se divide por funcionalidad. Cada carpeta es un módulo de Nest registrado en
 `AppModule` y dueño de sus controladores, servicios y repositorios:
 
-| Módulo | Responsabilidad |
-|---|---|
-| `auth` | Registro, login, refresh rotatorio, logout y emisión de cookies |
-| `users` | Perfil del usuario autenticado |
-| `households` | Hogares, membresías, roles e invitaciones con código |
-| `recipes` | CRUD, búsqueda y paginación de recetas |
-| `media` | URLs prefirmadas de MinIO, confirmación de subidas y miniaturas |
-| `imports` | Importación de recetas desde una URL y estado del trabajo |
-| `meal-plans` | Plan semanal y asignación de recetas a cada hueco |
-| `shopping` | Lista de la compra: generación, marcado y edición de ítems |
-| `pantry` | Despensa del hogar |
-| `realtime` | Gateway Socket.IO y publicador de eventos |
-| `common` | Filtros, interceptores, pipes y decoradores transversales |
+| Módulo       | Responsabilidad                                                 |
+| ------------ | --------------------------------------------------------------- |
+| `auth`       | Registro, login, refresh rotatorio, logout y emisión de cookies |
+| `users`      | Perfil del usuario autenticado                                  |
+| `households` | Hogares, membresías, roles e invitaciones con código            |
+| `recipes`    | CRUD, búsqueda y paginación de recetas                          |
+| `media`      | URLs prefirmadas de MinIO, confirmación de subidas y miniaturas |
+| `imports`    | Importación de recetas desde una URL y estado del trabajo       |
+| `meal-plans` | Plan semanal y asignación de recetas a cada hueco               |
+| `shopping`   | Lista de la compra: generación, marcado y edición de ítems      |
+| `pantry`     | Despensa del hogar                                              |
+| `realtime`   | Gateway Socket.IO y publicador de eventos                       |
+| `common`     | Filtros, interceptores, pipes y decoradores transversales       |
 
 ### Regla de dependencias
 
