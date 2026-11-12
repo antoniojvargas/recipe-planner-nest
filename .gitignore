@@ -1,0 +1,22 @@
+## Node
+node_modules/
+dist/
+build/
+coverage/
+
+## Docker
+docker-compose.override.yml
+*.log
+.Docker
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Env vars & secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+secrets/*.txt
