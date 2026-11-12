@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { createObserveModule } from '@nestjs/observe';
+import { fileURLToPath } from 'node:url';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { configProviders, validateEnvironment } from './config/index.js';
 import { HouseholdsModule } from './households/households.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { MealPlansModule } from './meal-plans/meal-plans.module.js';
@@ -17,6 +20,16 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      // El `.env` vive en la raíz del repo; en Docker las variables llegan del compose.
+      envFilePath: [fileURLToPath(new URL('../../.env', import.meta.url)), '.env'],
+      expandVariables: true,
+      load: configProviders,
+      // Falla el arranque si falta una variable o un secreto no cumple el mínimo.
+      validate: validateEnvironment,
+    }),
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com,
     // then run `npx @nestjs/observe link` to write your key pair into .env.

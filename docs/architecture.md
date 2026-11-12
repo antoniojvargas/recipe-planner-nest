@@ -132,6 +132,32 @@ Consecuencias que conviene tener presentes:
   que el contenedor sea accesible desde fuera.
 - `NestJS Observe` y `node:inspector` funcionan igual; el adaptador solo afecta a la capa HTTP.
 
+## Configuración y secretos
+
+La configuración vive en `backend/src/config/` y se carga con un `ConfigModule` global
+(`isGlobal: true`, `cache: true`).
+
+- **`env.validation.ts`** define `EnvironmentVariables` con `class-validator` y una función
+  `validateEnvironment` que se pasa a `ConfigModule.forRoot({ validate })`. Si falta una variable,
+  una URL no tiene el esquema correcto, `SMTP_PORT` no es un puerto o un secreto JWT tiene menos
+  de 32 caracteres, la aplicación **no arranca** y el mensaje lista las variables que fallan. Se
+  valida con `stopAtFirstError` para no repetir el mismo campo.
+- **Una sección por concern** con `registerAs`: `appConfig`, `databaseConfig`, `authConfig`,
+  `storageConfig` y `mailConfig`. Los consumidores inyectan la sección con
+  `@Inject(authConfig.KEY)` y el tipo `AuthConfig` (`ConfigType<typeof authConfig>`), no leen
+  `process.env` sueltos; los helpers `requireEnv`/`envOrDefault`/`numberEnvOrDefault` de
+  `env.ts` convierten el `string | undefined` al tipo esperado.
+- **Secretos desde fichero**: cualquier `S3_ACCESS_KEY_FILE`, `S3_SECRET_KEY_FILE`,
+  `JWT_ACCESS_SECRET_FILE` o `JWT_REFRESH_SECRET_FILE` se lee **antes** de validar y su contenido
+  se asigna a la variable sin sufijo (y a `process.env`, para las fábricas y los paquetes de
+  terceros). **El valor plano gana**: si existe la variable sin sufijo, el `_FILE` se ignora. Un
+  fichero inexistente o vacío aborta el arranque. Es el patrón que usan los Docker secrets en
+  producción.
+- **Dónde está el `.env`**: en desarrollo, en la raíz del repo (`envFilePath` apunta a él); dentro
+  de Docker no se copia y las variables llegan del `environment` del compose. Los tests e2e
+  rellenan valores por defecto en `backend/test/setup-env.ts` sin pisar los del entorno.
+- **Cambiar un secreto exige reiniciar**: `cache: true` evita leer el entorno en cada acceso.
+
 ## Reglas del workspace
 
 - Un único `package-lock.json` en la raíz; los workspaces (`backend`, `frontend`, `e2e`,
