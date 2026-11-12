@@ -112,6 +112,13 @@ services:
       <<: *backend-environment
     ports:
       - '3000:3000'
+    # El código se monta para que `nest start --watch` recargue. Los volúmenes anónimos
+    # conservan lo que instaló la imagen y evitan que el bind mount lo tape.
+    volumes:
+      - ./backend:/app/backend
+      - ./packages/contracts:/app/packages/contracts
+      - /app/backend/node_modules
+      - /app/backend/dist
     depends_on:
       mongo:
         condition: service_healthy
@@ -132,6 +139,11 @@ services:
     command: ['node', 'dist/worker.js']
     environment:
       <<: *backend-environment
+    volumes:
+      - ./backend:/app/backend
+      - ./packages/contracts:/app/packages/contracts
+      - /app/backend/node_modules
+      - /app/backend/dist
     depends_on:
       mongo:
         condition: service_healthy
@@ -152,6 +164,11 @@ services:
       FRONTEND_URL: http://localhost:3001
     ports:
       - '3001:3001'
+    volumes:
+      - ./frontend:/app/frontend
+      - ./packages/contracts:/app/packages/contracts
+      - /app/frontend/node_modules
+      - /app/frontend/.next
     depends_on:
       backend:
         condition: service_started
