@@ -1,0 +1,43 @@
+# Infraestructura de pruebas de integración. Se levanta aparte del stack de desarrollo
+# y sin puertos que choquen con él:
+#   docker compose -f docker-compose.test.yml up -d --wait
+# Ambos servicios guardan en tmpfs: los datos viven en memoria y desaparecen al parar.
+name: recipe-planner-test
+
+services:
+  mongo-test:
+    image: mongo:7
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27018:27017'
+    tmpfs:
+      - /data/db
+    healthcheck:
+      # Las pruebas corren en el host, así que el miembro del replica set se anuncia
+      # con `localhost:27018` y no con el nombre del contenedor: si anunciara
+      # `mongo-test:27017`, el descubrimiento del driver fallaría desde el host.
+      # `rs.initiate` es idempotente (el AlreadyInitialized se ignora).
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval '
+          try { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27018" }] }); } catch (e) {}
+          db.hello().isWritablePrimary' | grep -q true
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    restart: 'no'
+
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - '6380:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: 'no'
