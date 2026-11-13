@@ -101,6 +101,62 @@ Otras consecuencias de la organización:
 - Los nombres de carpetas son kebab-case (`meal-plans`) y las clases PascalCase con sufijo
   (`MealPlansModule`, `MealPlansService`, `MealPlansRepository`).
 
+## Modelado de datos
+
+MongoDB no impone un esquema, así que la decisión de diseño es dónde viven los datos: dentro del
+documento padre o en su propia colección. La regla es una sola:
+
+> **Se embebe lo que se lee y escribe siempre junto y está acotado en tamaño.**
+
+### Qué se embebe
+
+| Documento       | Qué lleva dentro                                                      | Por qué                                                                                                                                                                                                             |
+| --------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recipes`       | `ingredients: [{ name, quantity, unit, note }]` y `steps: [{ text }]` | Se editan en la misma pantalla que la receta y se leen siempre con ella. Una receta tiene del orden de 10–20 ingredientes y 10–15 pasos: el array está acotado y cabe holgado en el límite de 16 MiB por documento. |
+| `meal-plans`    | `slots: [{ day, meal, recipeId, servings }]`                          | El plan se lee y se guarda entero al abrir la semana; los slots son como máximo 7 días × 3 comidas = 21, un tamaño fijo por definición.                                                                             |
+| `shopping-list` | `items: [{ _id, name, quantity, unit, checked, checkedBy, source }]`  | Marcar un ítem es actualizar un elemento del array (`arrayFilters`), sin tocar el resto de la lista. La lista es de una semana, así que su tamaño está acotado por el plan.                                         |
+
+Embeber da escrituras atómicas por documento: renombrar un ingrediente, marcar una comida o
+tachar un ítem es un único `updateOne` que no puede dejar el agregado a medias. También da una
+sola lectura por pantalla, sin `$lookup` ni consultas adicionales para pintar la receta, el plan
+o la lista.
+
+Los ítems de la lista llevan `_id` propio aunque estén embebidos: el cliente marca uno concreto,
+y ese identificador es el que viaja en los eventos de Socket.IO y en las actualizaciones
+parciales.
+
+### Qué se referencia
+
+| Campo                                                  | Apunta a     | Por qué                                                                                                                                                                                                                       |
+| ------------------------------------------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `households.members[].userId`                          | `users`      | Un usuario pertenece a varios hogares y un hogar tiene varios miembros: es una relación N:M que no cabe en un documento sin duplicar al usuario.                                                                              |
+| `recipes.householdId`                                  | `households` | La receta es un agregado propio: se busca, se pagina y se comparte entre miembros del hogar. Duplicarla dentro del hogar la haría crecer sin límite.                                                                          |
+| `meal-plans.householdId`, `shopping-list.householdId`  | `households` | Igual que la receta: el hogar es el límite de aislamiento y cada agregado se consulta por separado.                                                                                                                           |
+| `meal-plans.slots[].recipeId`                          | `recipes`    | El plan guarda **qué** receta se cocina, no una copia de sus ingredientes y pasos. Si la receta cambia, el plan muestra la versión nueva. Al leer el plan, el servicio resuelve título e imagen de las recetas referenciadas. |
+| `shopping-list.items[].checkedBy`, `recipes.createdBy` | `users`      | Se guarda quién hizo la acción, no una copia del perfil.                                                                                                                                                                      |
+
+Se referencia lo que crece sin límite, lo que se edita por su cuenta, lo que se consulta con sus
+propios filtros e índices y lo que se comparte entre agregados. Las recetas no se copian dentro
+del plan porque una receta puede estar en muchos planes y semanas, y su texto de búsqueda vive
+en su propia colección con su índice de texto.
+
+La lista de la compra sí **copia** nombre, cantidad y unidad de los ingredientes al generarse
+(`source: 'plan'`): es una foto del plan en ese momento y se edita de forma independiente, así
+que un cambio posterior en la receta no debe alterar una lista que el usuario ya está usando.
+
+### Consecuencias
+
+- Las operaciones que cruzan documentos necesitan transacción (el `docker-compose.yml` levanta
+  Mongo como replica set de un nodo precisamente por esto). Por ejemplo, borrar una receta debe
+  decidir qué pasa con los slots del plan que la referencian dentro de la misma transacción.
+- Referenciar obliga a resolver las referencias al leer (una consulta extra o un `$lookup`
+  acotado por `householdId`); el coste se paga en lectura y se ahorra en escritura y
+  consistencia.
+- Todos los agregados llevan `householdId` aunque su dueño sea un usuario: es la clave que los
+  repositorios añaden **siempre** al filtro para que un miembro no vea datos de otro hogar.
+- Un array embebido no puede crecer sin control: si en el futuro una receta admitiera cientos de
+  ingredientes o la lista acumulara varias semanas, pasarían a ser su propia colección.
+
 ## Por qué Fastify y no Express
 
 La API arranca con `NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter())`
