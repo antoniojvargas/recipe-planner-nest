@@ -14,6 +14,11 @@ COPY frontend/package.json ./frontend/
 COPY packages/contracts/package.json ./packages/contracts/
 RUN npm ci
 
+# El paquete compartido se compila dentro de la imagen: la API importa sus tipos y constantes.
+COPY packages/contracts/tsconfig.json ./packages/contracts/
+COPY packages/contracts/src ./packages/contracts/src
+RUN npm run build -w @recipe-planner/contracts
+
 # Solo el código: `node_modules` del host no entra en la imagen (y en desarrollo se monta encima).
 COPY backend/nest-cli.json backend/tsconfig.json backend/tsconfig.build.json ./backend/
 COPY backend/src ./backend/src

@@ -158,6 +158,36 @@ La configuración vive en `backend/src/config/` y se carga con un `ConfigModule`
   rellenan valores por defecto en `backend/test/setup-env.ts` sin pisar los del entorno.
 - **Cambiar un secreto exige reiniciar**: `cache: true` evita leer el entorno en cada acceso.
 
+## Errores de la API
+
+Todas las respuestas de error tienen la misma forma, definida en
+`@recipe-planner/contracts` como `ErrorResponse`:
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "No existe el hogar", "details": [] } }
+```
+
+- **`AppException`** (`common/exceptions/`) lleva `status`, un `code` del catálogo compartido,
+  un `message` para el cliente y `details` por campo. Los servicios la lanzan sin conocer HTTP.
+- **`AllExceptionsFilter`** está registrado como `APP_FILTER` global, así que ningún controlador
+  puede devolver otra forma de error. Traduce:
+
+| Entrada                                     | Salida                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| `AppException`                              | su `status`, `code`, `message` y `details`                                |
+| 400 de `ValidationPipe` (lista de mensajes) | 400 `VALIDATION_ERROR` con un detalle por propiedad (`field` + `message`) |
+| `HttpException` 400/401/403/404/409/429     | su estado y el código correspondiente                                     |
+| `HttpException` 5xx                         | mismo estado, código `INTERNAL_ERROR`, mensaje genérico                   |
+| Error E11000 de Mongo                       | 409 `CONFLICT`                                                            |
+| Cualquier otro error                        | 500 `INTERNAL_ERROR` con `Error interno del servidor`                     |
+
+- **Nunca se filtra el stack**: los 5xx se registran en pino con `err` (donde sí queda el stack y
+  la causa) y al cliente solo le llega el mensaje genérico. La respuesta siempre incluye
+  `details`, aunque sea `[]`.
+- Los códigos viven en `ERROR_CODES`, así que añadir uno nuevo obliga a tocar el contrato
+  compartido y, por tanto, a compilarlo antes que la API (`npm run build` de la raíz ya lo hace y
+  el Dockerfile de desarrollo lo construye dentro de la imagen).
+
 ## Logging y correlación de peticiones
 
 La API registra con `nestjs-pino` (`LoggerModule.forRootAsync`), enlazado en `main.ts` con
