@@ -132,6 +132,191 @@ Consecuencias que conviene tener presentes:
   que el contenedor sea accesible desde fuera.
 - `NestJS Observe` y `node:inspector` funcionan igual; el adaptador solo afecta a la capa HTTP.
 
+## Configuración y secretos
+
+La configuración vive en `backend/src/config/` y se carga con un `ConfigModule` global
+(`isGlobal: true`, `cache: true`).
+
+- **`env.validation.ts`** define `EnvironmentVariables` con `class-validator` y una función
+  `validateEnvironment` que se pasa a `ConfigModule.forRoot({ validate })`. Si falta una variable,
+  una URL no tiene el esquema correcto, `SMTP_PORT` no es un puerto o un secreto JWT tiene menos
+  de 32 caracteres, la aplicación **no arranca** y el mensaje lista las variables que fallan. Se
+  valida con `stopAtFirstError` para no repetir el mismo campo.
+- **Una sección por concern** con `registerAs`: `appConfig`, `databaseConfig`, `authConfig`,
+  `storageConfig` y `mailConfig`. Los consumidores inyectan la sección con
+  `@Inject(authConfig.KEY)` y el tipo `AuthConfig` (`ConfigType<typeof authConfig>`), no leen
+  `process.env` sueltos; los helpers `requireEnv`/`envOrDefault`/`numberEnvOrDefault` de
+  `env.ts` convierten el `string | undefined` al tipo esperado.
+- **Secretos desde fichero**: cualquier `S3_ACCESS_KEY_FILE`, `S3_SECRET_KEY_FILE`,
+  `JWT_ACCESS_SECRET_FILE` o `JWT_REFRESH_SECRET_FILE` se lee **antes** de validar y su contenido
+  se asigna a la variable sin sufijo (y a `process.env`, para las fábricas y los paquetes de
+  terceros). **El valor plano gana**: si existe la variable sin sufijo, el `_FILE` se ignora. Un
+  fichero inexistente o vacío aborta el arranque. Es el patrón que usan los Docker secrets en
+  producción.
+- **Dónde está el `.env`**: en desarrollo, en la raíz del repo (`envFilePath` apunta a él); dentro
+  de Docker no se copia y las variables llegan del `environment` del compose. Los tests e2e
+  rellenan valores por defecto en `backend/test/setup-env.ts` sin pisar los del entorno.
+- **Cambiar un secreto exige reiniciar**: `cache: true` evita leer el entorno en cada acceso.
+
+## Errores de la API
+
+Todas las respuestas de error tienen la misma forma, definida en
+`@recipe-planner/contracts` como `ErrorResponse`:
+
+```json
+{ "error": { "code": "NOT_FOUND", "message": "No existe el hogar", "details": [] } }
+```
+
+- **`AppException`** (`common/exceptions/`) lleva `status`, un `code` del catálogo compartido,
+  un `message` para el cliente y `details` por campo. Los servicios la lanzan sin conocer HTTP.
+- **`AllExceptionsFilter`** está registrado como `APP_FILTER` global, así que ningún controlador
+  puede devolver otra forma de error. Traduce:
+
+| Entrada                                     | Salida                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| `AppException`                              | su `status`, `code`, `message` y `details`                                |
+| 400 de `ValidationPipe` (lista de mensajes) | 400 `VALIDATION_ERROR` con un detalle por propiedad (`field` + `message`) |
+| `HttpException` 400/401/403/404/409/429     | su estado y el código correspondiente                                     |
+| `HttpException` 5xx                         | mismo estado, código `INTERNAL_ERROR`, mensaje genérico                   |
+| Error E11000 de Mongo                       | 409 `CONFLICT`                                                            |
+| Cualquier otro error                        | 500 `INTERNAL_ERROR` con `Error interno del servidor`                     |
+
+- **Nunca se filtra el stack**: los 5xx se registran en pino con `err` (donde sí queda el stack y
+  la causa) y al cliente solo le llega el mensaje genérico. La respuesta siempre incluye
+  `details`, aunque sea `[]`.
+- Los códigos viven en `ERROR_CODES`, así que añadir uno nuevo obliga a tocar el contrato
+  compartido y, por tanto, a compilarlo antes que la API (`npm run build` de la raíz ya lo hace y
+  el Dockerfile de desarrollo lo construye dentro de la imagen).
+
+## Salud y dependencias
+
+`GET /api/health` (Terminus) comprueba Mongo, Redis y el bucket de MinIO y responde **200** si
+todo está arriba o **503** si algo falla. Cada comprobación tiene un **timeout de 2 s**
+(`HEALTH_CHECK_TIMEOUT_MS`), así que una dependencia colgada no bloquea la respuesta.
+
+- **Mongo**: `MongooseHealthIndicator.pingCheck` ejecuta `ping` sobre la conexión de Mongoose.
+- **Redis**: `RedisHealthIndicator` envía un `PING` con el cliente compartido.
+- **MinIO/S3**: `StorageHealthIndicator` hace `HeadBucket` del bucket configurado, que comprueba
+  existencia y permisos sin descargar nada.
+
+El cuerpo mantiene el formato de Terminus (`status`, `info`, `error`, `details`) **también en el
+503**, para saber qué dependencia falla. Para eso el controlador captura la
+`ServiceUnavailableException` de Terminus y fija el estado: el `AllExceptionsFilter` convertiría
+cualquier 5xx en el sobre genérico `INTERNAL_ERROR` y perdería esos detalles. Es la única ruta que
+no usa el sobre de error, porque es un endpoint operativo que consume el orquestador, no el
+frontend.
+
+Los clientes viven en módulos globales para que los usen los módulos de dominio:
+
+| Módulo           | Qué expone                                                                                                                                                       |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DatabaseModule` | conexión de Mongoose. `lazyConnection` deja arrancar sin Mongo (el health responde 503) y un listener de `error` evita que un fallo de conexión tumbe el proceso |
+| `RedisModule`    | token `REDIS_CLIENT` (`ioredis`). `enableOfflineQueue: false` hace que un comando falle al instante si Redis está caído, en lugar de esperar en cola             |
+| `StorageModule`  | token `S3_CLIENT` (`@aws-sdk/client-s3`) apuntando a `S3_ENDPOINT`, con `forcePathStyle` para MinIO                                                              |
+
+Todas las rutas cuelgan de `/api`: `configureApp` (`app.setup.ts`) aplica el prefijo global y lo
+comparten `main.ts` y los tests e2e, para que se prueben las mismas rutas que se despliegan.
+
+## Apagado ordenado
+
+`main.ts` activa `app.enableShutdownHooks([], { useProcessExit: true })`: `SIGTERM` y `SIGINT`
+llenan el mismo camino que `app.close()`. La secuencia de Nest es:
+
+1. `onModuleDestroy` de cada módulo.
+2. `beforeApplicationShutdown`: Terminus marca el estado como `shutting_down`, así que
+   `/api/health` responde 503 mientras se drena.
+3. Se cierra el servidor HTTP: Fastify deja de aceptar conexiones y espera a las peticiones en
+   curso (las nuevas reciben 503).
+4. `onApplicationShutdown`: corre `ShutdownService`, que cierra los recursos en orden.
+
+`ShutdownService` (`src/shutdown/`) es un registro global de tareas. Cada módulo registra la
+suya en `onModuleInit` con un orden de `SHUTDOWN_ORDER`:
+
+| Orden | Recurso                | Estado                                                                                                                                |
+| ----- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 10    | `realtime` (Socket.IO) | reservado para la fase de tiempo real                                                                                                 |
+| 20    | `queues` (BullMQ)      | reservado para la fase de colas                                                                                                       |
+| 30    | Redis                  | registrado: `quit()` si está conectado; `disconnect()` si está caído o reconectando, para no esperar una conexión que puede no llegar |
+| 40    | MongoDB                | registrado: `connection.close()`. `@nestjs/mongoose` también cierra en su hook; la llamada es idempotente y así queda en el log       |
+
+Las tareas se ejecutan en serie, en orden ascendente. Si una falla, el error se registra y se
+sigue con las demás: un recurso que no cierra no debe dejar abiertos los otros. Una segunda
+señal durante el apagado no repite la secuencia.
+
+Los módulos de sockets y colas aún no existen; cuando se añadan deben registrar su cierre con
+`SHUTDOWN_ORDER.realtime` y `SHUTDOWN_ORDER.queues` en lugar de implementar su propio hook, para
+que dejen de aceptar trabajo antes de que Redis y Mongo se cierren.
+
+`useProcessExit` hace que el proceso termine con código 0 después de los hooks (en vez de
+re-lanzarse la señal): eso dispara el evento `exit` y pino puede vaciar sus buffers antes de
+salir.
+
+## CORS, cabeceras de seguridad y cookies
+
+Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y los e2e:
+
+- **CORS solo para `FRONTEND_URL`**, con `credentials: true` porque la sesión viaja en cookies
+  `httpOnly`. Se usa una función que compara el `Origin` con `FRONTEND_URL` (sin barra final) y
+  solo entonces devuelve las cabeceras; otro origen no recibe ninguna. Las peticiones sin
+  `Origin` (curl, health del orquestador, servidor a servidor) no son CORS y pasan igual.
+  `X-Request-Id` va en `Access-Control-Expose-Headers` para que el frontend pueda leerlo, y el
+  preflight se cachea 12 h.
+- **Helmet con CSP estricta**: `default-src 'none'` (con `useDefaults: false`, para no heredar
+  `'self'`), `base-uri`, `form-action` y `frame-ancestors` en `'none'`. La API solo devuelve JSON,
+  así que permitir scripts o estilos sería permitir algo que nunca debe existir en una respuesta.
+  Helmet añade además `X-Content-Type-Options: nosniff`, `X-Frame-Options` y
+  `Referrer-Policy: no-referrer`.
+- **`@fastify/cookie`** deja `request.cookies` y `reply.setCookie()` disponibles para la sesión
+  (`httpOnly`, `SameSite=Lax`). El token no se firma con el secreto del plugin: es un JWT que ya
+  lleva su propia firma.
+
+`fastify` es dependencia directa del backend: el código importa sus tipos (`FastifyRequest`,
+`FastifyReply`) y `@fastify/cookie` aumenta el módulo `fastify` para declarar `cookies` y
+`setCookie`; con el paquete solo como dependencia transitiva, esa ampliación no se aplicaba.
+
+## Validación
+
+La validación de entrada es global: `createValidationPipe()` (`common/pipes/validation.pipe.ts`) se
+registra como `APP_PIPE` en `AppModule`, así que las apps de test que importan el módulo también la
+reciben. Opciones:
+
+- `whitelist: true` y `forbidNonWhitelisted: true`: una propiedad que no está en el DTO no se ignora,
+  se responde 400. Así un campo mal escrito (`servigs`) no pasa desapercibido.
+- `transform: true`: aplica `@Type` de `class-transformer`, de modo que `"4"` llega al controlador
+  como `4` y los `@Param`/`@Query` se convierten a su tipo.
+- `stopAtFirstError: false`: informa de todos los campos que fallan en una sola respuesta.
+
+El `exceptionFactory` no devuelve el `BadRequestException` de Nest: construye una `AppException` con
+`VALIDATION_ERROR` y un detalle por propiedad. `toDetails` aplana el árbol de errores de
+`class-validator`, así que un DTO anidado informa de `ingredients.0.quantity` y no solo de
+`ingredients`. De cada propiedad se toma el primer mensaje, suficiente para marcar el campo en el
+formulario.
+
+**`ParseObjectIdPipe`** (`common/pipes/parse-object-id.pipe.ts`) valida los parámetros de ruta que
+son `ObjectId` de Mongo: 24 caracteres hexadecimales, la misma comprobación que
+`ObjectId.isValid` pero sin depender del driver, para poder usarlo antes de que exista el modelo. Un
+id mal formado es un 400 `VALIDATION_ERROR` con el nombre del parámetro en `details`, no un 500 de
+base de datos. Se usa por parámetro: `@Param('recipeId', ParseObjectIdPipe) recipeId: string`.
+
+## Logging y correlación de peticiones
+
+La API registra con `nestjs-pino` (`LoggerModule.forRootAsync`), enlazado en `main.ts` con
+`bufferLogs: true` + `app.useLogger(app.get(Logger))` para que incluso los logs de arranque pasen
+por pino.
+
+- **Formato**: en desarrollo (`APP_ENV=development`) se usa `pino-pretty` en una línea con hora
+  legible; en `test` y `production` se emite JSON, que es lo que consumen el colector y Observe. El
+  nivel sale de `LOG_LEVEL`, ya validado por el esquema del entorno.
+- **Redacción**: `redact` tapa `req.headers.cookie`, `req.headers.authorization` y
+  `res.headers["set-cookie"]` con `[Redacted]` antes de serializar. Como los tokens viven en
+  cookies `httpOnly`, esto evita filtrarlos al depurar. Hay un test que serializa una entrada con
+  cookie, `Authorization` y `Set-Cookie` y comprueba que ningún valor aparece en la salida.
+- **`X-Request-Id`**: se resuelve en el adaptador Fastify (`request-id.ts`) porque Fastify rellena
+  `request.id` antes de que corra el middleware y `pino-http` respeta ese id sin llamar a su
+  `genReqId`. La función reutiliza la cabecera entrante (recortada) o genera un UUID, y un hook
+  `onRequest` devuelve el id en la respuesta. Así el mismo id aparece en el log de la petición, en
+  la respuesta y en los logs del frontend, que lo reenvía como `X-Request-Id`.
+
 ## Reglas del workspace
 
 - Un único `package-lock.json` en la raíz; los workspaces (`backend`, `frontend`, `e2e`,
