@@ -188,6 +188,30 @@ Todas las respuestas de error tienen la misma forma, definida en
   compartido y, por tanto, a compilarlo antes que la API (`npm run build` de la raíz ya lo hace y
   el Dockerfile de desarrollo lo construye dentro de la imagen).
 
+## Validación
+
+La validación de entrada es global: `createValidationPipe()` (`common/pipes/validation.pipe.ts`) se
+registra como `APP_PIPE` en `AppModule`, así que las apps de test que importan el módulo también la
+reciben. Opciones:
+
+- `whitelist: true` y `forbidNonWhitelisted: true`: una propiedad que no está en el DTO no se ignora,
+  se responde 400. Así un campo mal escrito (`servigs`) no pasa desapercibido.
+- `transform: true`: aplica `@Type` de `class-transformer`, de modo que `"4"` llega al controlador
+  como `4` y los `@Param`/`@Query` se convierten a su tipo.
+- `stopAtFirstError: false`: informa de todos los campos que fallan en una sola respuesta.
+
+El `exceptionFactory` no devuelve el `BadRequestException` de Nest: construye una `AppException` con
+`VALIDATION_ERROR` y un detalle por propiedad. `toDetails` aplana el árbol de errores de
+`class-validator`, así que un DTO anidado informa de `ingredients.0.quantity` y no solo de
+`ingredients`. De cada propiedad se toma el primer mensaje, suficiente para marcar el campo en el
+formulario.
+
+**`ParseObjectIdPipe`** (`common/pipes/parse-object-id.pipe.ts`) valida los parámetros de ruta que
+son `ObjectId` de Mongo: 24 caracteres hexadecimales, la misma comprobación que
+`ObjectId.isValid` pero sin depender del driver, para poder usarlo antes de que exista el modelo. Un
+id mal formado es un 400 `VALIDATION_ERROR` con el nombre del parámetro en `details`, no un 500 de
+base de datos. Se usa por parámetro: `@Param('recipeId', ParseObjectIdPipe) recipeId: string`.
+
 ## Logging y correlación de peticiones
 
 La API registra con `nestjs-pino` (`LoggerModule.forRootAsync`), enlazado en `main.ts` con

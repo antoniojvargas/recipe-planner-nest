@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { createObserveModule } from '@nestjs/observe';
 import { LoggerModule } from 'nestjs-pino';
@@ -8,6 +8,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
+import { createValidationPipe } from './common/pipes/validation.pipe.js';
 import { appConfig } from './config/app.config.js';
 import { configProviders, validateEnvironment, type AppConfig } from './config/index.js';
 import { createLoggerOptions } from './config/logger.config.js';
@@ -59,6 +60,11 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     RealtimeModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_FILTER, useClass: AllExceptionsFilter }],
+  providers: [
+    AppService,
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    // Global para que también lo reciban las apps de test que importan `AppModule`.
+    { provide: APP_PIPE, useFactory: createValidationPipe },
+  ],
 })
 export class AppModule {}
