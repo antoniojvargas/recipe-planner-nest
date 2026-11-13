@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { SchemaTypes, Types, type HydratedDocument } from 'mongoose';
+import { WEEK_START_VALIDATION } from '../common/week.js';
 
 /** Comidas del día que admite un hueco del plan. */
 export const MEALS = ['breakfast', 'lunch', 'dinner'] as const;
@@ -51,19 +52,7 @@ export class MealPlan {
    * Lunes de la semana a las 00:00 UTC. Se guarda como fecha y se valida el día para que
    * un plan no quede asociado a una semana distinta por una hora o una zona horaria.
    */
-  @Prop({
-    type: Date,
-    required: true,
-    validate: {
-      validator: (value: Date) =>
-        value.getUTCDay() === 1 &&
-        value.getUTCHours() === 0 &&
-        value.getUTCMinutes() === 0 &&
-        value.getUTCSeconds() === 0 &&
-        value.getUTCMilliseconds() === 0,
-      message: 'weekStart debe ser el lunes de la semana a las 00:00 UTC',
-    },
-  })
+  @Prop({ type: Date, required: true, validate: WEEK_START_VALIDATION })
   weekStart: Date;
 
   @Prop({ type: [MealPlanSlotSchema], default: [] })
