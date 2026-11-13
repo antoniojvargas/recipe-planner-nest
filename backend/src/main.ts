@@ -17,6 +17,6 @@ const app = await NestFactory.create<NestFastifyApplication>(
 
 app.useLogger(app.get(Logger));
 exposeRequestId(app);
-configureApp(app);
+await configureApp(app);
 
 await app.listen(process.env.PORT ?? 3000, '0.0.0.0');

@@ -8,6 +8,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { ErrorResponse } from '@recipe-planner/contracts';
 import { AppModule } from './../src/app.module.js';
+import { configureApp } from './../src/app.setup.js';
 import { ParseObjectIdPipe } from './../src/common/pipes/parse-object-id.pipe.js';
 import { withFakeInfra } from './support/fake-infra.js';
 
@@ -48,6 +49,7 @@ describe('Validación (e2e)', () => {
     ).compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    await configureApp(app);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });
@@ -58,7 +60,7 @@ describe('Validación (e2e)', () => {
 
   it('devuelve el cuerpo transformado cuando es válido', async () => {
     const response = await request(app.getHttpServer() as App)
-      .post('/probe')
+      .post('/api/probe')
       .send({ name: 'Paella', servings: '4' })
       .expect(201);
 
@@ -67,7 +69,7 @@ describe('Validación (e2e)', () => {
 
   it('responde 400 VALIDATION_ERROR con un detalle por propiedad', async () => {
     const response = await request(app.getHttpServer() as App)
-      .post('/probe')
+      .post('/api/probe')
       .send({ name: 'Pa', servings: 0, sobra: true })
       .expect(400);
 
@@ -83,7 +85,7 @@ describe('Validación (e2e)', () => {
 
   it('responde 400 cuando el parámetro de ruta no es un ObjectId', async () => {
     const response = await request(app.getHttpServer() as App)
-      .get('/probe/no-es-un-id')
+      .get('/api/probe/no-es-un-id')
       .expect(400);
 
     const body = response.body as ErrorResponse;
@@ -96,7 +98,7 @@ describe('Validación (e2e)', () => {
 
   it('deja pasar un ObjectId válido', async () => {
     await request(app.getHttpServer() as App)
-      .get('/probe/507f1f77bcf86cd799439011')
+      .get('/api/probe/507f1f77bcf86cd799439011')
       .expect(200)
       .expect({ recipeId: '507f1f77bcf86cd799439011' });
   });

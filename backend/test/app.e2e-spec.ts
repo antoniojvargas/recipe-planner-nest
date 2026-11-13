@@ -23,7 +23,7 @@ describe('AppController (e2e)', () => {
       new FastifyAdapter(requestIdAdapterOptions()),
     );
     exposeRequestId(app);
-    configureApp(app);
+    await configureApp(app);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });

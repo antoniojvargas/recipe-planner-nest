@@ -217,6 +217,29 @@ Los clientes viven en módulos globales para que los usen los módulos de domini
 Todas las rutas cuelgan de `/api`: `configureApp` (`app.setup.ts`) aplica el prefijo global y lo
 comparten `main.ts` y los tests e2e, para que se prueben las mismas rutas que se despliegan.
 
+## CORS, cabeceras de seguridad y cookies
+
+Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y los e2e:
+
+- **CORS solo para `FRONTEND_URL`**, con `credentials: true` porque la sesión viaja en cookies
+  `httpOnly`. Se usa una función que compara el `Origin` con `FRONTEND_URL` (sin barra final) y
+  solo entonces devuelve las cabeceras; otro origen no recibe ninguna. Las peticiones sin
+  `Origin` (curl, health del orquestador, servidor a servidor) no son CORS y pasan igual.
+  `X-Request-Id` va en `Access-Control-Expose-Headers` para que el frontend pueda leerlo, y el
+  preflight se cachea 12 h.
+- **Helmet con CSP estricta**: `default-src 'none'` (con `useDefaults: false`, para no heredar
+  `'self'`), `base-uri`, `form-action` y `frame-ancestors` en `'none'`. La API solo devuelve JSON,
+  así que permitir scripts o estilos sería permitir algo que nunca debe existir en una respuesta.
+  Helmet añade además `X-Content-Type-Options: nosniff`, `X-Frame-Options` y
+  `Referrer-Policy: no-referrer`.
+- **`@fastify/cookie`** deja `request.cookies` y `reply.setCookie()` disponibles para la sesión
+  (`httpOnly`, `SameSite=Lax`). El token no se firma con el secreto del plugin: es un JWT que ya
+  lleva su propia firma.
+
+`fastify` es dependencia directa del backend: el código importa sus tipos (`FastifyRequest`,
+`FastifyReply`) y `@fastify/cookie` aumenta el módulo `fastify` para declarar `cookies` y
+`setCookie`; con el paquete solo como dependencia transitiva, esa ampliación no se aplicaba.
+
 ## Validación
 
 La validación de entrada es global: `createValidationPipe()` (`common/pipes/validation.pipe.ts`) se

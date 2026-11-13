@@ -19,7 +19,7 @@ async function createApp(fakes = createInfraFakes()): Promise<NestFastifyApplica
   const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-  configureApp(app);
+  await configureApp(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
 
