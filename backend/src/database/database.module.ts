@@ -1,11 +1,34 @@
-import { Logger, Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { Inject, Injectable, Logger, Module, type OnModuleInit } from '@nestjs/common';
+import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
+import type { Connection } from 'mongoose';
 import { databaseConfig, type DatabaseConfig } from '../config/index.js';
+import { SHUTDOWN_ORDER } from '../shutdown/shutdown.constants.js';
+import { ShutdownService } from '../shutdown/shutdown.service.js';
 
 /** Tiempo máximo que Mongo tiene para aceptar una conexión antes de que el ping falle. */
 const MONGO_SERVER_SELECTION_TIMEOUT_MS = 2_000;
 
 const logger = new Logger('MongoDB');
+
+/**
+ * Cierra la conexión en el apagado ordenado. `@nestjs/mongoose` también la cierra en su propio
+ * hook; `close()` es idempotente, así que repetirlo solo garantiza que quede registrado.
+ */
+@Injectable()
+class MongoShutdown implements OnModuleInit {
+  constructor(
+    @Inject(getConnectionToken()) private readonly connection: Connection,
+    private readonly shutdown: ShutdownService,
+  ) {}
+
+  onModuleInit(): void {
+    this.shutdown.register({
+      name: 'MongoDB',
+      order: SHUTDOWN_ORDER.mongo,
+      close: () => this.connection.close(),
+    });
+  }
+}
 
 /**
  * Conexión única a MongoDB, compartida por todos los repositorios.
@@ -31,5 +54,6 @@ const logger = new Logger('MongoDB');
       }),
     }),
   ],
+  providers: [MongoShutdown],
 })
 export class DatabaseModule {}

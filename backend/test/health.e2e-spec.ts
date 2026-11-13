@@ -1,29 +1,15 @@
 import 'reflect-metadata';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { Test } from '@nestjs/testing';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { AppModule } from './../src/app.module.js';
-import { configureApp } from './../src/app.setup.js';
-import { createInfraFakes, withFakeInfra } from './support/fake-infra.js';
+import { createInfraFakes } from './support/fake-infra.js';
+import { createTestApp } from './support/test-app.js';
 
 interface HealthBody {
   status: string;
   info: Record<string, { status: string }>;
   error: Record<string, { status: string; message?: string }>;
   details: Record<string, { status: string; message?: string }>;
-}
-
-async function createApp(fakes = createInfraFakes()): Promise<NestFastifyApplication> {
-  const builder = withFakeInfra(Test.createTestingModule({ imports: [AppModule] }), fakes);
-  const moduleRef = await builder.compile();
-
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-  await configureApp(app);
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
-
-  return app;
 }
 
 describe('GET /api/health (e2e)', () => {
@@ -34,7 +20,7 @@ describe('GET /api/health (e2e)', () => {
   });
 
   it('responde 200 cuando Mongo, Redis y el almacenamiento están disponibles', async () => {
-    app = await createApp();
+    app = await createTestApp();
 
     const response = await request(app.getHttpServer() as App)
       .get('/api/health')
@@ -51,7 +37,7 @@ describe('GET /api/health (e2e)', () => {
   });
 
   it('responde 503 con el detalle cuando una dependencia está caída', async () => {
-    app = await createApp(
+    app = await createTestApp(
       createInfraFakes({ ping: () => Promise.reject(new Error('Connection is closed.')) }),
     );
 
@@ -70,7 +56,7 @@ describe('GET /api/health (e2e)', () => {
   });
 
   it('responde 503 cuando una dependencia supera el timeout de 2 s', async () => {
-    app = await createApp(createInfraFakes({ ping: () => new Promise(() => undefined) }));
+    app = await createTestApp(createInfraFakes({ ping: () => new Promise(() => undefined) }));
 
     const startedAt = Date.now();
     const response = await request(app.getHttpServer() as App)
@@ -86,7 +72,7 @@ describe('GET /api/health (e2e)', () => {
   });
 
   it('responde 503 cuando Mongo no está conectado', async () => {
-    app = await createApp(createInfraFakes({ mongoReadyState: 0 }));
+    app = await createTestApp(createInfraFakes({ mongoReadyState: 0 }));
 
     const response = await request(app.getHttpServer() as App)
       .get('/api/health')

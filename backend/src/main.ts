@@ -19,4 +19,9 @@ app.useLogger(app.get(Logger));
 exposeRequestId(app);
 await configureApp(app);
 
+// SIGTERM/SIGINT pasan por el apagado ordenado: Nest deja de aceptar conexiones HTTP y
+// `ShutdownService` cierra sockets, colas, Redis y Mongo en ese orden. `useProcessExit` deja
+// que pino vacíe sus buffers antes de terminar el proceso.
+app.enableShutdownHooks([], { useProcessExit: true });
+
 await app.listen(process.env.PORT ?? 3000, '0.0.0.0');

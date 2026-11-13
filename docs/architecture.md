@@ -217,6 +217,40 @@ Los clientes viven en módulos globales para que los usen los módulos de domini
 Todas las rutas cuelgan de `/api`: `configureApp` (`app.setup.ts`) aplica el prefijo global y lo
 comparten `main.ts` y los tests e2e, para que se prueben las mismas rutas que se despliegan.
 
+## Apagado ordenado
+
+`main.ts` activa `app.enableShutdownHooks([], { useProcessExit: true })`: `SIGTERM` y `SIGINT`
+llenan el mismo camino que `app.close()`. La secuencia de Nest es:
+
+1. `onModuleDestroy` de cada módulo.
+2. `beforeApplicationShutdown`: Terminus marca el estado como `shutting_down`, así que
+   `/api/health` responde 503 mientras se drena.
+3. Se cierra el servidor HTTP: Fastify deja de aceptar conexiones y espera a las peticiones en
+   curso (las nuevas reciben 503).
+4. `onApplicationShutdown`: corre `ShutdownService`, que cierra los recursos en orden.
+
+`ShutdownService` (`src/shutdown/`) es un registro global de tareas. Cada módulo registra la
+suya en `onModuleInit` con un orden de `SHUTDOWN_ORDER`:
+
+| Orden | Recurso                | Estado                                                                                                                                |
+| ----- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 10    | `realtime` (Socket.IO) | reservado para la fase de tiempo real                                                                                                 |
+| 20    | `queues` (BullMQ)      | reservado para la fase de colas                                                                                                       |
+| 30    | Redis                  | registrado: `quit()` si está conectado; `disconnect()` si está caído o reconectando, para no esperar una conexión que puede no llegar |
+| 40    | MongoDB                | registrado: `connection.close()`. `@nestjs/mongoose` también cierra en su hook; la llamada es idempotente y así queda en el log       |
+
+Las tareas se ejecutan en serie, en orden ascendente. Si una falla, el error se registra y se
+sigue con las demás: un recurso que no cierra no debe dejar abiertos los otros. Una segunda
+señal durante el apagado no repite la secuencia.
+
+Los módulos de sockets y colas aún no existen; cuando se añadan deben registrar su cierre con
+`SHUTDOWN_ORDER.realtime` y `SHUTDOWN_ORDER.queues` en lugar de implementar su propio hook, para
+que dejen de aceptar trabajo antes de que Redis y Mongo se cierren.
+
+`useProcessExit` hace que el proceso termine con código 0 después de los hooks (en vez de
+re-lanzarse la señal): eso dispara el evento `exit` y pino puede vaciar sus buffers antes de
+salir.
+
 ## CORS, cabeceras de seguridad y cookies
 
 Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y los e2e:

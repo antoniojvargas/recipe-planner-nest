@@ -10,6 +10,7 @@ export interface InfraFakes {
     close: ReturnType<typeof vi.fn>;
   };
   redis: {
+    status: string;
     ping: () => Promise<unknown>;
     quit: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
@@ -41,6 +42,7 @@ export function createInfraFakes({
       close: vi.fn().mockResolvedValue(undefined),
     },
     redis: {
+      status: 'ready',
       ping,
       quit: vi.fn().mockResolvedValue('OK'),
       disconnect: vi.fn(),

@@ -23,6 +23,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { RecipesModule } from './recipes/recipes.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { ShoppingModule } from './shopping/shopping.module.js';
+import { ShutdownModule } from './shutdown/shutdown.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -53,6 +54,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'backend',
     }),
     // Infraestructura compartida: Mongo, Redis y S3 para todos los módulos de dominio.
+    // El apagado ordenado va primero para recibir las tareas de cierre de los demás.
+    ShutdownModule,
     DatabaseModule,
     RedisModule,
     StorageModule,

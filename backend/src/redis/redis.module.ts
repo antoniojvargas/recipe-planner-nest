@@ -1,13 +1,8 @@
-import {
-  Global,
-  Inject,
-  Injectable,
-  Logger,
-  Module,
-  type OnApplicationShutdown,
-} from '@nestjs/common';
+import { Global, Inject, Injectable, Logger, Module, type OnModuleInit } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { databaseConfig, type DatabaseConfig } from '../config/index.js';
+import { SHUTDOWN_ORDER } from '../shutdown/shutdown.constants.js';
+import { ShutdownService } from '../shutdown/shutdown.service.js';
 
 /** Token del cliente compartido de Redis. */
 export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
@@ -17,16 +12,36 @@ export type RedisClient = Redis;
 const logger = new Logger('Redis');
 
 /**
- * Cierra el cliente al apagar la app. `quit` espera a que se vacíen las respuestas
- * pendientes; si la conexión ya está caída, `disconnect` corta los reintentos.
+ * Cierra el cliente en el apagado ordenado.
+ *
+ * Con Redis conectado se usa `quit`, que espera a que se vacíen las respuestas pendientes.
+ * Si está caído o reconectando, `quit` esperaría a una conexión que puede no llegar, así que
+ * se corta con `disconnect`.
  */
 @Injectable()
-class RedisLifecycle implements OnApplicationShutdown {
-  constructor(@Inject(REDIS_CLIENT) private readonly client: RedisClient) {}
+class RedisShutdown implements OnModuleInit {
+  constructor(
+    @Inject(REDIS_CLIENT) private readonly client: RedisClient,
+    private readonly shutdown: ShutdownService,
+  ) {}
 
-  async onApplicationShutdown(): Promise<void> {
+  onModuleInit(): void {
+    this.shutdown.register({
+      name: 'Redis',
+      order: SHUTDOWN_ORDER.redis,
+      close: () => this.close(),
+    });
+  }
+
+  private async close(): Promise<void> {
     try {
-      await this.client.quit();
+      if (this.client.status === 'ready') {
+        await this.client.quit();
+
+        return;
+      }
+
+      this.client.disconnect();
     } catch {
       this.client.disconnect();
     }
@@ -68,7 +83,7 @@ class RedisLifecycle implements OnApplicationShutdown {
         return client;
       },
     },
-    RedisLifecycle,
+    RedisShutdown,
   ],
   exports: [REDIS_CLIENT],
 })

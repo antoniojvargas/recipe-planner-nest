@@ -80,7 +80,7 @@ describe('HTTP: CORS, cabeceras y cookies (e2e)', () => {
       expect(response.headers['access-control-allow-origin']).toBe(FRONTEND_ORIGIN);
       expect(response.headers['access-control-allow-credentials']).toBe('true');
       expect(response.headers['access-control-allow-methods']).toContain('POST');
-      expect((response.headers['access-control-allow-headers'] as string).toLowerCase()).toContain(
+      expect(response.headers['access-control-allow-headers'].toLowerCase()).toContain(
         'content-type',
       );
       expect(response.headers['access-control-max-age']).toBe('43200');
@@ -93,7 +93,7 @@ describe('HTTP: CORS, cabeceras y cookies (e2e)', () => {
         .get('/api/health')
         .expect(200);
 
-      const csp = response.headers['content-security-policy'] as string;
+      const csp = response.headers['content-security-policy'];
 
       expect(csp).toContain("default-src 'none'");
       expect(csp).toContain("frame-ancestors 'none'");
