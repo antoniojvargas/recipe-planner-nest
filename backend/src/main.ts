@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule, ObserveInstrument } from './app.module.js';
+import { configureApp } from './app.setup.js';
 import { exposeRequestId, requestIdAdapterOptions } from './config/request-id.js';
 
 const app = await NestFactory.create<NestFastifyApplication>(
@@ -16,5 +17,6 @@ const app = await NestFactory.create<NestFastifyApplication>(
 
 app.useLogger(app.get(Logger));
 exposeRequestId(app);
+configureApp(app);
 
 await app.listen(process.env.PORT ?? 3000, '0.0.0.0');

@@ -9,6 +9,7 @@ import type { App } from 'supertest/types.js';
 import type { ErrorResponse } from '@recipe-planner/contracts';
 import { AppModule } from './../src/app.module.js';
 import { ParseObjectIdPipe } from './../src/common/pipes/parse-object-id.pipe.js';
+import { withFakeInfra } from './support/fake-infra.js';
 
 class CreateRecipeDto {
   @IsString()
@@ -39,10 +40,12 @@ describe('Validación (e2e)', () => {
   let app: NestFastifyApplication;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-      controllers: [ProbeController],
-    }).compile();
+    const moduleFixture: TestingModule = await withFakeInfra(
+      Test.createTestingModule({
+        imports: [AppModule],
+        controllers: [ProbeController],
+      }),
+    ).compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
     await app.init();

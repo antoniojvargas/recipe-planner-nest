@@ -12,6 +12,8 @@ import { createValidationPipe } from './common/pipes/validation.pipe.js';
 import { appConfig } from './config/app.config.js';
 import { configProviders, validateEnvironment, type AppConfig } from './config/index.js';
 import { createLoggerOptions } from './config/logger.config.js';
+import { DatabaseModule } from './database/database.module.js';
+import { HealthModule } from './health/health.module.js';
 import { HouseholdsModule } from './households/households.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { MealPlansModule } from './meal-plans/meal-plans.module.js';
@@ -19,7 +21,9 @@ import { MediaModule } from './media/media.module.js';
 import { PantryModule } from './pantry/pantry.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { RecipesModule } from './recipes/recipes.module.js';
+import { RedisModule } from './redis/redis.module.js';
 import { ShoppingModule } from './shopping/shopping.module.js';
+import { StorageModule } from './storage/storage.module.js';
 import { UsersModule } from './users/users.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -48,6 +52,11 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       appSecret: process.env.OBSERVE_APP_SECRET ?? 'YOUR_APP_SECRET',
       serviceId: 'backend',
     }),
+    // Infraestructura compartida: Mongo, Redis y S3 para todos los módulos de dominio.
+    DatabaseModule,
+    RedisModule,
+    StorageModule,
+    HealthModule,
     AuthModule,
     UsersModule,
     HouseholdsModule,

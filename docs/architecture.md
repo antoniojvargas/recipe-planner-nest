@@ -188,6 +188,35 @@ Todas las respuestas de error tienen la misma forma, definida en
   compartido y, por tanto, a compilarlo antes que la API (`npm run build` de la raíz ya lo hace y
   el Dockerfile de desarrollo lo construye dentro de la imagen).
 
+## Salud y dependencias
+
+`GET /api/health` (Terminus) comprueba Mongo, Redis y el bucket de MinIO y responde **200** si
+todo está arriba o **503** si algo falla. Cada comprobación tiene un **timeout de 2 s**
+(`HEALTH_CHECK_TIMEOUT_MS`), así que una dependencia colgada no bloquea la respuesta.
+
+- **Mongo**: `MongooseHealthIndicator.pingCheck` ejecuta `ping` sobre la conexión de Mongoose.
+- **Redis**: `RedisHealthIndicator` envía un `PING` con el cliente compartido.
+- **MinIO/S3**: `StorageHealthIndicator` hace `HeadBucket` del bucket configurado, que comprueba
+  existencia y permisos sin descargar nada.
+
+El cuerpo mantiene el formato de Terminus (`status`, `info`, `error`, `details`) **también en el
+503**, para saber qué dependencia falla. Para eso el controlador captura la
+`ServiceUnavailableException` de Terminus y fija el estado: el `AllExceptionsFilter` convertiría
+cualquier 5xx en el sobre genérico `INTERNAL_ERROR` y perdería esos detalles. Es la única ruta que
+no usa el sobre de error, porque es un endpoint operativo que consume el orquestador, no el
+frontend.
+
+Los clientes viven en módulos globales para que los usen los módulos de dominio:
+
+| Módulo           | Qué expone                                                                                                                                                       |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DatabaseModule` | conexión de Mongoose. `lazyConnection` deja arrancar sin Mongo (el health responde 503) y un listener de `error` evita que un fallo de conexión tumbe el proceso |
+| `RedisModule`    | token `REDIS_CLIENT` (`ioredis`). `enableOfflineQueue: false` hace que un comando falle al instante si Redis está caído, en lugar de esperar en cola             |
+| `StorageModule`  | token `S3_CLIENT` (`@aws-sdk/client-s3`) apuntando a `S3_ENDPOINT`, con `forcePathStyle` para MinIO                                                              |
+
+Todas las rutas cuelgan de `/api`: `configureApp` (`app.setup.ts`) aplica el prefijo global y lo
+comparten `main.ts` y los tests e2e, para que se prueben las mismas rutas que se despliegan.
+
 ## Validación
 
 La validación de entrada es global: `createValidationPipe()` (`common/pipes/validation.pipe.ts`) se
