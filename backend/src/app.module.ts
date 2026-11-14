@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { createObserveModule } from '@nestjs/observe';
 import { LoggerModule } from 'nestjs-pino';
@@ -9,7 +10,7 @@ import { CsrfGuard } from './common/csrf/csrf.guard.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { createValidationPipe } from './common/pipes/validation.pipe.js';
 import { appConfig } from './config/app.config.js';
-import { type AppConfig } from './config/index.js';
+import { databaseConfig, type AppConfig, type DatabaseConfig } from './config/index.js';
 import { configModule } from './config/config.module.js';
 import { createLoggerOptions } from './config/logger.config.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -22,6 +23,7 @@ import { PantryModule } from './pantry/pantry.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { RecipesModule } from './recipes/recipes.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { bullMqConnection } from './queues/bullmq.connection.js';
 import { ShoppingModule } from './shopping/shopping.module.js';
 import { ShutdownModule } from './shutdown/shutdown.module.js';
 import { StorageModule } from './storage/storage.module.js';
@@ -43,6 +45,13 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       appKey: process.env.OBSERVE_APP_KEY ?? 'YOUR_APP_KEY',
       appSecret: process.env.OBSERVE_APP_SECRET ?? 'YOUR_APP_SECRET',
       serviceId: 'backend',
+    }),
+    // Colas: la API solo encola; el proceso `worker` consume con la misma configuración.
+    BullModule.forRootAsync({
+      inject: [databaseConfig.KEY],
+      useFactory: (config: DatabaseConfig) => ({
+        connection: bullMqConnection(config.redisUrl),
+      }),
     }),
     // Infraestructura compartida: Mongo, Redis y S3 para todos los módulos de dominio.
     // El apagado ordenado va primero para recibir las tareas de cierre de los demás.

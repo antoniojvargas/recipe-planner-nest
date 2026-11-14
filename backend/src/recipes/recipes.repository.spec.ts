@@ -11,6 +11,7 @@ function createModelMock() {
     find: vi.fn(),
     findOneAndUpdate: vi.fn(),
     deleteOne: vi.fn(),
+    aggregate: vi.fn(),
   };
 
   return { model: mocks as unknown as Model<Recipe>, mocks };
@@ -87,5 +88,95 @@ describe('RecipesRepository', () => {
 
     await expect(repository.deleteById(householdId, recipeId)).resolves.toBe(true);
     expect(mocks.deleteOne).toHaveBeenCalledWith({ householdId, _id: recipeId });
+  });
+
+  it('pagina el recetario por updatedAt y _id con el cursor', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new RecipesRepository(model);
+    const query = mockMongooseQuery([recipe]);
+    const cursor = { updatedAt: new Date('2026-02-01T10:00:00Z'), id: new Types.ObjectId() };
+    mocks.find.mockReturnValue(query);
+
+    await repository.findPage(householdId, { limit: 20, tags: ['arroz'], cursor });
+
+    expect(mocks.find).toHaveBeenCalledWith({
+      householdId,
+      tags: { $all: ['arroz'] },
+      $or: [
+        { updatedAt: { $lt: cursor.updatedAt } },
+        { updatedAt: cursor.updatedAt, _id: { $lt: cursor.id } },
+      ],
+    });
+    expect(query.sort).toHaveBeenCalledWith({ updatedAt: -1, _id: -1 });
+    expect(query.limit).toHaveBeenCalledWith(20);
+    expect(query.lean).toHaveBeenCalledOnce();
+  });
+
+  it('omite las etiquetas y el cursor cuando no hay filtros', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new RecipesRepository(model);
+    const query = mockMongooseQuery([recipe]);
+    mocks.find.mockReturnValue(query);
+
+    await repository.findPage(householdId, { limit: 10 });
+
+    expect(mocks.find).toHaveBeenCalledWith({ householdId });
+    expect(query.sort).toHaveBeenCalledWith({ updatedAt: -1, _id: -1 });
+  });
+
+  it('busca con $text, calcula textScore y pagina por relevancia', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new RecipesRepository(model);
+    const cursor = {
+      updatedAt: new Date('2026-02-01T10:00:00Z'),
+      id: new Types.ObjectId(),
+      score: 2.5,
+    };
+    const aggregate = { exec: vi.fn().mockResolvedValue([recipe]) };
+    mocks.aggregate.mockReturnValue(aggregate);
+
+    await repository.searchPage(householdId, { q: 'paella', limit: 5, tags: ['arroz'], cursor });
+
+    const pipeline = mocks.aggregate.mock.calls[0]?.[0] as unknown[];
+
+    expect(pipeline[0]).toEqual({
+      $match: { householdId, $text: { $search: 'paella' }, tags: { $all: ['arroz'] } },
+    });
+    expect(pipeline[1]).toEqual({ $addFields: { score: { $meta: 'textScore' } } });
+    expect(pipeline[2]).toEqual({
+      $match: {
+        $expr: {
+          $or: [
+            { $lt: ['$score', 2.5] },
+            { $and: [{ $eq: ['$score', 2.5] }, { $lt: ['$updatedAt', cursor.updatedAt] }] },
+            {
+              $and: [
+                { $eq: ['$score', 2.5] },
+                { $eq: ['$updatedAt', cursor.updatedAt] },
+                { $lt: ['$_id', cursor.id] },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    expect(pipeline[3]).toEqual({ $sort: { score: -1, updatedAt: -1, _id: -1 } });
+    expect(pipeline[4]).toEqual({ $limit: 5 });
+    expect(aggregate.exec).toHaveBeenCalledOnce();
+  });
+
+  it('busca sin cursor solo con el match de texto y el orden por relevancia', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new RecipesRepository(model);
+    mocks.aggregate.mockReturnValue({ exec: vi.fn().mockResolvedValue([]) });
+
+    await repository.searchPage(householdId, { q: 'paella', limit: 5 });
+
+    expect(mocks.aggregate).toHaveBeenCalledWith([
+      { $match: { householdId, $text: { $search: 'paella' } } },
+      { $addFields: { score: { $meta: 'textScore' } } },
+      { $sort: { score: -1, updatedAt: -1, _id: -1 } },
+      { $limit: 5 },
+    ]);
   });
 });
