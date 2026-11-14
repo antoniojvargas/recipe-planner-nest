@@ -320,7 +320,7 @@ revocar antes de caducar; el refresh token es el que se invalida de verdad.
 
 | Cookie          | Contenido                                       | Duración | `Path`              |
 | --------------- | ----------------------------------------------- | -------- | ------------------- |
-| `access_token`  | JWT firmado (`sub`, `iat`, `exp`)               | 15 min   | `/api`              |
+| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/api`              |
 | `refresh_token` | cadena aleatoria opaca, sin estructura ni firma | 30 días  | `/api/auth/refresh` |
 
 Las dos son `httpOnly` (el JavaScript del frontend no las lee), `SameSite=Lax` y `Secure` fuera de
@@ -343,19 +343,24 @@ El refresh token no lleva firma: no hace falta demostrar que lo emitió el servi
 validez la decide la fila de `refresh_sessions`. Un valor aleatorio sin datos dentro no se puede
 leer, adivinar ni reutilizar tras revocarlo.
 
+El access token lleva `fid`, el `familyId` de la sesión, además de `sub`, `iat` y `exp`. Es un
+identificador de sesión, no un secreto. Hace falta porque la cookie de refresh tiene un `Path` tan
+estrecho que el navegador no la envía a `/api/auth/logout`: el logout identifica la familia que
+debe revocar leyendo `fid` del access token, que sí llega a todas las rutas de `/api`.
+
 ### Modelo `RefreshSession`
 
 Colección `refresh_sessions`, un documento por token emitido:
 
-| Campo       | Tipo           | Significado                                                            |
-| ----------- | -------------- | ---------------------------------------------------------------------- |
-| `familyId`  | `ObjectId`     | cadena de rotaciones a la que pertenece el token; la abre el login     |
-| `userId`    | `ObjectId`     | dueño de la sesión, referencia a `users`                               |
-| `tokenHash` | `string`       | SHA-256 del token en claro; el token nunca se guarda                   |
-| `expiresAt` | `Date`         | `now + 30 días` en el momento de emitirlo                              |
-| `usedAt`    | `Date \| null` | cuándo se canjeó; `null` mientras sigue siendo válido                  |
-| `revokedAt` | `Date \| null` | cuándo se revocó la fila (por logout o por detección de reutilización) |
-| `createdAt` | `Date`         | cuándo se emitió, para auditoría y para ordenar la familia             |
+| Campo       | Tipo            | Significado                                                            |
+| ----------- | --------------- | ---------------------------------------------------------------------- |
+| `familyId`  | `string` (UUID) | cadena de rotaciones a la que pertenece el token; la abre el login     |
+| `userId`    | `ObjectId`      | dueño de la sesión, referencia a `users`                               |
+| `tokenHash` | `string`        | SHA-256 del token en claro; el token nunca se guarda                   |
+| `expiresAt` | `Date`          | `now + 30 días` en el momento de emitirlo                              |
+| `usedAt`    | `Date \| null`  | cuándo se canjeó; `null` mientras sigue siendo válido                  |
+| `revokedAt` | `Date \| null`  | cuándo se revocó la fila (por logout o por detección de reutilización) |
+| `createdAt` | `Date`          | cuándo se emitió, para auditoría y para ordenar la familia             |
 
 Índices:
 

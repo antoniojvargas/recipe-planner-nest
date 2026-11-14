@@ -1,0 +1,54 @@
+import { decodeJwt, jwtVerify } from 'jose';
+import type { AuthConfig } from '../config/index.js';
+import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
+import { REFRESH_TOKEN_TTL_MS } from './auth.constants.js';
+
+const CONFIG: AuthConfig = {
+  accessSecret: 'test-access-secret-with-32-characters-minimum',
+  refreshSecret: 'test-refresh-secret-with-32-characters-minimum',
+  accessTokenTtl: '15m',
+  refreshTokenTtl: '30d',
+};
+
+describe('AuthTokensService', () => {
+  const service = new AuthTokensService(CONFIG);
+
+  it('firma un JWT HS256 con sub, familia y 15 minutos de vida', async () => {
+    const token = await service.createAccessToken(
+      '507f1f77bcf86cd799439011',
+      '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c',
+    );
+    const claims = decodeJwt(token);
+
+    expect(claims.sub).toBe('507f1f77bcf86cd799439011');
+    expect(claims.fid).toBe('6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c');
+    expect(claims.iat).toBeTypeOf('number');
+    expect(claims.exp).toBeTypeOf('number');
+    expect((claims.exp ?? 0) - (claims.iat ?? 0)).toBe(15 * 60);
+
+    await expect(
+      jwtVerify(token, new TextEncoder().encode(CONFIG.accessSecret)),
+    ).resolves.toBeDefined();
+  });
+
+  it('genera un refresh opaco de 256 bits y guarda solo su hash', () => {
+    const refresh = service.createRefreshToken();
+
+    expect(refresh.token).toHaveLength(43);
+    expect(refresh.token).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(refresh.tokenHash).toHaveLength(64);
+    expect(refresh.tokenHash).toBe(hashRefreshToken(refresh.token));
+    expect(refresh.tokenHash).not.toContain(refresh.token);
+    expect(refresh.expiresAt.getTime()).toBeGreaterThanOrEqual(
+      Date.now() + REFRESH_TOKEN_TTL_MS - 1_000,
+    );
+  });
+
+  it('cada refresh es distinto', () => {
+    const first = service.createRefreshToken();
+    const second = service.createRefreshToken();
+
+    expect(first.token).not.toBe(second.token);
+    expect(first.tokenHash).not.toBe(second.tokenHash);
+  });
+});
