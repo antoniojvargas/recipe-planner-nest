@@ -61,7 +61,9 @@ export class InMemoryRecipesRepository {
       (item) => item.householdId.toString() === householdId && item._id.toString() === recipeId,
     );
 
-    return Promise.resolve(recipe ?? null);
+    // Como las lecturas reales usan `lean()`, se devuelve una copia: mutar el resultado no
+    // debe cambiar el documento guardado.
+    return Promise.resolve(recipe === undefined ? null : Object.assign({}, recipe));
   }
 
   findByHousehold(householdId: string, { limit = 50, skip = 0 } = {}): Promise<Recipe[]> {

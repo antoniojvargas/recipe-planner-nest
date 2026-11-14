@@ -5,7 +5,7 @@ import { appConfig, databaseConfig, type AppConfig, type DatabaseConfig } from '
 import { configModule } from './config/config.module.js';
 import { createLoggerOptions } from './config/logger.config.js';
 import { MEDIA_QUEUE_NAME } from './media/media.queue.js';
-import { ThumbnailProcessor } from './media/thumbnail.processor.js';
+import { MediaProcessor } from './media/media.processor.js';
 import { bullMqConnection } from './queues/bullmq.connection.js';
 import { StorageModule } from './storage/storage.module.js';
 
@@ -32,6 +32,6 @@ import { StorageModule } from './storage/storage.module.js';
     }),
     BullModule.registerQueue({ name: MEDIA_QUEUE_NAME }),
   ],
-  providers: [ThumbnailProcessor],
+  providers: [MediaProcessor],
 })
 export class WorkerModule {}

@@ -7,10 +7,18 @@ import {
   ALLOWED_IMAGE_TYPES,
   type AllowedImageType,
   IMAGE_EXTENSIONS,
+  IMAGE_URL_TTL_SECONDS,
   MAX_IMAGE_BYTES,
   UPLOAD_URL_TTL_SECONDS,
 } from './media.constants.js';
-import { MEDIA_QUEUE_NAME, THUMBNAIL_JOB, type ThumbnailJobData } from './media.queue.js';
+import {
+  DELETE_IMAGE_JOB,
+  imageObjectKeys,
+  MEDIA_QUEUE_NAME,
+  THUMBNAIL_JOB,
+  thumbnailKey,
+  type MediaJobData,
+} from './media.queue.js';
 import { MediaService } from './media.service.js';
 
 interface PostPolicy {
@@ -43,7 +51,7 @@ function createDoubles(): ServiceDoubles {
     publicS3,
     internal as unknown as S3Client,
     config,
-    queue as unknown as Queue<ThumbnailJobData>,
+    queue as unknown as Queue<MediaJobData>,
   );
 
   return { service, internal, queue };
@@ -227,7 +235,7 @@ describe('MediaService', () => {
   describe('enqueueThumbnail', () => {
     it('encola media.thumbnail con reintentos y limpieza de la cola', async () => {
       const { service, queue } = createDoubles();
-      const data: ThumbnailJobData = { householdId, recipeId: 'recipe-1', key };
+      const data = { householdId, recipeId: 'recipe-1', key };
 
       await service.enqueueThumbnail(data);
 
@@ -238,6 +246,55 @@ describe('MediaService', () => {
         removeOnFail: { age: 604_800 },
       });
       expect(MEDIA_QUEUE_NAME).toBe('media');
+    });
+  });
+
+  describe('signImageUrls', () => {
+    it('firma el original y las dos variantes con el host público y corta caducidad', async () => {
+      const { service } = createDoubles();
+
+      const urls = await service.signImageUrls(key);
+
+      const original = new URL(urls.originalUrl);
+      const small = new URL(urls.smallUrl);
+      const large = new URL(urls.largeUrl);
+
+      expect(original.origin).toBe('http://localhost:9000');
+      expect(original.pathname).toBe(`/recipes/${key}`);
+      expect(small.pathname).toBe(`/recipes/${thumbnailKey(key, 320)}`);
+      expect(large.pathname).toBe(`/recipes/${thumbnailKey(key, 960)}`);
+
+      for (const url of [original, small, large]) {
+        expect(url.searchParams.get('X-Amz-Expires')).toBe(String(IMAGE_URL_TTL_SECONDS));
+        expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+      }
+    });
+  });
+
+  describe('enqueueImageDeletion', () => {
+    it('encola el borrado del original y sus variantes', async () => {
+      const { service, queue } = createDoubles();
+
+      await service.enqueueImageDeletion(householdId, 'recipe-1', key);
+
+      expect(queue.add).toHaveBeenCalledWith(
+        DELETE_IMAGE_JOB,
+        {
+          householdId,
+          recipeId: 'recipe-1',
+          keys: imageObjectKeys(key),
+        },
+        expect.objectContaining({ attempts: 3 }),
+      );
+    });
+
+    it('rechaza claves de otro hogar sin encolar nada', async () => {
+      const { service, queue } = createDoubles();
+
+      await expect(
+        service.enqueueImageDeletion(householdId, 'recipe-1', 'households/otro/foto.png'),
+      ).rejects.toThrow('no pertenece al hogar');
+      expect(queue.add).not.toHaveBeenCalled();
     });
   });
 });

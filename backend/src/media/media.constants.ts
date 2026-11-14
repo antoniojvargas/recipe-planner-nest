@@ -12,6 +12,9 @@ export const IMAGE_EXTENSIONS: Record<AllowedImageType, string> = {
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+/** Segundos que vive una URL prefirmada de lectura; se firma de nuevo en cada lectura. */
+export const IMAGE_URL_TTL_SECONDS = 300;
+
 export function isAllowedImageType(value: string): value is AllowedImageType {
   return (ALLOWED_IMAGE_TYPES as readonly string[]).includes(value);
 }

@@ -7,6 +7,15 @@ export interface UploadedImage {
   size: number;
 }
 
+/** URLs temporales para mostrar una imagen: el original y sus dos variantes WebP. */
+export interface SignedImageUrls {
+  originalUrl: string;
+  /** Variante de 320 px, para listas y tarjetas. */
+  smallUrl: string;
+  /** Variante de 960 px, para la ficha de la receta. */
+  largeUrl: string;
+}
+
 /** Datos para subir la imagen directamente a MinIO/S3 desde el navegador. */
 export interface UploadUrlResponse {
   /** Clave del objeto bajo el prefijo del hogar; se usa después al confirmar la receta. */

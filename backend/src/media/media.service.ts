@@ -9,6 +9,7 @@ import {
   type S3Client,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import type { Queue } from 'bullmq';
 import sharp from 'sharp';
@@ -19,12 +20,28 @@ import type { CreateUploadUrlDto } from './dto/create-upload-url.dto.js';
 import {
   householdMediaPrefix,
   IMAGE_EXTENSIONS,
+  IMAGE_URL_TTL_SECONDS,
   isAllowedImageType,
   MAX_IMAGE_BYTES,
   UPLOAD_URL_TTL_SECONDS,
 } from './media.constants.js';
-import { MEDIA_QUEUE_NAME, THUMBNAIL_JOB, type ThumbnailJobData } from './media.queue.js';
-import type { UploadedImage, UploadUrlResponse } from './media.types.js';
+import {
+  DELETE_IMAGE_JOB,
+  imageObjectKeys,
+  MEDIA_QUEUE_NAME,
+  THUMBNAIL_JOB,
+  type MediaJobData,
+  type ThumbnailJobData,
+} from './media.queue.js';
+import type { SignedImageUrls, UploadedImage, UploadUrlResponse } from './media.types.js';
+
+/** Opciones comunes de los trabajos de medios: reintentos y limpieza de la cola. */
+const MEDIA_JOB_OPTIONS = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 1_000 },
+  removeOnComplete: { age: 86_400, count: 1_000 },
+  removeOnFail: { age: 604_800 },
+} as const;
 
 function invalidImage(message: string): AppException {
   return new AppException({
@@ -49,7 +66,7 @@ export class MediaService {
     @Inject(S3_PUBLIC_CLIENT) private readonly publicS3: S3Client,
     @Inject(S3_CLIENT) private readonly s3: S3Client,
     @Inject(storageConfig.KEY) private readonly config: StorageConfig,
-    @InjectQueue(MEDIA_QUEUE_NAME) private readonly thumbnails: Queue<ThumbnailJobData>,
+    @InjectQueue(MEDIA_QUEUE_NAME) private readonly jobs: Queue<MediaJobData>,
   ) {}
 
   async createUploadUrl(householdId: string, dto: CreateUploadUrlDto): Promise<UploadUrlResponse> {
@@ -136,13 +153,49 @@ export class MediaService {
     return { key, width, height, size };
   }
 
+  /**
+   * Firma una URL de `GET` para el original y cada variante WebP.
+   *
+   * Se llama cada vez que se serializa una receta: las URLs duran cinco minutos y nunca se
+   * guardan en Mongo, así que un enlace filtrado deja de servir enseguida. Firmar es local y
+   * barato; no hay ninguna petición al bucket.
+   */
+  async signImageUrls(key: string): Promise<SignedImageUrls> {
+    const [originalUrl, smallUrl, largeUrl] = await Promise.all(
+      imageObjectKeys(key).map((objectKey) =>
+        getSignedUrl(
+          this.publicS3,
+          new GetObjectCommand({ Bucket: this.config.bucket, Key: objectKey }),
+          { expiresIn: IMAGE_URL_TTL_SECONDS },
+        ),
+      ),
+    );
+
+    return { originalUrl, smallUrl, largeUrl };
+  }
+
   /** Encola la generación de las variantes WebP de 320 y 960 px. */
   async enqueueThumbnail(data: ThumbnailJobData): Promise<void> {
-    await this.thumbnails.add(THUMBNAIL_JOB, data, {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 1_000 },
-      removeOnComplete: { age: 86_400, count: 1_000 },
-      removeOnFail: { age: 604_800 },
-    });
+    await this.jobs.add(THUMBNAIL_JOB, data, MEDIA_JOB_OPTIONS);
+  }
+
+  /**
+   * Encola el borrado del original y sus variantes.
+   *
+   * El trabajo corre en el worker para no retrasar la respuesta. Es idempotente (borrar una
+   * clave que ya no existe también responde bien), así que un reintento no falla.
+   */
+  async enqueueImageDeletion(householdId: string, recipeId: string, key: string): Promise<void> {
+    const prefix = householdMediaPrefix(householdId);
+
+    if (!key.startsWith(prefix)) {
+      throw new Error('La imagen a borrar no pertenece al hogar');
+    }
+
+    await this.jobs.add(
+      DELETE_IMAGE_JOB,
+      { householdId, recipeId, keys: imageObjectKeys(key) },
+      MEDIA_JOB_OPTIONS,
+    );
   }
 }

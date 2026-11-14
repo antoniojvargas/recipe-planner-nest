@@ -22,10 +22,22 @@ function createRepositoryMock() {
 }
 
 function createMediaMock() {
-  return {
+  return createMediaDoubles().media;
+}
+
+function createMediaDoubles() {
+  const mocks = {
     inspectImage: vi.fn(),
     enqueueThumbnail: vi.fn().mockResolvedValue(undefined),
-  } as unknown as MediaService;
+    enqueueImageDeletion: vi.fn().mockResolvedValue(undefined),
+    signImageUrls: vi.fn().mockResolvedValue({
+      originalUrl: 'https://media.test/original.png',
+      smallUrl: 'https://media.test/photo-320.webp',
+      largeUrl: 'https://media.test/photo-960.webp',
+    }),
+  };
+
+  return { media: mocks as unknown as MediaService, mocks };
 }
 
 function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
@@ -240,6 +252,26 @@ describe('RecipesService', () => {
         updatedAt: recipe.updatedAt,
       });
     });
+
+    it('firma URLs temporales de la imagen al leer la receta', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const media = createMediaDoubles();
+      const service = new RecipesService(repository, media.media);
+      const key = `households/${householdId}/foto.png`;
+      mocks.findById.mockResolvedValue(makeRecipe({ image: { key, width: 1200, height: 800 } }));
+
+      const response = await service.findOne(householdId, new Types.ObjectId().toString());
+
+      expect(media.mocks.signImageUrls).toHaveBeenCalledWith(key);
+      expect(response.image).toEqual({
+        key,
+        width: 1200,
+        height: 800,
+        originalUrl: 'https://media.test/original.png',
+        smallUrl: 'https://media.test/photo-320.webp',
+        largeUrl: 'https://media.test/photo-960.webp',
+      });
+    });
   });
 
   describe('update', () => {
@@ -285,79 +317,132 @@ describe('RecipesService', () => {
 
   describe('confirmImage', () => {
     const key = `households/${householdId}/foto.png`;
+    const oldKey = `households/${householdId}/vieja.png`;
     const image = { key, width: 1200, height: 800, size: 2048 };
 
-    it('guarda la imagen en la receta y encola las miniaturas', async () => {
+    it('guarda la imagen, encola las miniaturas y firma sus URLs', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const mediaMocks = {
-        inspectImage: vi.fn().mockResolvedValue(image),
-        enqueueThumbnail: vi.fn().mockResolvedValue(undefined),
-      };
-      const service = new RecipesService(repository, mediaMocks as unknown as MediaService);
+      const media = createMediaDoubles();
+      media.mocks.inspectImage.mockResolvedValue(image);
+      const service = new RecipesService(repository, media.media);
       const recipeId = new Types.ObjectId().toString();
+      const current = makeRecipe();
       const updated = makeRecipe({
         _id: new Types.ObjectId(recipeId),
         image: { key, width: 1200, height: 800 },
       });
+      mocks.findById.mockResolvedValue(current);
       mocks.updateById.mockResolvedValue(updated);
 
       const response = await service.confirmImage(householdId, recipeId, { key });
 
-      expect(mediaMocks.inspectImage).toHaveBeenCalledWith(householdId, key);
+      expect(media.mocks.inspectImage).toHaveBeenCalledWith(householdId, key);
       expect(mocks.updateById).toHaveBeenCalledWith(householdId, recipeId, {
         $set: { image: { key, width: 1200, height: 800 } },
       });
-      expect(mediaMocks.enqueueThumbnail).toHaveBeenCalledWith({ householdId, recipeId, key });
-      expect(response.image).toEqual({ key, width: 1200, height: 800 });
+      expect(media.mocks.enqueueThumbnail).toHaveBeenCalledWith({ householdId, recipeId, key });
+      expect(media.mocks.enqueueImageDeletion).not.toHaveBeenCalled();
+      expect(media.mocks.signImageUrls).toHaveBeenCalledWith(key);
+      expect(response.image).toEqual(expect.objectContaining({ key, width: 1200, height: 800 }));
+      expect(response.image?.originalUrl).toContain('original.png');
+      expect(response.image?.smallUrl).toContain('320');
+      expect(response.image?.largeUrl).toContain('960');
     });
 
-    it('devuelve 404 sin encolar si la receta no existe o es de otro hogar', async () => {
+    it('al cambiar la imagen encola el borrado del original anterior y sus variantes', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const mediaMocks = {
-        inspectImage: vi.fn().mockResolvedValue(image),
-        enqueueThumbnail: vi.fn().mockResolvedValue(undefined),
-      };
-      const service = new RecipesService(repository, mediaMocks as unknown as MediaService);
-      mocks.updateById.mockResolvedValue(null);
+      const media = createMediaDoubles();
+      media.mocks.inspectImage.mockResolvedValue(image);
+      const service = new RecipesService(repository, media.media);
+      const recipeId = new Types.ObjectId().toString();
+      const current = makeRecipe({ image: { key: oldKey, width: 1000, height: 700 } });
+      mocks.findById.mockResolvedValue(current);
+      mocks.updateById.mockResolvedValue(
+        makeRecipe({ _id: new Types.ObjectId(recipeId), image: { key, width: 1200, height: 800 } }),
+      );
+
+      await service.confirmImage(householdId, recipeId, { key });
+
+      expect(media.mocks.enqueueImageDeletion).toHaveBeenCalledWith(householdId, recipeId, oldKey);
+    });
+
+    it('reconfirmar la misma clave no borra la imagen recién encolada', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const media = createMediaDoubles();
+      media.mocks.inspectImage.mockResolvedValue(image);
+      const service = new RecipesService(repository, media.media);
+      const recipeId = new Types.ObjectId().toString();
+      mocks.findById.mockResolvedValue(makeRecipe({ image: { key, width: 1200, height: 800 } }));
+      mocks.updateById.mockResolvedValue(
+        makeRecipe({ _id: new Types.ObjectId(recipeId), image: { key, width: 1200, height: 800 } }),
+      );
+
+      await service.confirmImage(householdId, recipeId, { key });
+
+      expect(media.mocks.enqueueImageDeletion).not.toHaveBeenCalled();
+    });
+
+    it('devuelve 404 sin inspeccionar ni encolar si la receta no existe', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const media = createMediaDoubles();
+      const service = new RecipesService(repository, media.media);
+      mocks.findById.mockResolvedValue(null);
 
       const exception = await expectAppException(() =>
         service.confirmImage(householdId, new Types.ObjectId().toString(), { key }),
       );
 
       expect(exception.code).toBe('NOT_FOUND');
-      expect(mediaMocks.enqueueThumbnail).not.toHaveBeenCalled();
+      expect(media.mocks.inspectImage).not.toHaveBeenCalled();
+      expect(media.mocks.enqueueThumbnail).not.toHaveBeenCalled();
     });
 
     it('no toca Mongo ni la cola si la imagen no es válida', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const mediaMocks = {
-        inspectImage: vi.fn().mockRejectedValue(new Error('imagen inválida')),
-        enqueueThumbnail: vi.fn(),
-      };
-      const service = new RecipesService(repository, mediaMocks as unknown as MediaService);
+      const media = createMediaDoubles();
+      media.mocks.inspectImage.mockRejectedValue(new Error('imagen inválida'));
+      const service = new RecipesService(repository, media.media);
+      mocks.findById.mockResolvedValue(makeRecipe());
 
       await expect(
         service.confirmImage(householdId, new Types.ObjectId().toString(), { key }),
       ).rejects.toThrow('imagen inválida');
       expect(mocks.updateById).not.toHaveBeenCalled();
-      expect(mediaMocks.enqueueThumbnail).not.toHaveBeenCalled();
+      expect(media.mocks.enqueueThumbnail).not.toHaveBeenCalled();
     });
   });
 
   describe('remove', () => {
-    it('borra la receta del hogar', async () => {
+    it('borra la receta y encola los objetos de su imagen', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository, createMediaMock());
+      const media = createMediaDoubles();
+      const service = new RecipesService(repository, media.media);
       const recipeId = new Types.ObjectId().toString();
+      const key = `households/${householdId}/foto.png`;
+      mocks.findById.mockResolvedValue(makeRecipe({ image: { key, width: 10, height: 10 } }));
       mocks.deleteById.mockResolvedValue(true);
 
       await expect(service.remove(householdId, recipeId)).resolves.toBeUndefined();
       expect(mocks.deleteById).toHaveBeenCalledWith(householdId, recipeId);
+      expect(media.mocks.enqueueImageDeletion).toHaveBeenCalledWith(householdId, recipeId, key);
+    });
+
+    it('no encola nada si la receta no tenía imagen', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const media = createMediaDoubles();
+      const service = new RecipesService(repository, media.media);
+      mocks.findById.mockResolvedValue(makeRecipe());
+      mocks.deleteById.mockResolvedValue(true);
+
+      await service.remove(householdId, new Types.ObjectId().toString());
+
+      expect(media.mocks.enqueueImageDeletion).not.toHaveBeenCalled();
     });
 
     it('devuelve 404 si no había nada que borrar', async () => {
       const { repository, mocks } = createRepositoryMock();
       const service = new RecipesService(repository, createMediaMock());
+      mocks.findById.mockResolvedValue(makeRecipe());
       mocks.deleteById.mockResolvedValue(false);
 
       const exception = await expectAppException(() =>

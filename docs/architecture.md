@@ -59,7 +59,7 @@ una dependencia más del workspace.
 | `users`      | Perfil del usuario autenticado                                  |
 | `households` | Hogares, membresías, roles e invitaciones con código            |
 | `recipes`    | CRUD, búsqueda y paginación de recetas                          |
-| `media`      | URLs prefirmadas de MinIO, confirmación de subidas y miniaturas |
+| `media`      | URLs prefirmadas de subida y lectura, miniaturas y borrado      |
 | `imports`    | Importación de recetas desde una URL y estado del trabajo       |
 | `meal-plans` | Plan semanal y asignación de recetas a cada hueco               |
 | `shopping`   | Lista de la compra: generación, marcado y edición de ítems      |

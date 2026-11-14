@@ -17,7 +17,17 @@ import {
 import { RecipesRepository } from './recipes.repository.js';
 import type { RecipeListResponse, RecipeResponse } from './recipes.types.js';
 
-function toResponse(recipe: Recipe): RecipeResponse {
+async function toResponse(recipe: Recipe, media: MediaService): Promise<RecipeResponse> {
+  const image =
+    recipe.image === undefined
+      ? undefined
+      : {
+          key: recipe.image.key,
+          width: recipe.image.width,
+          height: recipe.image.height,
+          ...(await media.signImageUrls(recipe.image.key)),
+        };
+
   return {
     id: recipe._id.toString(),
     householdId: recipe.householdId.toString(),
@@ -34,15 +44,7 @@ function toResponse(recipe: Recipe): RecipeResponse {
       ...(ingredient.note === undefined ? {} : { note: ingredient.note }),
     })),
     steps: recipe.steps.map((step) => ({ text: step.text })),
-    ...(recipe.image === undefined
-      ? {}
-      : {
-          image: {
-            key: recipe.image.key,
-            width: recipe.image.width,
-            height: recipe.image.height,
-          },
-        }),
+    ...(image === undefined ? {} : { image }),
     ...(recipe.source === undefined
       ? {}
       : { source: { url: recipe.source.url, importedAt: recipe.source.importedAt } }),
@@ -96,7 +98,7 @@ export class RecipesService {
       ...(dto.steps === undefined ? {} : { steps: dto.steps }),
     });
 
-    return toResponse(recipe);
+    return toResponse(recipe, this.media);
   }
 
   /**
@@ -149,7 +151,7 @@ export class RecipesService {
       throw notFound();
     }
 
-    return toResponse(recipe);
+    return toResponse(recipe, this.media);
   }
 
   /**
@@ -159,12 +161,23 @@ export class RecipesService {
    * Primero se actualiza la receta y después se encola: si la receta no existe o la imagen no
    * es válida, no se crea trabajo huérfano. Un fallo de la cola deja la imagen puesta y la
    * petición falla, para que el cliente pueda reintentar.
+   *
+   * Si la receta ya tenía otra imagen, su original y sus variantes se borran en el worker.
    */
   async confirmImage(
     householdId: string,
     recipeId: string,
     dto: ConfirmImageDto,
   ): Promise<RecipeResponse> {
+    const current = await this.recipes.findById(householdId, recipeId);
+
+    if (current === null) {
+      throw notFound();
+    }
+
+    // Se guarda la clave anterior antes de actualizar: un repositorio podría devolver el mismo
+    // objeto que luego muta `updateById`, y el borrado debe apuntar a la imagen vieja.
+    const previousImageKey = current.image?.key;
     const image = await this.media.inspectImage(householdId, dto.key);
     const recipe = await this.recipes.updateById(householdId, recipeId, {
       $set: {
@@ -178,7 +191,11 @@ export class RecipesService {
 
     await this.media.enqueueThumbnail({ householdId, recipeId, key: image.key });
 
-    return toResponse(recipe);
+    if (previousImageKey !== undefined && previousImageKey !== image.key) {
+      await this.media.enqueueImageDeletion(householdId, recipeId, previousImageKey);
+    }
+
+    return toResponse(recipe, this.media);
   }
 
   async update(
@@ -216,7 +233,7 @@ export class RecipesService {
         throw notFound();
       }
 
-      return toResponse(recipe);
+      return toResponse(recipe, this.media);
     }
 
     const update: UpdateQuery<Recipe> = { $set: patch };
@@ -226,22 +243,34 @@ export class RecipesService {
       throw notFound();
     }
 
-    return toResponse(recipe);
+    return toResponse(recipe, this.media);
   }
 
   async remove(householdId: string, recipeId: string): Promise<void> {
+    const recipe = await this.recipes.findById(householdId, recipeId);
+
+    if (recipe === null) {
+      throw notFound();
+    }
+
     const deleted = await this.recipes.deleteById(householdId, recipeId);
 
     if (!deleted) {
       throw notFound();
     }
+
+    // El borrado de objetos va después: si la receta no llegó a borrarse, las imágenes siguen
+    // siendo suyas. Perder este encolado dejaría objetos huérfanos, no una receta rota.
+    if (recipe.image !== undefined) {
+      await this.media.enqueueImageDeletion(householdId, recipeId, recipe.image.key);
+    }
   }
 
-  private toPage(
+  private async toPage(
     recipes: (Recipe & { score?: number })[],
     limit: number,
     withScore: boolean,
-  ): RecipeListResponse {
+  ): Promise<RecipeListResponse> {
     const hasMore = recipes.length > limit;
     const items = hasMore ? recipes.slice(0, limit) : recipes;
     const last: (Recipe & { score?: number }) | undefined = items.at(-1);
@@ -255,6 +284,9 @@ export class RecipesService {
           })
         : null;
 
-    return { items: items.map(toResponse), nextCursor };
+    return {
+      items: await Promise.all(items.map((recipe) => toResponse(recipe, this.media))),
+      nextCursor,
+    };
   }
 }

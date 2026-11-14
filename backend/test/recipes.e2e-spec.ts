@@ -11,7 +11,7 @@ import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
 import { RefreshSessionsRepository } from './../src/auth/refresh-sessions.repository.js';
 import { HouseholdsRepository } from './../src/households/households.repository.js';
-import { THUMBNAIL_JOB } from './../src/media/media.queue.js';
+import { DELETE_IMAGE_JOB, imageObjectKeys, THUMBNAIL_JOB } from './../src/media/media.queue.js';
 import { RecipesRepository } from './../src/recipes/recipes.repository.js';
 import type { RecipeListResponse, RecipeResponse } from './../src/recipes/recipes.types.js';
 import { UsersRepository } from './../src/users/users.repository.js';
@@ -180,6 +180,10 @@ describe('Recipes (e2e)', () => {
     return request(app.getHttpServer())
       .get(`/api/households/${householdId}/recipes${query}`)
       .set('Cookie', authedCookies(accessToken));
+  }
+
+  function queuedJobs(name: string): unknown[][] {
+    return fakes.mediaQueue.add.mock.calls.filter(([jobName]) => jobName === name);
   }
 
   it('crea, lee, actualiza y borra una receta del hogar', async () => {
@@ -394,18 +398,78 @@ describe('Recipes (e2e)', () => {
     const key = `households/${householdId}/${randomUUID()}.png`;
 
     const response = await confirmImage(accessToken, householdId, recipeId, key).expect(200);
+    const image = (response.body as RecipeResponse).image;
 
-    expect((response.body as RecipeResponse).image).toEqual({
-      key,
-      width: 1200,
-      height: 800,
-    });
+    expect(image).toEqual(expect.objectContaining({ key, width: 1200, height: 800 }));
+    expect(image?.originalUrl).toContain(key);
+    expect(image?.smallUrl).toContain('-320.webp');
+    expect(image?.largeUrl).toContain('-960.webp');
     expect(recipes.recipes[0]?.image).toEqual({ key, width: 1200, height: 800 });
-    expect(fakes.mediaQueue.add).toHaveBeenCalledWith(
-      THUMBNAIL_JOB,
-      { householdId, recipeId, key },
-      expect.objectContaining({ attempts: 3 }),
+    expect(queuedJobs(THUMBNAIL_JOB)).toEqual([
+      [THUMBNAIL_JOB, { householdId, recipeId, key }, expect.objectContaining({ attempts: 3 })],
+    ]);
+
+    // Las URLs se firman al leer: mismo bucket público y caducidad corta, sin guardarse.
+    for (const url of [image?.originalUrl, image?.smallUrl, image?.largeUrl]) {
+      const signed = new URL(url ?? '');
+
+      expect(signed.origin).toBe('http://localhost:9000');
+      expect(signed.pathname.startsWith('/recipes-test/')).toBe(true);
+      expect(signed.searchParams.get('X-Amz-Expires')).toBe('300');
+    }
+
+    // Al leer la receta también llegan URLs firmadas, sin releer el objeto.
+    const fetched = await request(app.getHttpServer() as App)
+      .get(`/api/households/${householdId}/recipes/${recipeId}`)
+      .set('Cookie', authedCookies(accessToken))
+      .expect(200);
+
+    expect((fetched.body as RecipeResponse).image).toEqual(
+      expect.objectContaining({ key, width: 1200, height: 800 }),
     );
+  });
+
+  it('al cambiar la imagen encola el borrado de la anterior', async () => {
+    const { accessToken, householdId } = await register();
+    const created = await createRecipe(accessToken, householdId).expect(201);
+    const recipeId = (created.body as RecipeResponse).id;
+    const first = `households/${householdId}/${randomUUID()}.png`;
+    const second = `households/${householdId}/${randomUUID()}.png`;
+
+    await confirmImage(accessToken, householdId, recipeId, first).expect(200);
+    await confirmImage(accessToken, householdId, recipeId, second).expect(200);
+
+    expect(queuedJobs(DELETE_IMAGE_JOB)).toEqual([
+      [
+        DELETE_IMAGE_JOB,
+        { householdId, recipeId, keys: imageObjectKeys(first) },
+        expect.objectContaining({ attempts: 3 }),
+      ],
+    ]);
+  });
+
+  it('al eliminar la receta encola el borrado de sus objetos', async () => {
+    const { accessToken, householdId } = await register();
+    const created = await createRecipe(accessToken, householdId).expect(201);
+    const recipeId = (created.body as RecipeResponse).id;
+    const key = `households/${householdId}/${randomUUID()}.png`;
+
+    await confirmImage(accessToken, householdId, recipeId, key).expect(200);
+
+    await request(app.getHttpServer() as App)
+      .delete(`/api/households/${householdId}/recipes/${recipeId}`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(accessToken))
+      .expect(204);
+
+    expect(queuedJobs(DELETE_IMAGE_JOB)).toEqual([
+      [
+        DELETE_IMAGE_JOB,
+        { householdId, recipeId, keys: imageObjectKeys(key) },
+        expect.objectContaining({ attempts: 3 }),
+      ],
+    ]);
   });
 
   it('rechaza una clave de otro hogar sin guardar ni encolar', async () => {
