@@ -3,7 +3,7 @@ COMPOSE ?= docker compose
 COMPOSE_TEST = $(COMPOSE) -f docker-compose.test.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs seed test test-frontend test-e2e lint format
+.PHONY: help up down logs seed test test-frontend test-e2e test-integration lint format
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -32,6 +32,9 @@ test-frontend: ## Tests unitarios del frontend
 test-e2e: ## Tests end-to-end (API y Playwright cuando exista)
 	npm run test:e2e -w backend --if-present
 	npm run test -w e2e --if-present
+
+test-integration: ## Tests de integración con Testcontainers (necesita Docker)
+	npm run test:integration -w backend
 
 lint: ## ESLint y Prettier en todos los workspaces
 	npm run lint

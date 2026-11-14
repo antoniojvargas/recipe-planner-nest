@@ -58,8 +58,9 @@ Cuando el comando termina, la app está en <http://localhost:3001>.
 | Mailpit SMTP         | 1025   | correo saliente de desarrollo                                |
 | Mailpit web          | 8025   | bandeja donde se leen esos correos (<http://localhost:8025>) |
 
-Comandos útiles: `make logs` para seguir los logs, `make down` para parar, `make seed` para cargar
-datos de ejemplo, `make test` y `make test-frontend` para las pruebas, `make lint` para ESLint y
+Comandos útiles: `make logs` para seguir los logs, `make down` para parar la pila, `make seed` para
+cargar datos de ejemplo, `make test` y `make test-frontend` para las pruebas, `make
+test-integration` para las que usan Testcontainers (necesita Docker), `make lint` para ESLint y
 Prettier, y `make help` para ver todos los atajos. Para trabajar sin contenedores, `npm run
 start:dev -w backend` y `npm run dev -w frontend` (este último necesita `--port 3001` si la API ya
 ocupa el 3000).
