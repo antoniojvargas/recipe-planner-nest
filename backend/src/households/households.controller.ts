@@ -1,0 +1,33 @@
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator.js';
+import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
+import { CreateHouseholdDto } from './dto/create-household.dto.js';
+import { HouseholdsService } from './households.service.js';
+import type { HouseholdResponse } from './households.types.js';
+
+/** Hogares del usuario autenticado. Solo valida entrada y delega en el servicio. */
+@Controller('households')
+export class HouseholdsController {
+  constructor(private readonly householdsService: HouseholdsService) {}
+
+  @Post()
+  async create(
+    @Body() dto: CreateHouseholdDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<HouseholdResponse> {
+    return this.householdsService.create(dto.name, user.id);
+  }
+
+  @Get()
+  async findMine(@CurrentUser() user: AuthenticatedUser): Promise<HouseholdResponse[]> {
+    return this.householdsService.findMine(user.id);
+  }
+
+  @Get(':id')
+  async findOne(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<HouseholdResponse> {
+    return this.householdsService.findOneForMember(id, user.id);
+  }
+}

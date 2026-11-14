@@ -13,6 +13,7 @@ import { AuthTokensService } from './../src/auth/auth-tokens.service.js';
 import type { AuthResponse } from './../src/auth/auth.types.js';
 import { ARGON2_OPTIONS } from './../src/auth/password.hasher.js';
 import { RefreshSessionsRepository } from './../src/auth/refresh-sessions.repository.js';
+import { HouseholdsRepository } from './../src/households/households.repository.js';
 import { UsersRepository } from './../src/users/users.repository.js';
 import { withFakeInfra } from './support/fake-infra.js';
 
@@ -46,6 +47,9 @@ describe('Auth: sesión (e2e)', () => {
     findById: vi.fn(),
     findByEmailWithPassword: vi.fn(),
   };
+  const households = {
+    create: vi.fn().mockResolvedValue({}),
+  };
   const refreshSessions = {
     create: vi.fn().mockResolvedValue({}),
     claimForRotation: vi.fn(),
@@ -71,6 +75,8 @@ describe('Auth: sesión (e2e)', () => {
     )
       .overrideProvider(UsersRepository)
       .useValue(users)
+      .overrideProvider(HouseholdsRepository)
+      .useValue(households)
       .overrideProvider(RefreshSessionsRepository)
       .useValue(refreshSessions)
       .compile();
@@ -85,6 +91,7 @@ describe('Auth: sesión (e2e)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     users.create.mockResolvedValue({ ...publicUser, passwordHash });
+    households.create.mockResolvedValue({});
     users.findById.mockResolvedValue(null);
     users.findByEmailWithPassword.mockResolvedValue(null);
     refreshSessions.claimForRotation.mockResolvedValue(null);
@@ -95,7 +102,7 @@ describe('Auth: sesión (e2e)', () => {
     await app.close();
   });
 
-  it('registra, guarda argon2id y abre la sesión en las dos cookies', async () => {
+  it('registra, guarda argon2id, crea su hogar propio y abre la sesión en las dos cookies', async () => {
     const response = await request(app.getHttpServer() as App)
       .post('/api/auth/register')
       .set('Origin', ORIGIN)
@@ -112,6 +119,10 @@ describe('Auth: sesión (e2e)', () => {
     expect(created.email).toBe('ana@example.com');
     expect(created.passwordHash).toMatch(/^\$argon2id\$/);
     expect(created.passwordHash).not.toContain(PASSWORD);
+    expect(households.create).toHaveBeenCalledWith({
+      name: 'Hogar de Ana',
+      members: [{ userId: USER_ID, role: 'owner', joinedAt: expect.any(Date) as unknown }],
+    });
     expect(refreshSessions.create).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER_ID.toString() }),
     );

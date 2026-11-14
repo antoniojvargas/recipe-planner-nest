@@ -1,6 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { Types } from 'mongoose';
 import type { PinoLogger } from 'nestjs-pino';
+import { HouseholdsRepository } from '../households/households.repository.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { AppException } from '../common/exceptions/app.exception.js';
 import { systemAuthClock } from './auth.clock.js';
@@ -22,6 +23,9 @@ function createService() {
     create: vi.fn(),
     findById: vi.fn(),
     findByEmailWithPassword: vi.fn(),
+  };
+  const households = {
+    create: vi.fn().mockResolvedValue({}),
   };
   const refreshSessions = {
     create: vi.fn().mockResolvedValue({}),
@@ -51,6 +55,7 @@ function createService() {
 
   const service = new AuthService(
     users as unknown as UsersRepository,
+    households as unknown as HouseholdsRepository,
     refreshSessions as unknown as RefreshSessionsRepository,
     passwords as unknown as PasswordHasher,
     tokens as unknown as AuthTokensService,
@@ -58,7 +63,7 @@ function createService() {
     systemAuthClock,
   );
 
-  return { service, users, refreshSessions, passwords, tokens, logger };
+  return { service, users, households, refreshSessions, passwords, tokens, logger };
 }
 
 function userFixture(passwordHash = '$argon2id$hash') {
@@ -83,8 +88,8 @@ async function captureError(promise: Promise<unknown>): Promise<AppException> {
 }
 
 describe('AuthService', () => {
-  it('registra el usuario con el hash de la contraseña y abre una familia nueva', async () => {
-    const { service, users, refreshSessions, passwords, tokens } = createService();
+  it('registra el usuario, crea su hogar propio y abre una familia nueva', async () => {
+    const { service, users, households, refreshSessions, passwords, tokens } = createService();
     const user = userFixture();
     users.create.mockResolvedValue(user);
 
@@ -99,6 +104,10 @@ describe('AuthService', () => {
       email: 'ana@example.com',
       passwordHash: '$argon2id$hash',
       displayName: 'Ana',
+    });
+    expect(households.create).toHaveBeenCalledWith({
+      name: 'Hogar de Ana',
+      members: [{ userId: user._id, role: 'owner', joinedAt: expect.any(Date) as unknown }],
     });
     expect(refreshSessions.create).toHaveBeenCalledWith({
       familyId: expect.stringMatching(UUID_PATTERN) as string,
