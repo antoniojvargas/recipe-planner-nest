@@ -12,7 +12,13 @@ import {
   INVALID_CREDENTIALS_MESSAGE,
   INVALID_SESSION_MESSAGE,
 } from './auth.constants.js';
-import type { AuthSession, IssuedSession, LoginInput, RegisterInput } from './auth.types.js';
+import type {
+  AuthResponse,
+  AuthSession,
+  IssuedSession,
+  LoginInput,
+  RegisterInput,
+} from './auth.types.js';
 import { PasswordHasher } from './password.hasher.js';
 import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
 
@@ -112,6 +118,23 @@ export class AuthService {
     const { userId } = await this.requireSession(accessToken);
 
     await this.refreshSessions.revokeAllForUser(userId, new Date());
+  }
+
+  /** Perfil público del usuario autenticado. */
+  async me(userId: string): Promise<AuthResponse> {
+    const user = await this.users.findById(userId);
+
+    if (user === null) {
+      throw this.invalidSession();
+    }
+
+    return {
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        displayName: user.displayName,
+      },
+    };
   }
 
   private async openSession(user: User | UserDocument): Promise<AuthSession> {

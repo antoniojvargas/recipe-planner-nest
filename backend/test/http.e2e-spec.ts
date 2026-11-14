@@ -7,11 +7,13 @@ import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
+import { Public } from './../src/auth/decorators/public.decorator.js';
 import { withFakeInfra } from './support/fake-infra.js';
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_URL ?? 'http://localhost:3001';
 
 /** Controlador de prueba para comprobar los plugins HTTP sin depender de rutas de dominio. */
+@Public()
 @Controller('probe')
 class HttpProbeController {
   @Get('cookies')

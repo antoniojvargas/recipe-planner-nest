@@ -10,6 +10,7 @@ import type { ErrorResponse } from '@recipe-planner/contracts';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
 import { ParseObjectIdPipe } from './../src/common/pipes/parse-object-id.pipe.js';
+import { Public } from './../src/auth/decorators/public.decorator.js';
 import { withFakeInfra } from './support/fake-infra.js';
 
 class CreateRecipeDto {
@@ -24,6 +25,7 @@ class CreateRecipeDto {
 }
 
 /** Controlador de prueba: comprueba que los pipes globales llegan a las rutas reales. */
+@Public()
 @Controller('probe')
 class ProbeController {
   @Post()

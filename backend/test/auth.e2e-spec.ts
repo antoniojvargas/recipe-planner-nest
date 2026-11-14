@@ -40,6 +40,7 @@ describe('Auth: sesión (e2e)', () => {
 
   const users = {
     create: vi.fn(),
+    findById: vi.fn(),
     findByEmailWithPassword: vi.fn(),
   };
   const refreshSessions = {
@@ -81,6 +82,7 @@ describe('Auth: sesión (e2e)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     users.create.mockResolvedValue({ ...publicUser, passwordHash });
+    users.findById.mockResolvedValue(null);
     users.findByEmailWithPassword.mockResolvedValue(null);
     refreshSessions.claimForRotation.mockResolvedValue(null);
     refreshSessions.findByTokenHash.mockResolvedValue(null);
@@ -247,6 +249,53 @@ describe('Auth: sesión (e2e)', () => {
 
       expect((response.body as ErrorResponse).error.code).toBe('UNAUTHORIZED');
       expect(refreshSessions.withTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('me', () => {
+    const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
+
+    it('devuelve el perfil del usuario autenticado', async () => {
+      users.findById.mockResolvedValue(publicUser);
+
+      const response = await request(app.getHttpServer() as App)
+        .get('/api/auth/me')
+        .set(
+          'Cookie',
+          `access_token=${await tokens.createAccessToken(USER_ID.toString(), familyId)}`,
+        )
+        .expect(200);
+
+      expect(response.body).toEqual({
+        user: { id: USER_ID.toString(), email: 'ana@example.com', displayName: 'Ana' },
+      });
+    });
+
+    it('responde 401 si no llega el access token', async () => {
+      const response = await request(app.getHttpServer() as App)
+        .get('/api/auth/me')
+        .expect(401);
+
+      expect((response.body as ErrorResponse).error).toEqual({
+        code: 'UNAUTHORIZED',
+        message: 'La sesión no es válida',
+        details: [],
+      });
+    });
+
+    it('responde TOKEN_EXPIRED si el access token caducó', async () => {
+      const expired = await new SignJWT({ fid: familyId })
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .setSubject(USER_ID.toString())
+        .setExpirationTime(Math.floor(Date.now() / 1_000) - 60)
+        .sign(new TextEncoder().encode(process.env.JWT_ACCESS_SECRET));
+
+      const response = await request(app.getHttpServer() as App)
+        .get('/api/auth/me')
+        .set('Cookie', `access_token=${expired}`)
+        .expect(401);
+
+      expect((response.body as ErrorResponse).error.code).toBe('TOKEN_EXPIRED');
     });
   });
 

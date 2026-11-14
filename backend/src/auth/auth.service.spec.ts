@@ -19,6 +19,7 @@ const TX_SESSION = { id: 'transaccion' };
 function createService() {
   const users = {
     create: vi.fn(),
+    findById: vi.fn(),
     findByEmailWithPassword: vi.fn(),
   };
   const refreshSessions = {
@@ -275,6 +276,29 @@ describe('AuthService', () => {
 
       expect(error.code).toBe('UNAUTHORIZED');
       expect(refreshSessions.withTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('me', () => {
+    it('devuelve el perfil público del usuario', async () => {
+      const { service, users } = createService();
+      const user = userFixture();
+      users.findById.mockResolvedValue(user);
+
+      await expect(service.me(user._id.toString())).resolves.toEqual({
+        user: { id: user._id.toString(), email: 'ana@example.com', displayName: 'Ana' },
+      });
+      expect(users.findById).toHaveBeenCalledWith(user._id.toString());
+    });
+
+    it('rechaza si el usuario ya no existe', async () => {
+      const { service, users } = createService();
+      users.findById.mockResolvedValue(null);
+
+      const error = await captureError(service.me(new Types.ObjectId().toString()));
+
+      expect(error.code).toBe('UNAUTHORIZED');
+      expect(error.message).toBe(INVALID_SESSION_MESSAGE);
     });
   });
 
