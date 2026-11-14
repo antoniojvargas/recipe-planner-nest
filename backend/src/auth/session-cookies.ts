@@ -7,7 +7,7 @@ import {
   REFRESH_TOKEN_COOKIE_PATH,
   REFRESH_TOKEN_MAX_AGE_SECONDS,
 } from './auth.constants.js';
-import type { AuthSession } from './auth.types.js';
+import type { IssuedSession } from './auth.types.js';
 
 export interface SessionCookieOptions {
   /** `Secure` solo en producción: en desarrollo la API va por HTTP. */
@@ -20,7 +20,7 @@ export interface SessionCookieOptions {
  */
 export function setSessionCookies(
   reply: FastifyReply,
-  session: Pick<AuthSession, 'accessToken' | 'refreshToken'>,
+  session: Pick<IssuedSession, 'accessToken' | 'refreshToken'>,
   { secure }: SessionCookieOptions,
 ): void {
   reply.setCookie(ACCESS_TOKEN_COOKIE, session.accessToken, {

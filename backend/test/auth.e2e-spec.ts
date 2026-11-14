@@ -39,7 +39,15 @@ describe('Auth: registro y login (e2e)', () => {
     create: vi.fn(),
     findByEmailWithPassword: vi.fn(),
   };
-  const refreshSessions = { create: vi.fn().mockResolvedValue({}) };
+  const refreshSessions = {
+    create: vi.fn().mockResolvedValue({}),
+    claimForRotation: vi.fn(),
+    findByTokenHash: vi.fn(),
+    revokeFamily: vi.fn().mockResolvedValue(undefined),
+    withTransaction: vi.fn(async (work: (session: unknown) => Promise<unknown>) =>
+      work({ id: 'transaccion' }),
+    ),
+  };
 
   const publicUser = {
     _id: USER_ID,
@@ -69,6 +77,8 @@ describe('Auth: registro y login (e2e)', () => {
     vi.clearAllMocks();
     users.create.mockResolvedValue({ ...publicUser, passwordHash });
     users.findByEmailWithPassword.mockResolvedValue(null);
+    refreshSessions.claimForRotation.mockResolvedValue(null);
+    refreshSessions.findByTokenHash.mockResolvedValue(null);
   });
 
   afterAll(async () => {
@@ -152,6 +162,87 @@ describe('Auth: registro y login (e2e)', () => {
     expect(responseCookies(unknownEmail)).toHaveLength(0);
     expect(responseCookies(wrongPassword)).toHaveLength(0);
     expect(refreshSessions.create).not.toHaveBeenCalled();
+  });
+
+  describe('refresh', () => {
+    const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
+
+    it('rota el token y responde 204 con las dos cookies nuevas', async () => {
+      refreshSessions.claimForRotation.mockResolvedValue({ familyId, userId: USER_ID });
+
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/refresh')
+        .set('Cookie', 'refresh_token=token-viejo')
+        .expect(204);
+
+      expect(refreshSessions.claimForRotation).toHaveBeenCalledWith(
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+        expect.any(Date),
+        expect.anything(),
+      );
+      expect(refreshSessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({ familyId, userId: USER_ID.toString() }),
+        expect.anything(),
+      );
+
+      const cookies = responseCookies(response);
+      expect(cookieNamed(cookies, 'access_token')).toContain('Path=/api;');
+      expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/api/auth/refresh;');
+    });
+
+    it('si el token ya se usó, revoca la familia y responde 401', async () => {
+      refreshSessions.findByTokenHash.mockResolvedValue({
+        familyId,
+        userId: USER_ID,
+        usedAt: new Date('2026-11-13T11:00:00.000Z'),
+        revokedAt: null,
+        expiresAt: new Date('2026-12-13T00:00:00.000Z'),
+      });
+
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/refresh')
+        .set('Cookie', 'refresh_token=token-robado')
+        .expect(401);
+
+      expect(refreshSessions.revokeFamily).toHaveBeenCalledWith(
+        familyId,
+        expect.any(Date),
+        expect.anything(),
+      );
+      expect((response.body as ErrorResponse).error).toEqual({
+        code: 'UNAUTHORIZED',
+        message: 'La sesión no es válida',
+        details: [],
+      });
+      expect(responseCookies(response)).toHaveLength(0);
+    });
+
+    it('responde TOKEN_EXPIRED para un refresh caducado', async () => {
+      refreshSessions.findByTokenHash.mockResolvedValue({
+        familyId,
+        userId: USER_ID,
+        usedAt: null,
+        revokedAt: null,
+        expiresAt: new Date('2026-11-12T00:00:00.000Z'),
+      });
+
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/refresh')
+        .set('Cookie', 'refresh_token=token-caducado')
+        .expect(401);
+
+      expect((response.body as ErrorResponse).error.code).toBe('TOKEN_EXPIRED');
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+    });
+
+    it('responde 401 si no llega la cookie', async () => {
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/refresh')
+        .expect(401);
+
+      expect((response.body as ErrorResponse).error.code).toBe('UNAUTHORIZED');
+      expect(refreshSessions.withTransaction).not.toHaveBeenCalled();
+    });
   });
 
   it('valida el cuerpo antes de tocar la base', async () => {

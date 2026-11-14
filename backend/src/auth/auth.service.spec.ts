@@ -1,21 +1,35 @@
 import { HttpStatus } from '@nestjs/common';
 import { Types } from 'mongoose';
+import type { PinoLogger } from 'nestjs-pino';
 import { UsersRepository } from '../users/users.repository.js';
 import { AppException } from '../common/exceptions/app.exception.js';
 import { AuthService } from './auth.service.js';
-import { AuthTokensService } from './auth-tokens.service.js';
-import { INVALID_CREDENTIALS_MESSAGE } from './auth.constants.js';
+import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
+import {
+  EXPIRED_REFRESH_MESSAGE,
+  INVALID_CREDENTIALS_MESSAGE,
+  INVALID_REFRESH_MESSAGE,
+} from './auth.constants.js';
 import { PasswordHasher } from './password.hasher.js';
 import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const TX_SESSION = { id: 'transaccion' };
 
 function createService() {
   const users = {
     create: vi.fn(),
     findByEmailWithPassword: vi.fn(),
   };
-  const refreshSessions = { create: vi.fn().mockResolvedValue({}) };
+  const refreshSessions = {
+    create: vi.fn().mockResolvedValue({}),
+    claimForRotation: vi.fn(),
+    findByTokenHash: vi.fn(),
+    revokeFamily: vi.fn().mockResolvedValue(undefined),
+    withTransaction: vi.fn(async (work: (session: unknown) => Promise<unknown>) =>
+      work(TX_SESSION),
+    ),
+  };
   const passwords = {
     hash: vi.fn().mockResolvedValue('$argon2id$hash'),
     verify: vi.fn(),
@@ -29,15 +43,17 @@ function createService() {
       expiresAt: new Date('2026-12-13T00:00:00.000Z'),
     }),
   };
+  const logger = { setContext: vi.fn(), warn: vi.fn() };
 
   const service = new AuthService(
     users as unknown as UsersRepository,
     refreshSessions as unknown as RefreshSessionsRepository,
     passwords as unknown as PasswordHasher,
     tokens as unknown as AuthTokensService,
+    logger as unknown as PinoLogger,
   );
 
-  return { service, users, refreshSessions, passwords, tokens };
+  return { service, users, refreshSessions, passwords, tokens, logger };
 }
 
 function userFixture(passwordHash = '$argon2id$hash') {
@@ -146,5 +162,117 @@ describe('AuthService', () => {
       service.login({ email: 'ana@example.com', password: 'Incorrecta123' }),
     ).rejects.toBeInstanceOf(AppException);
     expect(tokens.createAccessToken).not.toHaveBeenCalled();
+  });
+
+  describe('refresh', () => {
+    const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
+    const userId = new Types.ObjectId();
+
+    it('consume el token y emite el siguiente eslabón dentro de la transacción', async () => {
+      const { service, refreshSessions, tokens } = createService();
+      refreshSessions.claimForRotation.mockResolvedValue({ familyId, userId });
+
+      const tokensIssued = await service.refresh('token-viejo');
+
+      expect(refreshSessions.withTransaction).toHaveBeenCalledOnce();
+      expect(refreshSessions.claimForRotation).toHaveBeenCalledWith(
+        hashRefreshToken('token-viejo'),
+        expect.any(Date),
+        TX_SESSION,
+      );
+      expect(tokens.createAccessToken).toHaveBeenCalledWith(userId.toString(), familyId);
+      expect(refreshSessions.create).toHaveBeenCalledWith(
+        {
+          familyId,
+          userId: userId.toString(),
+          tokenHash: 'a'.repeat(64),
+          expiresAt: new Date('2026-12-13T00:00:00.000Z'),
+        },
+        TX_SESSION,
+      );
+      expect(tokensIssued).toEqual({
+        accessToken: 'access.jwt',
+        refreshToken: 'opaque-refresh',
+        refreshTokenExpiresAt: new Date('2026-12-13T00:00:00.000Z'),
+      });
+    });
+
+    it('si el token ya se usó, revoca la familia y no emite nada', async () => {
+      const { service, refreshSessions, tokens, logger } = createService();
+      refreshSessions.claimForRotation.mockResolvedValue(null);
+      refreshSessions.findByTokenHash.mockResolvedValue({
+        familyId,
+        userId,
+        usedAt: new Date('2026-11-13T11:00:00.000Z'),
+        revokedAt: null,
+        expiresAt: new Date('2026-12-13T00:00:00.000Z'),
+      });
+
+      const error = await captureError(service.refresh('token-robado'));
+
+      expect(refreshSessions.revokeFamily).toHaveBeenCalledWith(
+        familyId,
+        expect.any(Date),
+        TX_SESSION,
+      );
+      expect(tokens.createAccessToken).not.toHaveBeenCalled();
+      expect(error.code).toBe('UNAUTHORIZED');
+      expect(error.message).toBe(INVALID_REFRESH_MESSAGE);
+      expect(logger.warn).toHaveBeenCalledWith(
+        { userId: userId.toString(), familyId },
+        expect.stringContaining('familia revocada'),
+      );
+    });
+
+    it('distingue un token caducado para que el cliente pueda volver a autenticarse', async () => {
+      const { service, refreshSessions, tokens } = createService();
+      refreshSessions.claimForRotation.mockResolvedValue(null);
+      refreshSessions.findByTokenHash.mockResolvedValue({
+        familyId,
+        userId,
+        usedAt: null,
+        revokedAt: null,
+        expiresAt: new Date('2026-11-12T00:00:00.000Z'),
+      });
+
+      const error = await captureError(service.refresh('token-caducado'));
+
+      expect(error.code).toBe('TOKEN_EXPIRED');
+      expect(error.message).toBe(EXPIRED_REFRESH_MESSAGE);
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+      expect(tokens.createAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('trata como inválidos un token desconocido y uno de una familia revocada', async () => {
+      const { service, refreshSessions } = createService();
+      refreshSessions.claimForRotation.mockResolvedValue(null);
+      refreshSessions.findByTokenHash.mockResolvedValueOnce(null);
+
+      const unknown = await captureError(service.refresh('no-existe'));
+
+      refreshSessions.findByTokenHash.mockResolvedValueOnce({
+        familyId,
+        userId,
+        usedAt: null,
+        revokedAt: new Date('2026-11-13T10:00:00.000Z'),
+        expiresAt: new Date('2026-12-13T00:00:00.000Z'),
+      });
+      const revoked = await captureError(service.refresh('revocado'));
+
+      for (const error of [unknown, revoked]) {
+        expect(error.code).toBe('UNAUTHORIZED');
+        expect(error.message).toBe(INVALID_REFRESH_MESSAGE);
+      }
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+    });
+
+    it('rechaza sin abrir transacción si no hay cookie', async () => {
+      const { service, refreshSessions } = createService();
+
+      const error = await captureError(service.refresh(undefined));
+
+      expect(error.code).toBe('UNAUTHORIZED');
+      expect(refreshSessions.withTransaction).not.toHaveBeenCalled();
+    });
   });
 });

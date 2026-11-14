@@ -400,6 +400,9 @@ sesión en uno no afecta al otro.
    peticiones llegan a la vez, solo una encuentra la fila y la marca; la otra no puede canjearla.
    Si la actualización no encuentra fila, se lee por `tokenHash` solo para clasificar el motivo
    (la tabla siguiente); esa lectura decide la respuesta y el efecto, pero nunca acepta el token.
+   La transacción se ejecuta con `withTransaction`, que reintenta los conflictos de escritura: si
+   dos peticiones compiten por el mismo token, una confirma y la otra vuelve a empezar, ya ve
+   `usedAt` y revoca la familia.
 
 3. Si la fila se consumió, se inserta el siguiente token de la misma familia (`familyId` igual,
    hash nuevo, `expiresAt` nuevo) y se responden 204 con las cookies actualizadas: access token
@@ -427,8 +430,9 @@ nunca con el token ni su hash. No se distingue en la respuesta entre «no existe
   el siguiente eslabón; en cuanto uno de los dos usa el token que el otro ya canjeó, la familia
   entera cae. Es lo que convierte un robo silencioso en un cierre de sesión visible.
 - **Consumir y emitir van en la misma transacción.** Son dos escrituras (marcar `usedAt` e insertar
-  el nuevo token); si el proceso muere entre ambas, el usuario se queda sin refresh válido. El
-  replica set de Mongo que ya exige el proyecto permite hacerlo atómico.
+  el nuevo token); si el proceso muere entre ambas, la transacción se aborta y el token anterior
+  sigue válido. Nunca queda un token consumido sin sucesor. El replica set de Mongo que ya exige
+  el proyecto permite hacerlo atómico.
 - **Dos refresh en paralelo son indistinguibles de un robo.** El backend no añade una ventana de
   gracia: el segundo en llegar revoca la familia. El frontend debe hacer _single-flight_ —una sola
   promesa de refresh en vuelo, compartida por todas las peticiones que reciben 401— y reintentar

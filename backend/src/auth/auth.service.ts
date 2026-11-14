@@ -1,22 +1,38 @@
 import { randomUUID } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '@recipe-planner/contracts';
+import type { ClientSession } from 'mongoose';
+import { PinoLogger } from 'nestjs-pino';
 import { AppException } from '../common/exceptions/app.exception.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { User, UserDocument } from '../users/user.schema.js';
-import { AuthTokensService } from './auth-tokens.service.js';
-import { INVALID_CREDENTIALS_MESSAGE } from './auth.constants.js';
-import type { AuthSession, LoginInput, RegisterInput } from './auth.types.js';
+import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
+import {
+  EXPIRED_REFRESH_MESSAGE,
+  INVALID_CREDENTIALS_MESSAGE,
+  INVALID_REFRESH_MESSAGE,
+} from './auth.constants.js';
+import type { AuthSession, IssuedSession, LoginInput, RegisterInput } from './auth.types.js';
 import { PasswordHasher } from './password.hasher.js';
 import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
 
+/** Resultado de la transacción de rotación, antes de traducirlo a error HTTP. */
+type RotationResult =
+  | { status: 'rotated'; tokens: IssuedSession }
+  | { status: 'reused'; userId: string; familyId: string }
+  | { status: 'expired' }
+  | { status: 'invalid' };
+
 /**
- * Registro y login.
+ * Registro, login y refresh.
  *
- * Ambos abren una sesión nueva: familia de refresh recién creada, refresh token opaco
- * guardado como hash y access token JWT. El login no distingue entre email inexistente y
- * contraseña incorrecta: mismo mensaje, mismo estado y una sola verificación argon2 en los
+ * Registro y login abren una sesión nueva: familia de refresh recién creada, refresh token
+ * opaco guardado como hash y access token JWT. El login no distingue entre email inexistente
+ * y contraseña incorrecta: mismo mensaje, mismo estado y una sola verificación argon2 en los
  * dos caminos (real o contra el hash de relleno).
+ *
+ * El refresh consume y emite dentro de una transacción. La segunda petición que presenta un
+ * token ya usado no puede canjearlo y, al detectar la reutilización, revoca la familia entera.
  */
 @Injectable()
 export class AuthService {
@@ -25,7 +41,10 @@ export class AuthService {
     private readonly refreshSessions: RefreshSessionsRepository,
     private readonly passwords: PasswordHasher,
     private readonly tokens: AuthTokensService,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(AuthService.name);
+  }
 
   async register(input: RegisterInput): Promise<AuthSession> {
     const passwordHash = await this.passwords.hash(input.password);
@@ -58,6 +77,30 @@ export class AuthService {
     return this.openSession(user);
   }
 
+  /** Canjea el refresh token por un par nuevo; el anterior queda marcado como usado. */
+  async refresh(rawRefreshToken: string | undefined): Promise<IssuedSession> {
+    const result = await this.rotate(rawRefreshToken);
+
+    switch (result.status) {
+      case 'rotated':
+        return result.tokens;
+      case 'reused':
+        this.logger.warn(
+          { userId: result.userId, familyId: result.familyId },
+          'Refresh token reutilizado: familia revocada',
+        );
+        throw this.invalidRefresh();
+      case 'expired':
+        throw new AppException({
+          status: HttpStatus.UNAUTHORIZED,
+          code: ERROR_CODES.TOKEN_EXPIRED,
+          message: EXPIRED_REFRESH_MESSAGE,
+        });
+      case 'invalid':
+        throw this.invalidRefresh();
+    }
+  }
+
   private async openSession(user: User | UserDocument): Promise<AuthSession> {
     const familyId = randomUUID();
     const refreshToken = this.tokens.createRefreshToken();
@@ -80,5 +123,93 @@ export class AuthService {
       refreshToken: refreshToken.token,
       refreshTokenExpiresAt: refreshToken.expiresAt,
     };
+  }
+
+  private async rotate(rawRefreshToken: string | undefined): Promise<RotationResult> {
+    if (rawRefreshToken === undefined || rawRefreshToken === '') {
+      return { status: 'invalid' };
+    }
+
+    const tokenHash = hashRefreshToken(rawRefreshToken);
+    const now = new Date();
+
+    return this.refreshSessions.withTransaction(async (session) => {
+      // Una sola escritura decide quién canjea el token. Si no encuentra la fila, la
+      // siguiente lectura solo sirve para saber si se usó, se revocó o caducó.
+      const claimed = await this.refreshSessions.claimForRotation(tokenHash, now, session);
+
+      if (claimed === null) {
+        return this.classifyFailedClaim(tokenHash, now, session);
+      }
+
+      const next = this.tokens.createRefreshToken();
+      const accessToken = await this.tokens.createAccessToken(
+        claimed.userId.toString(),
+        claimed.familyId,
+      );
+
+      // Mismo `familyId`: el eslabón nuevo pertenece a la sesión original.
+      await this.refreshSessions.create(
+        {
+          familyId: claimed.familyId,
+          userId: claimed.userId.toString(),
+          tokenHash: next.tokenHash,
+          expiresAt: next.expiresAt,
+        },
+        session,
+      );
+
+      return {
+        status: 'rotated',
+        tokens: {
+          accessToken,
+          refreshToken: next.token,
+          refreshTokenExpiresAt: next.expiresAt,
+        },
+      };
+    });
+  }
+
+  private async classifyFailedClaim(
+    tokenHash: string,
+    now: Date,
+    session: ClientSession,
+  ): Promise<RotationResult> {
+    const existing = await this.refreshSessions.findByTokenHash(tokenHash, session);
+
+    if (existing === null) {
+      return { status: 'invalid' };
+    }
+
+    if (existing.usedAt !== null) {
+      // Alguien presenta un token que ya se canjeó: se revoca la familia entera. El
+      // callback termina sin lanzar para que la transacción confirme la revocación.
+      await this.refreshSessions.revokeFamily(existing.familyId, now, session);
+
+      return {
+        status: 'reused',
+        userId: existing.userId.toString(),
+        familyId: existing.familyId,
+      };
+    }
+
+    if (existing.revokedAt !== null) {
+      return { status: 'invalid' };
+    }
+
+    if (existing.expiresAt.getTime() <= now.getTime()) {
+      return { status: 'expired' };
+    }
+
+    // El filtro atómico no debería fallar con una fila viva; si pasa, no se canjea.
+    return { status: 'invalid' };
+  }
+
+  private invalidRefresh(): AppException {
+    return new AppException({
+      status: HttpStatus.UNAUTHORIZED,
+      code: ERROR_CODES.UNAUTHORIZED,
+      message: INVALID_REFRESH_MESSAGE,
+    });
   }
 }

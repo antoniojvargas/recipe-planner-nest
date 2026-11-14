@@ -7,6 +7,7 @@ export interface MongooseQueryMock<T> {
   skip: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
   select: ReturnType<typeof vi.fn>;
+  session: ReturnType<typeof vi.fn>;
   exec: ReturnType<typeof vi.fn>;
 }
 
@@ -24,6 +25,7 @@ export function mockMongooseQuery<T>(result: T): MongooseQueryMock<T> {
   query.skip = vi.fn(() => query);
   query.limit = vi.fn(() => query);
   query.select = vi.fn(() => query);
+  query.session = vi.fn(() => query);
   query.exec = vi.fn().mockResolvedValue(result);
 
   return query;

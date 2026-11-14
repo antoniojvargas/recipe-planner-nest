@@ -22,9 +22,14 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
-/** Resultado interno: lo que el controlador convierte en cuerpo y cookies. */
-export interface AuthSession extends AuthResponse {
+/** Par de credenciales emitidas; es lo único que devuelve el refresh. */
+export interface IssuedSession {
   accessToken: string;
   refreshToken: string;
   refreshTokenExpiresAt: Date;
+}
+
+/** Resultado interno del registro y el login: usuario más las dos credenciales. */
+export interface AuthSession extends IssuedSession {
+  user: AuthUser;
 }
