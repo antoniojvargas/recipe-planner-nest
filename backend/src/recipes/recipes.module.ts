@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HouseholdsModule } from '../households/households.module.js';
+import { MediaModule } from '../media/media.module.js';
 import { Recipe, RecipeSchema } from './recipe.schema.js';
 import { RecipesController } from './recipes.controller.js';
 import { RecipesRepository } from './recipes.repository.js';
@@ -16,6 +17,7 @@ import { RecipesService } from './recipes.service.js';
   imports: [
     MongooseModule.forFeature([{ name: Recipe.name, schema: RecipeSchema }]),
     HouseholdsModule,
+    MediaModule,
   ],
   controllers: [RecipesController],
   providers: [RecipesRepository, RecipesService],

@@ -8,12 +8,14 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { HouseholdMemberGuard } from '../households/guards/household-member.guard.js';
+import { ConfirmImageDto } from '../media/dto/confirm-image.dto.js';
 import { CreateRecipeDto } from './dto/create-recipe.dto.js';
 import { ListRecipesQueryDto } from './dto/list-recipes-query.dto.js';
 import { UpdateRecipeDto } from './dto/update-recipe.dto.js';
@@ -52,6 +54,15 @@ export class RecipesController {
     @Param('recipeId', ParseObjectIdPipe) recipeId: string,
   ): Promise<RecipeResponse> {
     return this.recipesService.findOne(householdId, recipeId);
+  }
+
+  @Put(':recipeId/image')
+  async confirmImage(
+    @Param('householdId', ParseObjectIdPipe) householdId: string,
+    @Param('recipeId', ParseObjectIdPipe) recipeId: string,
+    @Body() dto: ConfirmImageDto,
+  ): Promise<RecipeResponse> {
+    return this.recipesService.confirmImage(householdId, recipeId, dto);
   }
 
   @Patch(':recipeId')

@@ -12,6 +12,10 @@ export const IMAGE_EXTENSIONS: Record<AllowedImageType, string> = {
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+export function isAllowedImageType(value: string): value is AllowedImageType {
+  return (ALLOWED_IMAGE_TYPES as readonly string[]).includes(value);
+}
+
 /** Segundos que la URL prefirmada permite iniciar la subida. */
 export const UPLOAD_URL_TTL_SECONDS = 300;
 

@@ -1,6 +1,9 @@
 import 'reflect-metadata';
+import { randomUUID } from 'node:crypto';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import sharp from 'sharp';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { ErrorResponse } from '@recipe-planner/contracts';
@@ -8,10 +11,11 @@ import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
 import { RefreshSessionsRepository } from './../src/auth/refresh-sessions.repository.js';
 import { HouseholdsRepository } from './../src/households/households.repository.js';
+import { THUMBNAIL_JOB } from './../src/media/media.queue.js';
 import { RecipesRepository } from './../src/recipes/recipes.repository.js';
 import type { RecipeListResponse, RecipeResponse } from './../src/recipes/recipes.types.js';
 import { UsersRepository } from './../src/users/users.repository.js';
-import { withFakeInfra } from './support/fake-infra.js';
+import { createInfraFakes, withFakeInfra } from './support/fake-infra.js';
 import { InMemoryHouseholdsRepository } from './support/in-memory-households.repository.js';
 import { InMemoryRecipesRepository } from './support/in-memory-recipes.repository.js';
 import { InMemoryRefreshSessionsRepository } from './support/in-memory-refresh-sessions.repository.js';
@@ -71,8 +75,36 @@ describe('Recipes (e2e)', () => {
   let households: InMemoryHouseholdsRepository;
   let recipes: InMemoryRecipesRepository;
   let refreshSessions: InMemoryRefreshSessionsRepository;
+  let originalImage: Buffer;
+
+  // El mismo doble de S3 para todo el fichero: `HeadObject` informa del PNG generado en
+  // `beforeAll` y `GetObject` lo devuelve, para que `inspectImage` mida dimensiones reales.
+  const fakes = createInfraFakes({
+    send: (command) => {
+      if (command instanceof HeadObjectCommand) {
+        return Promise.resolve({
+          ContentLength: originalImage.length,
+          ContentType: 'image/png',
+        });
+      }
+
+      if (command instanceof GetObjectCommand) {
+        return Promise.resolve({
+          Body: { transformToByteArray: () => Promise.resolve(new Uint8Array(originalImage)) },
+        });
+      }
+
+      return Promise.resolve({});
+    },
+  });
 
   beforeAll(async () => {
+    originalImage = await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: '#ffffff' },
+    })
+      .png()
+      .toBuffer();
+
     users = new InMemoryUsersRepository();
     households = new InMemoryHouseholdsRepository();
     recipes = new InMemoryRecipesRepository();
@@ -80,6 +112,7 @@ describe('Recipes (e2e)', () => {
 
     const moduleFixture: TestingModule = await withFakeInfra(
       Test.createTestingModule({ imports: [AppModule] }),
+      fakes,
     )
       .overrideProvider(UsersRepository)
       .useValue(users)
@@ -102,6 +135,7 @@ describe('Recipes (e2e)', () => {
     households.households.length = 0;
     recipes.recipes.length = 0;
     refreshSessions.sessions.length = 0;
+    fakes.mediaQueue.add.mockClear();
   });
 
   afterAll(async () => {
@@ -337,6 +371,57 @@ describe('Recipes (e2e)', () => {
 
     const badCursor = await listRecipes(accessToken, householdId, '?cursor=basura').expect(400);
     expect((badCursor.body as ErrorResponse).error.details[0]?.field).toBe('cursor');
+  });
+
+  function confirmImage(
+    accessToken: string | undefined,
+    householdId: string,
+    recipeId: string,
+    key: string,
+  ) {
+    return request(app.getHttpServer() as App)
+      .put(`/api/households/${householdId}/recipes/${recipeId}/image`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(accessToken))
+      .send({ key });
+  }
+
+  it('confirma la imagen subida, guarda sus dimensiones y encola la miniatura', async () => {
+    const { accessToken, householdId } = await register();
+    const created = await createRecipe(accessToken, householdId).expect(201);
+    const recipeId = (created.body as RecipeResponse).id;
+    const key = `households/${householdId}/${randomUUID()}.png`;
+
+    const response = await confirmImage(accessToken, householdId, recipeId, key).expect(200);
+
+    expect((response.body as RecipeResponse).image).toEqual({
+      key,
+      width: 1200,
+      height: 800,
+    });
+    expect(recipes.recipes[0]?.image).toEqual({ key, width: 1200, height: 800 });
+    expect(fakes.mediaQueue.add).toHaveBeenCalledWith(
+      THUMBNAIL_JOB,
+      { householdId, recipeId, key },
+      expect.objectContaining({ attempts: 3 }),
+    );
+  });
+
+  it('rechaza una clave de otro hogar sin guardar ni encolar', async () => {
+    const ana = await register('ana@example.com', 'Ana');
+    const bea = await register('bea@example.com', 'Bea');
+    const created = await createRecipe(ana.accessToken, ana.householdId).expect(201);
+    const recipeId = (created.body as RecipeResponse).id;
+    const key = `households/${bea.householdId}/${randomUUID()}.png`;
+
+    const response = await confirmImage(ana.accessToken, ana.householdId, recipeId, key).expect(
+      400,
+    );
+
+    expect((response.body as ErrorResponse).error.details[0]?.field).toBe('key');
+    expect(recipes.recipes[0]?.image).toBeUndefined();
+    expect(fakes.mediaQueue.add).not.toHaveBeenCalled();
   });
 
   it('un usuario de otro hogar recibe 404 en todas las rutas del recetario', async () => {

@@ -2,6 +2,8 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import { Types, type UpdateQuery } from 'mongoose';
 import { AppException } from '../common/exceptions/app.exception.js';
+import type { ConfirmImageDto } from '../media/dto/confirm-image.dto.js';
+import { MediaService } from '../media/media.service.js';
 import { CreateRecipeDto } from './dto/create-recipe.dto.js';
 import { ListRecipesQueryDto, RECIPES_DEFAULT_PAGE_SIZE } from './dto/list-recipes-query.dto.js';
 import { UpdateRecipeDto } from './dto/update-recipe.dto.js';
@@ -75,7 +77,10 @@ function invalidCursor(message: string): AppException {
  */
 @Injectable()
 export class RecipesService {
-  constructor(private readonly recipes: RecipesRepository) {}
+  constructor(
+    private readonly recipes: RecipesRepository,
+    private readonly media: MediaService,
+  ) {}
 
   async create(householdId: string, userId: string, dto: CreateRecipeDto): Promise<RecipeResponse> {
     const recipe = await this.recipes.create({
@@ -143,6 +148,35 @@ export class RecipesService {
     if (recipe === null) {
       throw notFound();
     }
+
+    return toResponse(recipe);
+  }
+
+  /**
+   * Confirma la imagen que el navegador acaba de subir: comprueba el objeto en el bucket,
+   * guarda la clave y las dimensiones reales y encola las miniaturas.
+   *
+   * Primero se actualiza la receta y después se encola: si la receta no existe o la imagen no
+   * es válida, no se crea trabajo huérfano. Un fallo de la cola deja la imagen puesta y la
+   * petición falla, para que el cliente pueda reintentar.
+   */
+  async confirmImage(
+    householdId: string,
+    recipeId: string,
+    dto: ConfirmImageDto,
+  ): Promise<RecipeResponse> {
+    const image = await this.media.inspectImage(householdId, dto.key);
+    const recipe = await this.recipes.updateById(householdId, recipeId, {
+      $set: {
+        image: { key: image.key, width: image.width, height: image.height },
+      },
+    });
+
+    if (recipe === null) {
+      throw notFound();
+    }
+
+    await this.media.enqueueThumbnail({ householdId, recipeId, key: image.key });
 
     return toResponse(recipe);
   }

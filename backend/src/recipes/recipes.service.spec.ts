@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { AppException } from '../common/exceptions/app.exception.js';
+import type { MediaService } from '../media/media.service.js';
 import type { CreateRecipeDto } from './dto/create-recipe.dto.js';
 import type { UpdateRecipeDto } from './dto/update-recipe.dto.js';
 import type { Recipe } from './recipe.schema.js';
@@ -18,6 +19,13 @@ function createRepositoryMock() {
   };
 
   return { repository: mocks as unknown as RecipesRepository, mocks };
+}
+
+function createMediaMock() {
+  return {
+    inspectImage: vi.fn(),
+    enqueueThumbnail: vi.fn().mockResolvedValue(undefined),
+  } as unknown as MediaService;
 }
 
 function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
@@ -67,7 +75,7 @@ describe('RecipesService', () => {
   describe('create', () => {
     it('asigna hogar y autor y devuelve la receta creada', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const created = makeRecipe({ title: 'Tortilla' });
       mocks.create.mockResolvedValue(created);
 
@@ -97,7 +105,7 @@ describe('RecipesService', () => {
   describe('list', () => {
     it('devuelve la página y un cursor con la última receta servida', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const recipes = page(3);
       mocks.findPage.mockResolvedValue(recipes);
 
@@ -118,7 +126,7 @@ describe('RecipesService', () => {
 
     it('devuelve nextCursor null en la última página', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       mocks.findPage.mockResolvedValue(page(2));
 
       const result = await service.list(householdId, { limit: 2 });
@@ -129,7 +137,7 @@ describe('RecipesService', () => {
 
     it('usa 20 resultados por defecto y pasa las etiquetas normalizadas', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       mocks.findPage.mockResolvedValue([]);
 
       await service.list(householdId, { tags: ['arroz', 'rapido'] });
@@ -142,7 +150,7 @@ describe('RecipesService', () => {
 
     it('con q busca en el índice de texto y el cursor lleva la puntuación', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const first = makeRecipe({ title: 'Paella', updatedAt: new Date('2026-02-03T10:00:00Z') });
       const second = makeRecipe({
         title: 'Arroz negro',
@@ -168,7 +176,7 @@ describe('RecipesService', () => {
 
     it('rechaza un cursor irrecuperable', async () => {
       const { repository } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
 
       const exception = await expectAppException(() =>
         service.list(householdId, { cursor: 'basura' }),
@@ -182,7 +190,7 @@ describe('RecipesService', () => {
 
     it('rechaza un cursor de recetario en una búsqueda', async () => {
       const { repository } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const recipe = makeRecipe();
       const cursor = encodeCursor({ updatedAt: recipe.updatedAt, id: recipe._id });
       const exception = await expectAppException(() =>
@@ -197,7 +205,7 @@ describe('RecipesService', () => {
   describe('findOne', () => {
     it('devuelve 404 si la receta no es del hogar', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       mocks.findById.mockResolvedValue(null);
 
       const exception = await expectAppException(() =>
@@ -210,7 +218,7 @@ describe('RecipesService', () => {
 
     it('devuelve la receta con los identificadores como strings', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const recipe = makeRecipe();
       mocks.findById.mockResolvedValue(recipe);
 
@@ -237,7 +245,7 @@ describe('RecipesService', () => {
   describe('update', () => {
     it('solo actualiza los campos presentes en el parche', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const updated = makeRecipe({ title: 'Arroz negro' });
       mocks.updateById.mockResolvedValue(updated);
 
@@ -252,7 +260,7 @@ describe('RecipesService', () => {
 
     it('sin campos devuelve la receta existente sin escribir en Mongo', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const recipe = makeRecipe();
       mocks.findById.mockResolvedValue(recipe);
 
@@ -264,7 +272,7 @@ describe('RecipesService', () => {
 
     it('devuelve 404 si la receta no existe o es de otro hogar', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       mocks.updateById.mockResolvedValue(null);
 
       const exception = await expectAppException(() =>
@@ -275,10 +283,71 @@ describe('RecipesService', () => {
     });
   });
 
+  describe('confirmImage', () => {
+    const key = `households/${householdId}/foto.png`;
+    const image = { key, width: 1200, height: 800, size: 2048 };
+
+    it('guarda la imagen en la receta y encola las miniaturas', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const mediaMocks = {
+        inspectImage: vi.fn().mockResolvedValue(image),
+        enqueueThumbnail: vi.fn().mockResolvedValue(undefined),
+      };
+      const service = new RecipesService(repository, mediaMocks as unknown as MediaService);
+      const recipeId = new Types.ObjectId().toString();
+      const updated = makeRecipe({
+        _id: new Types.ObjectId(recipeId),
+        image: { key, width: 1200, height: 800 },
+      });
+      mocks.updateById.mockResolvedValue(updated);
+
+      const response = await service.confirmImage(householdId, recipeId, { key });
+
+      expect(mediaMocks.inspectImage).toHaveBeenCalledWith(householdId, key);
+      expect(mocks.updateById).toHaveBeenCalledWith(householdId, recipeId, {
+        $set: { image: { key, width: 1200, height: 800 } },
+      });
+      expect(mediaMocks.enqueueThumbnail).toHaveBeenCalledWith({ householdId, recipeId, key });
+      expect(response.image).toEqual({ key, width: 1200, height: 800 });
+    });
+
+    it('devuelve 404 sin encolar si la receta no existe o es de otro hogar', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const mediaMocks = {
+        inspectImage: vi.fn().mockResolvedValue(image),
+        enqueueThumbnail: vi.fn().mockResolvedValue(undefined),
+      };
+      const service = new RecipesService(repository, mediaMocks as unknown as MediaService);
+      mocks.updateById.mockResolvedValue(null);
+
+      const exception = await expectAppException(() =>
+        service.confirmImage(householdId, new Types.ObjectId().toString(), { key }),
+      );
+
+      expect(exception.code).toBe('NOT_FOUND');
+      expect(mediaMocks.enqueueThumbnail).not.toHaveBeenCalled();
+    });
+
+    it('no toca Mongo ni la cola si la imagen no es válida', async () => {
+      const { repository, mocks } = createRepositoryMock();
+      const mediaMocks = {
+        inspectImage: vi.fn().mockRejectedValue(new Error('imagen inválida')),
+        enqueueThumbnail: vi.fn(),
+      };
+      const service = new RecipesService(repository, mediaMocks as unknown as MediaService);
+
+      await expect(
+        service.confirmImage(householdId, new Types.ObjectId().toString(), { key }),
+      ).rejects.toThrow('imagen inválida');
+      expect(mocks.updateById).not.toHaveBeenCalled();
+      expect(mediaMocks.enqueueThumbnail).not.toHaveBeenCalled();
+    });
+  });
+
   describe('remove', () => {
     it('borra la receta del hogar', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       const recipeId = new Types.ObjectId().toString();
       mocks.deleteById.mockResolvedValue(true);
 
@@ -288,7 +357,7 @@ describe('RecipesService', () => {
 
     it('devuelve 404 si no había nada que borrar', async () => {
       const { repository, mocks } = createRepositoryMock();
-      const service = new RecipesService(repository);
+      const service = new RecipesService(repository, createMediaMock());
       mocks.deleteById.mockResolvedValue(false);
 
       const exception = await expectAppException(() =>

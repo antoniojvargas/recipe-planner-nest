@@ -1,3 +1,12 @@
+/** Objeto ya subido, comprobado y medido; es lo que se guarda como imagen de la receta. */
+export interface UploadedImage {
+  key: string;
+  width: number;
+  height: number;
+  /** Tamaño real del objeto en bytes, según `HeadObject`. */
+  size: number;
+}
+
 /** Datos para subir la imagen directamente a MinIO/S3 desde el navegador. */
 export interface UploadUrlResponse {
   /** Clave del objeto bajo el prefijo del hogar; se usa después al confirmar la receta. */

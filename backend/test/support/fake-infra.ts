@@ -1,5 +1,7 @@
 import { getConnectionToken } from '@nestjs/mongoose';
+import { getQueueToken } from '@nestjs/bullmq';
 import type { TestingModuleBuilder } from '@nestjs/testing';
+import { MEDIA_QUEUE_NAME } from '../../src/media/media.queue.js';
 import { REDIS_CLIENT } from '../../src/redis/redis.module.js';
 import { S3_CLIENT } from '../../src/storage/storage.module.js';
 
@@ -17,13 +19,14 @@ export interface InfraFakes {
     quit: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
   };
-  storage: { send: () => Promise<unknown> };
+  storage: { send: (command: unknown) => Promise<unknown> };
+  mediaQueue: { add: ReturnType<typeof vi.fn> };
 }
 
 interface FakeOptions {
   mongoReadyState?: number;
   ping?: () => Promise<unknown>;
-  send?: () => Promise<unknown>;
+  send?: (command: unknown) => Promise<unknown>;
 }
 
 /**
@@ -57,6 +60,7 @@ export function createInfraFakes({
       disconnect: vi.fn(),
     },
     storage: { send },
+    mediaQueue: { add: vi.fn().mockResolvedValue({ id: 'test-job' }) },
   };
 }
 
@@ -71,5 +75,7 @@ export function withFakeInfra(
     .overrideProvider(REDIS_CLIENT)
     .useValue(fakes.redis)
     .overrideProvider(S3_CLIENT)
-    .useValue(fakes.storage);
+    .useValue(fakes.storage)
+    .overrideProvider(getQueueToken(MEDIA_QUEUE_NAME))
+    .useValue(fakes.mediaQueue);
 }
