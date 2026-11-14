@@ -2,12 +2,14 @@ import 'reflect-metadata';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test, type TestingModule } from '@nestjs/testing';
 import argon2 from 'argon2';
+import { SignJWT } from 'jose';
 import { Types } from 'mongoose';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import type { ErrorResponse } from '@recipe-planner/contracts';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
+import { AuthTokensService } from './../src/auth/auth-tokens.service.js';
 import type { AuthResponse } from './../src/auth/auth.types.js';
 import { ARGON2_OPTIONS } from './../src/auth/password.hasher.js';
 import { RefreshSessionsRepository } from './../src/auth/refresh-sessions.repository.js';
@@ -31,8 +33,9 @@ function cookieNamed(cookies: string[], name: string): string | undefined {
   return cookies.find((cookie) => cookie.startsWith(`${name}=`));
 }
 
-describe('Auth: registro y login (e2e)', () => {
+describe('Auth: sesión (e2e)', () => {
   let app: NestFastifyApplication;
+  let tokens: AuthTokensService;
   let passwordHash: string;
 
   const users = {
@@ -44,6 +47,7 @@ describe('Auth: registro y login (e2e)', () => {
     claimForRotation: vi.fn(),
     findByTokenHash: vi.fn(),
     revokeFamily: vi.fn().mockResolvedValue(undefined),
+    revokeAllForUser: vi.fn().mockResolvedValue(undefined),
     withTransaction: vi.fn(async (work: (session: unknown) => Promise<unknown>) =>
       work({ id: 'transaccion' }),
     ),
@@ -71,6 +75,7 @@ describe('Auth: registro y login (e2e)', () => {
     await configureApp(app);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
+    tokens = app.get(AuthTokensService);
   });
 
   beforeEach(() => {
@@ -242,6 +247,75 @@ describe('Auth: registro y login (e2e)', () => {
 
       expect((response.body as ErrorResponse).error.code).toBe('UNAUTHORIZED');
       expect(refreshSessions.withTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
+
+    async function accessToken(): Promise<string> {
+      return tokens.createAccessToken(USER_ID.toString(), familyId);
+    }
+
+    it('revoca la familia actual y borra las dos cookies', async () => {
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/logout')
+        .set('Cookie', `access_token=${await accessToken()}`)
+        .expect(204);
+
+      expect(refreshSessions.revokeFamily).toHaveBeenCalledWith(familyId, expect.any(Date));
+      expect(refreshSessions.revokeAllForUser).not.toHaveBeenCalled();
+
+      const cookies = responseCookies(response);
+      expect(cookieNamed(cookies, 'access_token')).toContain('Max-Age=0');
+      expect(cookieNamed(cookies, 'refresh_token')).toContain('Max-Age=0');
+      expect(cookieNamed(cookies, 'access_token')).toContain('Path=/api;');
+      expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/api/auth/refresh;');
+    });
+
+    it('revoca todas las sesiones del usuario en logout-all', async () => {
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/logout-all')
+        .set('Cookie', `access_token=${await accessToken()}`)
+        .expect(204);
+
+      expect(refreshSessions.revokeAllForUser).toHaveBeenCalledWith(
+        USER_ID.toString(),
+        expect.any(Date),
+      );
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+      expect(responseCookies(response)).toHaveLength(2);
+    });
+
+    it('responde TOKEN_EXPIRED sin borrar cookies para permitir el refresco', async () => {
+      const expired = await new SignJWT({ fid: familyId })
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .setSubject(USER_ID.toString())
+        .setExpirationTime(Math.floor(Date.now() / 1_000) - 60)
+        .sign(new TextEncoder().encode(process.env.JWT_ACCESS_SECRET));
+
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/logout')
+        .set('Cookie', `access_token=${expired}`)
+        .expect(401);
+
+      expect((response.body as ErrorResponse).error.code).toBe('TOKEN_EXPIRED');
+      expect(responseCookies(response)).toHaveLength(0);
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+    });
+
+    it('responde 401 sin cookie y no revoca nada', async () => {
+      const response = await request(app.getHttpServer() as App)
+        .post('/api/auth/logout-all')
+        .expect(401);
+
+      expect((response.body as ErrorResponse).error).toEqual({
+        code: 'UNAUTHORIZED',
+        message: 'La sesión no es válida',
+        details: [],
+      });
+      expect(responseCookies(response)).toHaveLength(0);
+      expect(refreshSessions.revokeAllForUser).not.toHaveBeenCalled();
     });
   });
 

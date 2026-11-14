@@ -1,6 +1,6 @@
 import type { FastifyReply } from 'fastify';
 import { ACCESS_TOKEN_MAX_AGE_SECONDS, REFRESH_TOKEN_MAX_AGE_SECONDS } from './auth.constants.js';
-import { setSessionCookies } from './session-cookies.js';
+import { clearSessionCookies, setSessionCookies } from './session-cookies.js';
 
 const SESSION = { accessToken: 'access.jwt', refreshToken: 'opaque-refresh' };
 
@@ -38,6 +38,39 @@ describe('setSessionCookies', () => {
     setSessionCookies(reply, SESSION, { secure: true });
 
     expect(setCookie).toHaveBeenCalledTimes(2);
+    for (const [, , options] of setCookie.mock.calls as [string, string, { secure: boolean }][]) {
+      expect(options.secure).toBe(true);
+    }
+  });
+});
+
+describe('clearSessionCookies', () => {
+  it('vacía las dos cookies con su Path y Max-Age=0', () => {
+    const { reply, setCookie } = createReply();
+
+    clearSessionCookies(reply, { secure: false });
+
+    expect(setCookie).toHaveBeenNthCalledWith(1, 'access_token', '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      path: '/api',
+      maxAge: 0,
+    });
+    expect(setCookie).toHaveBeenNthCalledWith(2, 'refresh_token', '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      path: '/api/auth/refresh',
+      maxAge: 0,
+    });
+  });
+
+  it('repite el atributo Secure en producción', () => {
+    const { reply, setCookie } = createReply();
+
+    clearSessionCookies(reply, { secure: true });
+
     for (const [, , options] of setCookie.mock.calls as [string, string, { secure: boolean }][]) {
       expect(options.secure).toBe(true);
     }

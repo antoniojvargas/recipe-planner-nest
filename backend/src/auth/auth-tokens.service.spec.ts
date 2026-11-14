@@ -1,4 +1,4 @@
-import { decodeJwt, jwtVerify } from 'jose';
+import { decodeJwt, jwtVerify, SignJWT } from 'jose';
 import type { AuthConfig } from '../config/index.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import { REFRESH_TOKEN_TTL_MS } from './auth.constants.js';
@@ -29,6 +29,50 @@ describe('AuthTokensService', () => {
     await expect(
       jwtVerify(token, new TextEncoder().encode(CONFIG.accessSecret)),
     ).resolves.toBeDefined();
+  });
+
+  describe('verifyAccessToken', () => {
+    const userId = '507f1f77bcf86cd799439011';
+    const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
+    const key = new TextEncoder().encode(CONFIG.accessSecret);
+
+    it('devuelve el usuario y la familia de un token válido', async () => {
+      const token = await service.createAccessToken(userId, familyId);
+
+      await expect(service.verifyAccessToken(token)).resolves.toEqual({
+        status: 'valid',
+        userId,
+        familyId,
+      });
+    });
+
+    it('distingue un token caducado de uno inválido', async () => {
+      const expired = await new SignJWT({ fid: familyId })
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .setSubject(userId)
+        .setExpirationTime(Math.floor(Date.now() / 1_000) - 60)
+        .sign(key);
+
+      await expect(service.verifyAccessToken(expired)).resolves.toEqual({ status: 'expired' });
+    });
+
+    it('rechaza un token con otra firma, sin claims o ausente', async () => {
+      const foreign = await new SignJWT({ fid: familyId })
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .setSubject(userId)
+        .setExpirationTime('15m')
+        .sign(new TextEncoder().encode('otro-secreto-de-al-menos-32-caracteres'));
+
+      const withoutFamily = await new SignJWT({})
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .setSubject(userId)
+        .setExpirationTime('15m')
+        .sign(key);
+
+      for (const token of [foreign, withoutFamily, undefined, '']) {
+        await expect(service.verifyAccessToken(token)).resolves.toEqual({ status: 'invalid' });
+      }
+    });
   });
 
   it('genera un refresh opaco de 256 bits y guarda solo su hash', () => {

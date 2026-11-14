@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { SignJWT } from 'jose';
+import { errors, jwtVerify, SignJWT } from 'jose';
 import { authConfig, type AuthConfig } from '../config/index.js';
 import { REFRESH_TOKEN_BYTES, REFRESH_TOKEN_TTL_MS } from './auth.constants.js';
 
@@ -12,12 +12,18 @@ export interface IssuedRefreshToken {
   expiresAt: Date;
 }
 
+/** Resultado de verificar un access token; el guard decide qué error HTTP corresponde. */
+export type AccessTokenVerification =
+  | { status: 'valid'; userId: string; familyId: string }
+  | { status: 'expired' }
+  | { status: 'invalid' };
+
 /**
- * Emisión de las dos credenciales de sesión.
+ * Emisión y verificación de las dos credenciales de sesión.
  *
- * El access token es un JWT HS256 firmado con `JWT_ACCESS_SECRET` que solo lleva `sub`,
- * `iat` y `exp`. El refresh token es opaco (256 bits aleatorios en base64url): su validez
- * la decide la fila de `refresh_sessions`, no una firma.
+ * El access token es un JWT HS256 firmado con `JWT_ACCESS_SECRET` que lleva `sub`, `fid`
+ * (la familia de refresh), `iat` y `exp`. El refresh token es opaco (256 bits aleatorios en
+ * base64url): su validez la decide la fila de `refresh_sessions`, no una firma.
  */
 @Injectable()
 export class AuthTokensService {
@@ -36,6 +42,28 @@ export class AuthTokensService {
       .setIssuedAt()
       .setExpirationTime(this.accessTokenTtl)
       .sign(this.accessKey);
+  }
+
+  /**
+   * Verifica firma y caducidad. La distinción entre caducado e inválido importa: el
+   * cliente solo intenta refrescar en el primer caso.
+   */
+  async verifyAccessToken(token: string | undefined): Promise<AccessTokenVerification> {
+    if (token === undefined || token === '') {
+      return { status: 'invalid' };
+    }
+
+    try {
+      const { payload } = await jwtVerify(token, this.accessKey, { algorithms: ['HS256'] });
+
+      if (typeof payload.sub !== 'string' || typeof payload.fid !== 'string') {
+        return { status: 'invalid' };
+      }
+
+      return { status: 'valid', userId: payload.sub, familyId: payload.fid };
+    } catch (error) {
+      return error instanceof errors.JWTExpired ? { status: 'expired' } : { status: 'invalid' };
+    }
   }
 
   createRefreshToken(): IssuedRefreshToken {

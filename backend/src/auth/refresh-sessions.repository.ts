@@ -69,11 +69,27 @@ export class RefreshSessionsRepository {
     return this.sessionModel.findOne({ tokenHash }).session(session).lean<RefreshSession>().exec();
   }
 
-  /** Revoca todos los eslabones vivos de una familia. */
-  async revokeFamily(familyId: string, revokedAt: Date, session: ClientSession): Promise<void> {
-    await this.sessionModel
-      .updateMany({ familyId, revokedAt: null }, { $set: { revokedAt } }, { session })
-      .exec();
+  /**
+   * Revoca todos los eslabones vivos de una familia. La sesión es opcional porque el logout
+   * revoca una sola familia con una escritura atómica, sin transacción; el refresh la pasa
+   * para revocar dentro de la suya cuando detecta reutilización.
+   */
+  async revokeFamily(familyId: string, revokedAt: Date, session?: ClientSession): Promise<void> {
+    const query = this.sessionModel.updateMany(
+      { familyId, revokedAt: null },
+      { $set: { revokedAt } },
+    );
+
+    if (session !== undefined) {
+      query.session(session);
+    }
+
+    await query.exec();
+  }
+
+  /** Revoca todas las familias del usuario: cierra la sesión en todos los dispositivos. */
+  async revokeAllForUser(userId: string, revokedAt: Date): Promise<void> {
+    await this.sessionModel.updateMany({ userId, revokedAt: null }, { $set: { revokedAt } }).exec();
   }
 
   /**

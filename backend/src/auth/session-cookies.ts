@@ -39,3 +39,26 @@ export function setSessionCookies(
     maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
   });
 }
+
+/**
+ * Borra las dos cookies de sesión. Repite `Path` y atributos para que el navegador
+ * sobrescriba exactamente las que escribió `setSessionCookies`; con otro `Path` quedarían
+ * vivas.
+ */
+export function clearSessionCookies(reply: FastifyReply, { secure }: SessionCookieOptions): void {
+  reply.setCookie(ACCESS_TOKEN_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure,
+    path: ACCESS_TOKEN_COOKIE_PATH,
+    maxAge: 0,
+  });
+
+  reply.setCookie(REFRESH_TOKEN_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure,
+    path: REFRESH_TOKEN_COOKIE_PATH,
+    maxAge: 0,
+  });
+}

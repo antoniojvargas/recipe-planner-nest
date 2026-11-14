@@ -91,7 +91,7 @@ describe('RefreshSessionsRepository', () => {
     expect(query.lean).toHaveBeenCalledOnce();
   });
 
-  it('revoca solo los eslabones vivos de la familia', async () => {
+  it('revoca solo los eslabones vivos de la familia dentro de la transacción', async () => {
     const { model, mocks } = createModelMock();
     const repository = new RefreshSessionsRepository(model, createConnectionMock().connection);
     const query = mockMongooseQuery({});
@@ -102,7 +102,35 @@ describe('RefreshSessionsRepository', () => {
     expect(mocks.updateMany).toHaveBeenCalledWith(
       { familyId: 'familia', revokedAt: null },
       { $set: { revokedAt: NOW } },
-      { session: SESSION },
+    );
+    expect(query.session).toHaveBeenCalledWith(SESSION);
+    expect(query.exec).toHaveBeenCalledOnce();
+  });
+
+  it('revoca la familia sin transacción cuando la llama el logout', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new RefreshSessionsRepository(model, createConnectionMock().connection);
+    const query = mockMongooseQuery({});
+    mocks.updateMany.mockReturnValue(query);
+
+    await repository.revokeFamily('familia', NOW);
+
+    expect(query.session).not.toHaveBeenCalled();
+    expect(query.exec).toHaveBeenCalledOnce();
+  });
+
+  it('revoca todas las familias vivas del usuario', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new RefreshSessionsRepository(model, createConnectionMock().connection);
+    const query = mockMongooseQuery({});
+    mocks.updateMany.mockReturnValue(query);
+    const userId = new Types.ObjectId().toString();
+
+    await repository.revokeAllForUser(userId, NOW);
+
+    expect(mocks.updateMany).toHaveBeenCalledWith(
+      { userId, revokedAt: null },
+      { $set: { revokedAt: NOW } },
     );
     expect(query.exec).toHaveBeenCalledOnce();
   });

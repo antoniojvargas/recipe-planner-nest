@@ -23,7 +23,7 @@ export const REFRESH_TOKEN_BYTES = 32;
  */
 export const INVALID_CREDENTIALS_MESSAGE = 'Email o contraseña incorrectos';
 
-/** Un refresh ausente, desconocido o revocado termina la sesión sin distinguir el motivo. */
-export const INVALID_REFRESH_MESSAGE = 'La sesión no es válida';
+/** Un token ausente, desconocido o revocado termina la sesión sin distinguir el motivo. */
+export const INVALID_SESSION_MESSAGE = 'La sesión no es válida';
 
-export const EXPIRED_REFRESH_MESSAGE = 'La sesión ha caducado';
+export const EXPIRED_SESSION_MESSAGE = 'La sesión ha caducado';

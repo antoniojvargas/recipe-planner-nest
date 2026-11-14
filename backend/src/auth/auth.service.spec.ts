@@ -6,9 +6,9 @@ import { AppException } from '../common/exceptions/app.exception.js';
 import { AuthService } from './auth.service.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import {
-  EXPIRED_REFRESH_MESSAGE,
+  EXPIRED_SESSION_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
-  INVALID_REFRESH_MESSAGE,
+  INVALID_SESSION_MESSAGE,
 } from './auth.constants.js';
 import { PasswordHasher } from './password.hasher.js';
 import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
@@ -26,6 +26,7 @@ function createService() {
     claimForRotation: vi.fn(),
     findByTokenHash: vi.fn(),
     revokeFamily: vi.fn().mockResolvedValue(undefined),
+    revokeAllForUser: vi.fn().mockResolvedValue(undefined),
     withTransaction: vi.fn(async (work: (session: unknown) => Promise<unknown>) =>
       work(TX_SESSION),
     ),
@@ -42,6 +43,7 @@ function createService() {
       tokenHash: 'a'.repeat(64),
       expiresAt: new Date('2026-12-13T00:00:00.000Z'),
     }),
+    verifyAccessToken: vi.fn(),
   };
   const logger = { setContext: vi.fn(), warn: vi.fn() };
 
@@ -217,7 +219,7 @@ describe('AuthService', () => {
       );
       expect(tokens.createAccessToken).not.toHaveBeenCalled();
       expect(error.code).toBe('UNAUTHORIZED');
-      expect(error.message).toBe(INVALID_REFRESH_MESSAGE);
+      expect(error.message).toBe(INVALID_SESSION_MESSAGE);
       expect(logger.warn).toHaveBeenCalledWith(
         { userId: userId.toString(), familyId },
         expect.stringContaining('familia revocada'),
@@ -238,7 +240,7 @@ describe('AuthService', () => {
       const error = await captureError(service.refresh('token-caducado'));
 
       expect(error.code).toBe('TOKEN_EXPIRED');
-      expect(error.message).toBe(EXPIRED_REFRESH_MESSAGE);
+      expect(error.message).toBe(EXPIRED_SESSION_MESSAGE);
       expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
       expect(tokens.createAccessToken).not.toHaveBeenCalled();
     });
@@ -261,7 +263,7 @@ describe('AuthService', () => {
 
       for (const error of [unknown, revoked]) {
         expect(error.code).toBe('UNAUTHORIZED');
-        expect(error.message).toBe(INVALID_REFRESH_MESSAGE);
+        expect(error.message).toBe(INVALID_SESSION_MESSAGE);
       }
       expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
     });
@@ -273,6 +275,59 @@ describe('AuthService', () => {
 
       expect(error.code).toBe('UNAUTHORIZED');
       expect(refreshSessions.withTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
+    const userId = new Types.ObjectId().toString();
+
+    it('revoca solo la familia del access token', async () => {
+      const { service, refreshSessions, tokens } = createService();
+      tokens.verifyAccessToken.mockResolvedValue({ status: 'valid', userId, familyId });
+
+      await service.logout('access.jwt');
+
+      expect(tokens.verifyAccessToken).toHaveBeenCalledWith('access.jwt');
+      expect(refreshSessions.revokeFamily).toHaveBeenCalledWith(familyId, expect.any(Date));
+      expect(refreshSessions.revokeFamily).toHaveBeenCalledOnce();
+      expect(refreshSessions.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('revoca todas las familias del usuario en logout-all', async () => {
+      const { service, refreshSessions, tokens } = createService();
+      tokens.verifyAccessToken.mockResolvedValue({ status: 'valid', userId, familyId });
+
+      await service.logoutAll('access.jwt');
+
+      expect(refreshSessions.revokeAllForUser).toHaveBeenCalledWith(userId, expect.any(Date));
+      expect(refreshSessions.revokeAllForUser).toHaveBeenCalledOnce();
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+    });
+
+    it('no revoca nada si falta el access token', async () => {
+      const { service, refreshSessions, tokens } = createService();
+      tokens.verifyAccessToken.mockResolvedValue({ status: 'invalid' });
+
+      for (const operation of [service.logout(undefined), service.logoutAll(undefined)]) {
+        const error = await captureError(operation);
+
+        expect(error.code).toBe('UNAUTHORIZED');
+        expect(error.message).toBe(INVALID_SESSION_MESSAGE);
+      }
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
+      expect(refreshSessions.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('responde TOKEN_EXPIRED para que el cliente refresque y reintente', async () => {
+      const { service, refreshSessions, tokens } = createService();
+      tokens.verifyAccessToken.mockResolvedValue({ status: 'expired' });
+
+      const error = await captureError(service.logout('access.caducado'));
+
+      expect(error.code).toBe('TOKEN_EXPIRED');
+      expect(error.message).toBe(EXPIRED_SESSION_MESSAGE);
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
     });
   });
 });

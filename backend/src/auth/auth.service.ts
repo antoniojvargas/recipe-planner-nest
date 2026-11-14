@@ -8,9 +8,9 @@ import { UsersRepository } from '../users/users.repository.js';
 import type { User, UserDocument } from '../users/user.schema.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import {
-  EXPIRED_REFRESH_MESSAGE,
+  EXPIRED_SESSION_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
-  INVALID_REFRESH_MESSAGE,
+  INVALID_SESSION_MESSAGE,
 } from './auth.constants.js';
 import type { AuthSession, IssuedSession, LoginInput, RegisterInput } from './auth.types.js';
 import { PasswordHasher } from './password.hasher.js';
@@ -24,7 +24,7 @@ type RotationResult =
   | { status: 'invalid' };
 
 /**
- * Registro, login y refresh.
+ * Registro, login, refresh y cierre de sesión.
  *
  * Registro y login abren una sesión nueva: familia de refresh recién creada, refresh token
  * opaco guardado como hash y access token JWT. El login no distingue entre email inexistente
@@ -33,6 +33,9 @@ type RotationResult =
  *
  * El refresh consume y emite dentro de una transacción. La segunda petición que presenta un
  * token ya usado no puede canjearlo y, al detectar la reutilización, revoca la familia entera.
+ *
+ * El logout no necesita el refresh token: el access token lleva `fid`, la familia a la que
+ * pertenece, y así se revoca aunque la cookie de refresh no llegue a `/api/auth/logout`.
  */
 @Injectable()
 export class AuthService {
@@ -89,16 +92,26 @@ export class AuthService {
           { userId: result.userId, familyId: result.familyId },
           'Refresh token reutilizado: familia revocada',
         );
-        throw this.invalidRefresh();
+        throw this.invalidSession();
       case 'expired':
-        throw new AppException({
-          status: HttpStatus.UNAUTHORIZED,
-          code: ERROR_CODES.TOKEN_EXPIRED,
-          message: EXPIRED_REFRESH_MESSAGE,
-        });
+        throw this.expiredSession();
       case 'invalid':
-        throw this.invalidRefresh();
+        throw this.invalidSession();
     }
+  }
+
+  /** Revoca la familia a la que pertenece el access token presentado. */
+  async logout(accessToken: string | undefined): Promise<void> {
+    const { familyId } = await this.requireSession(accessToken);
+
+    await this.refreshSessions.revokeFamily(familyId, new Date());
+  }
+
+  /** Revoca todas las familias abiertas del usuario, en todos sus dispositivos. */
+  async logoutAll(accessToken: string | undefined): Promise<void> {
+    const { userId } = await this.requireSession(accessToken);
+
+    await this.refreshSessions.revokeAllForUser(userId, new Date());
   }
 
   private async openSession(user: User | UserDocument): Promise<AuthSession> {
@@ -205,11 +218,38 @@ export class AuthService {
     return { status: 'invalid' };
   }
 
-  private invalidRefresh(): AppException {
+  /**
+   * Identifica al dueño del access token. Un token caducado se distingue del inválido para
+   * que el cliente intente refrescar antes de rendirse.
+   */
+  private async requireSession(
+    accessToken: string | undefined,
+  ): Promise<{ userId: string; familyId: string }> {
+    const verification = await this.tokens.verifyAccessToken(accessToken);
+
+    switch (verification.status) {
+      case 'valid':
+        return { userId: verification.userId, familyId: verification.familyId };
+      case 'expired':
+        throw this.expiredSession();
+      case 'invalid':
+        throw this.invalidSession();
+    }
+  }
+
+  private expiredSession(): AppException {
+    return new AppException({
+      status: HttpStatus.UNAUTHORIZED,
+      code: ERROR_CODES.TOKEN_EXPIRED,
+      message: EXPIRED_SESSION_MESSAGE,
+    });
+  }
+
+  private invalidSession(): AppException {
     return new AppException({
       status: HttpStatus.UNAUTHORIZED,
       code: ERROR_CODES.UNAUTHORIZED,
-      message: INVALID_REFRESH_MESSAGE,
+      message: INVALID_SESSION_MESSAGE,
     });
   }
 }
