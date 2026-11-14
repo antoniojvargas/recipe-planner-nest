@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import type { Household, HouseholdMember } from '../../src/households/household.schema.js';
 import type { CreateHouseholdInput } from '../../src/households/households.repository.js';
 
-type StoredHousehold = Household & { _id: Types.ObjectId };
+type StoredHousehold = Household & { _id: Types.ObjectId; inviteCodeExpiresAt?: Date };
 
 /** Repositorio de hogares en memoria para pruebas de integración/e2e. */
 export class InMemoryHouseholdsRepository {
@@ -18,6 +18,7 @@ export class InMemoryHouseholdsRepository {
         joinedAt: member.joinedAt,
       })),
       inviteCodeHash: input.inviteCodeHash,
+      inviteCodeExpiresAt: input.inviteCodeExpiresAt,
       createdAt: new Date(),
       updatedAt: new Date(),
     } as StoredHousehold;
@@ -76,7 +77,11 @@ export class InMemoryHouseholdsRepository {
     return Promise.resolve(household);
   }
 
-  setInviteCodeHash(householdId: string, inviteCodeHash: string): Promise<Household | null> {
+  setInviteCode(
+    householdId: string,
+    inviteCodeHash: string,
+    inviteCodeExpiresAt: Date,
+  ): Promise<Household | null> {
     const household = this.households.find((item) => item._id.toString() === householdId);
 
     if (household === undefined) {
@@ -84,6 +89,7 @@ export class InMemoryHouseholdsRepository {
     }
 
     household.inviteCodeHash = inviteCodeHash;
+    household.inviteCodeExpiresAt = inviteCodeExpiresAt;
 
     return Promise.resolve(household);
   }

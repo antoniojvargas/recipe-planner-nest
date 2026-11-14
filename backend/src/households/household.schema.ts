@@ -43,6 +43,10 @@ export class Household {
   @Prop({ trim: true, select: false })
   inviteCodeHash?: string;
 
+  /** Caducidad del código de invitación vigente (48 h desde su emisión). */
+  @Prop({ type: Date, select: false })
+  inviteCodeExpiresAt?: Date;
+
   createdAt: Date;
   updatedAt: Date;
 }

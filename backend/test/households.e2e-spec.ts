@@ -194,4 +194,116 @@ describe('Households (e2e)', () => {
 
     expect((response.body as ErrorResponse).error.code).toBe('VALIDATION_ERROR');
   });
+
+  it('POST /api/households/:id/invite crea un código de 8 caracteres válido 48h (solo owner)', async () => {
+    const accessToken = await registerAndGetAccessToken();
+    const householdId = households.households[0]?._id.toString();
+
+    const response = await request(app.getHttpServer() as App)
+      .post(`/api/households/${householdId}/invite`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(accessToken))
+      .expect(201);
+
+    const body = response.body as { code: string; expiresAt: string };
+
+    expect(body.code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+    const expiresAt = new Date(body.expiresAt).getTime();
+    const now = Date.now();
+    expect(expiresAt).toBeGreaterThan(now + 47 * 60 * 60 * 1000);
+    expect(expiresAt).toBeLessThan(now + 49 * 60 * 60 * 1000);
+    expect(households.households[0]?.inviteCodeHash).toBeDefined();
+    expect(households.households[0]?.inviteCodeHash).not.toBe(body.code);
+  });
+
+  it('POST /api/households/:id/invite responde 403 si no es el propietario', async () => {
+    await registerAndGetAccessToken('ana@example.com', 'Ana');
+    const memberToken = await registerAndGetAccessToken('bea@example.com', 'Bea');
+    const anaHouseholdId = households.households[0]?._id.toString();
+
+    const response = await request(app.getHttpServer() as App)
+      .post(`/api/households/${anaHouseholdId}/invite`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(memberToken))
+      .expect(403);
+
+    expect((response.body as ErrorResponse).error.code).toBe('FORBIDDEN');
+  });
+
+  it('POST /api/households/join une al usuario con un código válido', async () => {
+    const ownerToken = await registerAndGetAccessToken('ana@example.com', 'Ana');
+    const guestToken = await registerAndGetAccessToken('bea@example.com', 'Bea');
+    const householdId = households.households[0]?._id.toString();
+
+    const invite = await request(app.getHttpServer() as App)
+      .post(`/api/households/${householdId}/invite`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(ownerToken))
+      .expect(201);
+
+    const code = (invite.body as { code: string }).code;
+
+    const joined = await request(app.getHttpServer() as App)
+      .post('/api/households/join')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(guestToken))
+      .send({ code: code.toLowerCase() })
+      .expect(200);
+
+    const body = joined.body as HouseholdResponse;
+    expect(body.id).toBe(householdId);
+    expect(body.members).toHaveLength(2);
+    expect(body.members.some((member) => member.role === 'member')).toBe(true);
+  });
+
+  it('POST /api/households/join responde 409 si ya es miembro y 404 si el código caducó', async () => {
+    const ownerToken = await registerAndGetAccessToken('ana@example.com', 'Ana');
+    const guestToken = await registerAndGetAccessToken('bea@example.com', 'Bea');
+    const householdId = households.households[0]?._id.toString();
+
+    const invite = await request(app.getHttpServer() as App)
+      .post(`/api/households/${householdId}/invite`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(ownerToken))
+      .expect(201);
+
+    const code = (invite.body as { code: string }).code;
+
+    await request(app.getHttpServer() as App)
+      .post('/api/households/join')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(guestToken))
+      .send({ code })
+      .expect(200);
+
+    const conflict = await request(app.getHttpServer() as App)
+      .post('/api/households/join')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(guestToken))
+      .send({ code })
+      .expect(409);
+    expect((conflict.body as ErrorResponse).error.code).toBe('CONFLICT');
+
+    const thirdToken = await registerAndGetAccessToken('carlos@example.com', 'Carlos');
+    const stored = households.households.find((item) => item._id.toString() === householdId);
+    if (stored !== undefined) {
+      stored.inviteCodeExpiresAt = new Date(Date.now() - 60_000);
+    }
+
+    const expired = await request(app.getHttpServer() as App)
+      .post('/api/households/join')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(thirdToken))
+      .send({ code })
+      .expect(404);
+    expect((expired.body as ErrorResponse).error.code).toBe('NOT_FOUND');
+  });
 });

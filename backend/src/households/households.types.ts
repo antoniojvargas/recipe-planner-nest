@@ -13,3 +13,8 @@ export interface HouseholdResponse {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface HouseholdInviteResponse {
+  code: string;
+  expiresAt: Date;
+}

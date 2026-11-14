@@ -5,7 +5,13 @@ import { AppException } from '../common/exceptions/app.exception.js';
 import { AUTH_CLOCK, type AuthClock } from '../auth/auth.clock.js';
 import type { Household } from './household.schema.js';
 import { HouseholdsRepository } from './households.repository.js';
-import type { HouseholdResponse } from './households.types.js';
+import {
+  generateInviteCode,
+  hashInviteCode,
+  INVITE_CODE_TTL_MS,
+  normalizeInviteCode,
+} from './invite-code.js';
+import type { HouseholdInviteResponse, HouseholdResponse } from './households.types.js';
 
 function toResponse(household: Household): HouseholdResponse {
   return {
@@ -64,5 +70,77 @@ export class HouseholdsService {
     }
 
     return toResponse(household);
+  }
+
+  async createInvite(householdId: string, userId: string): Promise<HouseholdInviteResponse> {
+    const household = await this.households.findById(householdId);
+
+    if (household === null) {
+      throw new AppException({
+        status: HttpStatus.NOT_FOUND,
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Hogar no encontrado',
+      });
+    }
+
+    const isOwner = household.members.some(
+      (member) => member.userId.toString() === userId && member.role === 'owner',
+    );
+
+    if (!isOwner) {
+      throw new AppException({
+        status: HttpStatus.FORBIDDEN,
+        code: ERROR_CODES.FORBIDDEN,
+        message: 'Solo el propietario puede invitar a otros miembros',
+      });
+    }
+
+    const code = generateInviteCode();
+    const expiresAt = new Date(this.clock.now().getTime() + INVITE_CODE_TTL_MS);
+
+    await this.households.setInviteCode(householdId, hashInviteCode(code), expiresAt);
+
+    return { code, expiresAt };
+  }
+
+  async joinWithCode(code: string, userId: string): Promise<HouseholdResponse> {
+    const normalized = normalizeInviteCode(code);
+    const household = await this.households.findByInviteCodeHash(hashInviteCode(normalized));
+    const now = this.clock.now();
+
+    if (
+      household?.inviteCodeExpiresAt === undefined ||
+      household.inviteCodeExpiresAt.getTime() <= now.getTime()
+    ) {
+      throw new AppException({
+        status: HttpStatus.NOT_FOUND,
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'El código de invitación no es válido o ha caducado',
+      });
+    }
+
+    if (household.members.some((member) => member.userId.toString() === userId)) {
+      throw new AppException({
+        status: HttpStatus.CONFLICT,
+        code: ERROR_CODES.CONFLICT,
+        message: 'Ya eres miembro de este hogar',
+      });
+    }
+
+    const updated = await this.households.addMember(household._id.toString(), {
+      userId: new Types.ObjectId(userId),
+      role: 'member',
+      joinedAt: now,
+    });
+
+    if (updated === null) {
+      throw new AppException({
+        status: HttpStatus.NOT_FOUND,
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Hogar no encontrado',
+      });
+    }
+
+    return toResponse(updated);
   }
 }
