@@ -1,0 +1,75 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import type { Model } from 'mongoose';
+import { Household, type HouseholdDocument, type HouseholdMember } from './household.schema.js';
+
+export interface CreateHouseholdInput {
+  name: string;
+  members?: HouseholdMember[];
+  inviteCodeHash?: string;
+}
+
+/**
+ * Único punto de acceso a la colección `households`.
+ *
+ * El propio hogar es la raíz del aislamiento, así que se identifica por `_id`; las consultas
+ * que lo cruzan filtran por la membresía (`members.userId`). Los agregados que cuelgan de él
+ * (recetas, planes, lista, despensa) sí llevan `householdId` en todos sus filtros.
+ * Las lecturas usan `lean()`.
+ */
+@Injectable()
+export class HouseholdsRepository {
+  constructor(@InjectModel(Household.name) private readonly householdModel: Model<Household>) {}
+
+  async create(input: CreateHouseholdInput): Promise<HouseholdDocument> {
+    return this.householdModel.create(input);
+  }
+
+  async findById(householdId: string): Promise<Household | null> {
+    return this.householdModel.findById(householdId).lean<Household>().exec();
+  }
+
+  /** Hogares a los que pertenece un usuario. */
+  async findByMember(userId: string): Promise<Household[]> {
+    return this.householdModel.find({ 'members.userId': userId }).lean<Household[]>().exec();
+  }
+
+  /** Solo devuelve un hogar si el hash del código de invitación coincide. */
+  async findByInviteCodeHash(inviteCodeHash: string): Promise<Household | null> {
+    return this.householdModel.findOne({ inviteCodeHash }).lean<Household>().exec();
+  }
+
+  async addMember(householdId: string, member: HouseholdMember): Promise<Household | null> {
+    return this.householdModel
+      .findByIdAndUpdate(
+        householdId,
+        { $push: { members: member } },
+        { returnDocument: 'after', runValidators: true },
+      )
+      .lean<Household>()
+      .exec();
+  }
+
+  async removeMember(householdId: string, userId: string): Promise<Household | null> {
+    return this.householdModel
+      .findByIdAndUpdate(
+        householdId,
+        { $pull: { members: { userId } } },
+        { returnDocument: 'after' },
+      )
+      .lean<Household>()
+      .exec();
+  }
+
+  /** Guarda el hash del código de invitación vigente; el código en claro no se persiste. */
+  async setInviteCodeHash(householdId: string, inviteCodeHash: string): Promise<Household | null> {
+    return this.householdModel
+      .findByIdAndUpdate(
+        householdId,
+        { $set: { inviteCodeHash } },
+        { returnDocument: 'after', runValidators: true },
+      )
+      .lean<Household>()
+      .exec();
+  }
+}

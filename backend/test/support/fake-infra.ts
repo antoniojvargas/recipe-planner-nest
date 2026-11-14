@@ -6,6 +6,8 @@ import { S3_CLIENT } from '../../src/storage/storage.module.js';
 export interface InfraFakes {
   mongo: {
     readyState: number;
+    models: Record<string, unknown>;
+    model: (name: string) => unknown;
     db: { command: ReturnType<typeof vi.fn> };
     close: ReturnType<typeof vi.fn>;
   };
@@ -35,9 +37,16 @@ export function createInfraFakes({
   ping = () => Promise.resolve('PONG'),
   send = () => Promise.resolve({}),
 }: FakeOptions = {}): InfraFakes {
+  // `MongooseModule.forFeature` resuelve el modelo contra la conexión al instanciar el
+  // provider. Los modelos falsos bastan para los e2e que no consultan; los que sí lo hacen
+  // usan la base de datos de test real.
+  const models: Record<string, unknown> = {};
+
   return {
     mongo: {
       readyState: mongoReadyState,
+      models,
+      model: (name: string) => (models[name] ??= { modelName: name }),
       db: { command: vi.fn().mockResolvedValue({ ok: 1 }) },
       close: vi.fn().mockResolvedValue(undefined),
     },

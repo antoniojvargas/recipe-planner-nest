@@ -1,16 +1,15 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
 import { createObserveModule } from '@nestjs/observe';
 import { LoggerModule } from 'nestjs-pino';
-import { fileURLToPath } from 'node:url';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { createValidationPipe } from './common/pipes/validation.pipe.js';
 import { appConfig } from './config/app.config.js';
-import { configProviders, validateEnvironment, type AppConfig } from './config/index.js';
+import { type AppConfig } from './config/index.js';
+import { configModule } from './config/config.module.js';
 import { createLoggerOptions } from './config/logger.config.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -31,16 +30,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
-      // El `.env` vive en la raíz del repo; en Docker las variables llegan del compose.
-      envFilePath: [fileURLToPath(new URL('../../.env', import.meta.url)), '.env'],
-      expandVariables: true,
-      load: configProviders,
-      // Falla el arranque si falta una variable o un secreto no cumple el mínimo.
-      validate: validateEnvironment,
-    }),
+    configModule,
     LoggerModule.forRootAsync({
       inject: [appConfig.KEY],
       useFactory: (config: AppConfig) => createLoggerOptions(config),
