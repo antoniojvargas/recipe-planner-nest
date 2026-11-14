@@ -131,11 +131,12 @@ describe('HTTP: CORS, cabeceras y cookies (e2e)', () => {
         .expect(200);
 
       const setCookie = response.headers['set-cookie'] as unknown as string[];
+      const session = setCookie.find((cookie) => cookie.startsWith('session='));
 
-      expect(setCookie[0]).toContain('session=abc123');
-      expect(setCookie[0]).toContain('Path=/');
-      expect(setCookie[0]).toContain('HttpOnly');
-      expect(setCookie[0]).toContain('SameSite=Lax');
+      expect(session).toBeDefined();
+      expect(session).toContain('Path=/');
+      expect(session).toContain('HttpOnly');
+      expect(session).toContain('SameSite=Lax');
     });
   });
 });

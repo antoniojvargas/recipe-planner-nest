@@ -18,6 +18,9 @@ import { withFakeInfra } from './support/fake-infra.js';
 
 const PASSWORD = 'Correcta123';
 const USER_ID = new Types.ObjectId();
+const ORIGIN = 'http://localhost:3001';
+const CSRF_TOKEN = 'test-csrf-token';
+const CSRF_COOKIE = `csrf_token=${CSRF_TOKEN}`;
 
 function responseCookies(response: request.Response): string[] {
   const header = response.headers['set-cookie'] as unknown;
@@ -95,6 +98,9 @@ describe('Auth: sesión (e2e)', () => {
   it('registra, guarda argon2id y abre la sesión en las dos cookies', async () => {
     const response = await request(app.getHttpServer() as App)
       .post('/api/auth/register')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ email: '  Ana@Example.COM ', password: PASSWORD, displayName: '  Ana ' })
       .expect(201);
 
@@ -138,6 +144,9 @@ describe('Auth: sesión (e2e)', () => {
 
     const response = await request(app.getHttpServer() as App)
       .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ email: 'ana@example.com', password: PASSWORD })
       .expect(200);
 
@@ -149,12 +158,18 @@ describe('Auth: sesión (e2e)', () => {
   it('responde lo mismo con email inexistente y con contraseña incorrecta', async () => {
     const unknownEmail = await request(app.getHttpServer() as App)
       .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ email: 'nadie@example.com', password: PASSWORD })
       .expect(401);
 
     users.findByEmailWithPassword.mockResolvedValue({ ...publicUser, passwordHash });
     const wrongPassword = await request(app.getHttpServer() as App)
       .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ email: 'ana@example.com', password: 'Incorrecta123' })
       .expect(401);
 
@@ -179,7 +194,9 @@ describe('Auth: sesión (e2e)', () => {
 
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/refresh')
-        .set('Cookie', 'refresh_token=token-viejo')
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', [CSRF_COOKIE, 'refresh_token=token-viejo'])
         .expect(204);
 
       expect(refreshSessions.claimForRotation).toHaveBeenCalledWith(
@@ -208,7 +225,9 @@ describe('Auth: sesión (e2e)', () => {
 
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/refresh')
-        .set('Cookie', 'refresh_token=token-robado')
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', [CSRF_COOKIE, 'refresh_token=token-robado'])
         .expect(401);
 
       expect(refreshSessions.revokeFamily).toHaveBeenCalledWith(
@@ -235,7 +254,9 @@ describe('Auth: sesión (e2e)', () => {
 
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/refresh')
-        .set('Cookie', 'refresh_token=token-caducado')
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', [CSRF_COOKIE, 'refresh_token=token-caducado'])
         .expect(401);
 
       expect((response.body as ErrorResponse).error.code).toBe('TOKEN_EXPIRED');
@@ -245,6 +266,9 @@ describe('Auth: sesión (e2e)', () => {
     it('responde 401 si no llega la cookie', async () => {
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/refresh')
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', CSRF_COOKIE)
         .expect(401);
 
       expect((response.body as ErrorResponse).error.code).toBe('UNAUTHORIZED');
@@ -309,7 +333,9 @@ describe('Auth: sesión (e2e)', () => {
     it('revoca la familia actual y borra las dos cookies', async () => {
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/logout')
-        .set('Cookie', `access_token=${await accessToken()}`)
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', [CSRF_COOKIE, `access_token=${await accessToken()}`])
         .expect(204);
 
       expect(refreshSessions.revokeFamily).toHaveBeenCalledWith(familyId, expect.any(Date));
@@ -325,7 +351,9 @@ describe('Auth: sesión (e2e)', () => {
     it('revoca todas las sesiones del usuario en logout-all', async () => {
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/logout-all')
-        .set('Cookie', `access_token=${await accessToken()}`)
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', [CSRF_COOKIE, `access_token=${await accessToken()}`])
         .expect(204);
 
       expect(refreshSessions.revokeAllForUser).toHaveBeenCalledWith(
@@ -345,7 +373,9 @@ describe('Auth: sesión (e2e)', () => {
 
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/logout')
-        .set('Cookie', `access_token=${expired}`)
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', [CSRF_COOKIE, `access_token=${expired}`])
         .expect(401);
 
       expect((response.body as ErrorResponse).error.code).toBe('TOKEN_EXPIRED');
@@ -356,6 +386,9 @@ describe('Auth: sesión (e2e)', () => {
     it('responde 401 sin cookie y no revoca nada', async () => {
       const response = await request(app.getHttpServer() as App)
         .post('/api/auth/logout-all')
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', CSRF_COOKIE)
         .expect(401);
 
       expect((response.body as ErrorResponse).error).toEqual({
@@ -371,6 +404,9 @@ describe('Auth: sesión (e2e)', () => {
   it('valida el cuerpo antes de tocar la base', async () => {
     const invalidEmail = await request(app.getHttpServer() as App)
       .post('/api/auth/login')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ email: 'no-es-un-email', password: PASSWORD })
       .expect(400);
 
@@ -382,6 +418,9 @@ describe('Auth: sesión (e2e)', () => {
 
     const shortPassword = await request(app.getHttpServer() as App)
       .post('/api/auth/register')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ email: 'ana@example.com', password: 'corta', displayName: 'Ana' })
       .expect(400);
 

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { createObserveModule } from '@nestjs/observe';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { CsrfGuard } from './common/csrf/csrf.guard.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { createValidationPipe } from './common/pipes/validation.pipe.js';
 import { appConfig } from './config/app.config.js';
@@ -67,6 +68,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     // Global para que también lo reciban las apps de test que importan `AppModule`.
     { provide: APP_PIPE, useFactory: createValidationPipe },
+    // Doble capa CSRF (Origin + double submit) en todas las mutaciones.
+    { provide: APP_GUARD, useClass: CsrfGuard },
   ],
 })
 export class AppModule {}

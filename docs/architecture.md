@@ -464,6 +464,30 @@ Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y 
   es un JWT que ya lleva su propia firma y el refresh token es opaco y se valida contra
   `refresh_sessions` (ver «Sesión: access token y refresh rotatorio»).
 
+### Protección CSRF en mutaciones
+
+Las peticiones que modifican estado (`POST`, `PUT`, `PATCH`, `DELETE`) se protegen con dos capas
+(`CsrfGuard`, global):
+
+1. **Comprobación de `Origin`**: la cabecera debe coincidir exactamente con `FRONTEND_URL`. Bloquea
+   envíos cross-site iniciados desde un navegador hacia la API.
+2. **Patrón _double submit_**: la cookie `csrf_token` (legible por JavaScript, `SameSite=Lax`,
+   `Secure` en producción) debe coincidir con la cabecera `X-CSRF-Token`. Un sitio atacante puede
+   provocar que el navegador envíe cookies, pero no puede leer el valor de una cookie de otro
+   origen para reproducirlo en la cabecera.
+
+Aquí se añade la segunda capa porque el **refresh token tiene una vida larga (30 días)** y se
+presenta automáticamente como cookie. `SameSite=Lax` y la comprobación de origen reducen mucho la
+superficie, pero la defensa en profundidad importa: si en algún contexto el navegador adjuntara
+credenciales de forma inesperada o una validación de origen resultara insuficiente, el atacante
+seguiría sin poder forjar la cabecera con el valor de la cookie. El access token es de corta
+duración, pero el vector de sesión persistente es el refresh, y por eso se refuerza también el
+resto de mutaciones autenticadas por cookies.
+
+Las peticiones seguras (`GET`, `HEAD`, `OPTIONS`) no modifican estado y quedan fuera de la
+comprobación; el guard emite la cookie `csrf_token` si aún no existe para que el cliente pueda
+firmar sus mutaciones.
+
 `fastify` es dependencia directa del backend: el código importa sus tipos (`FastifyRequest`,
 `FastifyReply`) y `@fastify/cookie` aumenta el módulo `fastify` para declarar `cookies` y
 `setCookie`; con el paquete solo como dependencia transitiva, esa ampliación no se aplicaba.
