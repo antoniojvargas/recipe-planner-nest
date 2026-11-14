@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import type { ClientSession } from 'mongoose';
 import { PinoLogger } from 'nestjs-pino';
 import { AppException } from '../common/exceptions/app.exception.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { User, UserDocument } from '../users/user.schema.js';
+import { AUTH_CLOCK, type AuthClock } from './auth.clock.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import {
   EXPIRED_SESSION_MESSAGE,
@@ -51,6 +52,7 @@ export class AuthService {
     private readonly passwords: PasswordHasher,
     private readonly tokens: AuthTokensService,
     private readonly logger: PinoLogger,
+    @Inject(AUTH_CLOCK) private readonly clock: AuthClock,
   ) {
     this.logger.setContext(AuthService.name);
   }
@@ -110,14 +112,14 @@ export class AuthService {
   async logout(accessToken: string | undefined): Promise<void> {
     const { familyId } = await this.requireSession(accessToken);
 
-    await this.refreshSessions.revokeFamily(familyId, new Date());
+    await this.refreshSessions.revokeFamily(familyId, this.clock.now());
   }
 
   /** Revoca todas las familias abiertas del usuario, en todos sus dispositivos. */
   async logoutAll(accessToken: string | undefined): Promise<void> {
     const { userId } = await this.requireSession(accessToken);
 
-    await this.refreshSessions.revokeAllForUser(userId, new Date());
+    await this.refreshSessions.revokeAllForUser(userId, this.clock.now());
   }
 
   /** Perfil público del usuario autenticado. */
@@ -167,7 +169,7 @@ export class AuthService {
     }
 
     const tokenHash = hashRefreshToken(rawRefreshToken);
-    const now = new Date();
+    const now = this.clock.now();
 
     return this.refreshSessions.withTransaction(async (session) => {
       // Una sola escritura decide quién canjea el token. Si no encuentra la fila, la

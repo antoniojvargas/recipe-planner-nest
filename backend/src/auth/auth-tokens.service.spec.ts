@@ -1,5 +1,6 @@
 import { decodeJwt, jwtVerify, SignJWT } from 'jose';
 import type { AuthConfig } from '../config/index.js';
+import { systemAuthClock } from './auth.clock.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import { REFRESH_TOKEN_TTL_MS } from './auth.constants.js';
 
@@ -11,7 +12,7 @@ const CONFIG: AuthConfig = {
 };
 
 describe('AuthTokensService', () => {
-  const service = new AuthTokensService(CONFIG);
+  const service = new AuthTokensService(CONFIG, systemAuthClock);
 
   it('firma un JWT HS256 con sub, familia y 15 minutos de vida', async () => {
     const token = await service.createAccessToken(

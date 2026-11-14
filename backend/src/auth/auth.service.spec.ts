@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import type { PinoLogger } from 'nestjs-pino';
 import { UsersRepository } from '../users/users.repository.js';
 import { AppException } from '../common/exceptions/app.exception.js';
+import { systemAuthClock } from './auth.clock.js';
 import { AuthService } from './auth.service.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import {
@@ -54,6 +55,7 @@ function createService() {
     passwords as unknown as PasswordHasher,
     tokens as unknown as AuthTokensService,
     logger as unknown as PinoLogger,
+    systemAuthClock,
   );
 
   return { service, users, refreshSessions, passwords, tokens, logger };

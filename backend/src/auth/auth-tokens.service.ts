@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { errors, jwtVerify, SignJWT } from 'jose';
 import { authConfig, type AuthConfig } from '../config/index.js';
+import { AUTH_CLOCK, type AuthClock } from './auth.clock.js';
 import { REFRESH_TOKEN_BYTES, REFRESH_TOKEN_TTL_MS } from './auth.constants.js';
 
 export interface IssuedRefreshToken {
@@ -30,7 +31,10 @@ export class AuthTokensService {
   private readonly accessKey: Uint8Array;
   private readonly accessTokenTtl: string;
 
-  constructor(@Inject(authConfig.KEY) config: AuthConfig) {
+  constructor(
+    @Inject(authConfig.KEY) config: AuthConfig,
+    @Inject(AUTH_CLOCK) private readonly clock: AuthClock,
+  ) {
     this.accessKey = new TextEncoder().encode(config.accessSecret);
     this.accessTokenTtl = config.accessTokenTtl;
   }
@@ -72,7 +76,7 @@ export class AuthTokensService {
     return {
       token,
       tokenHash: hashRefreshToken(token),
-      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      expiresAt: new Date(this.clock.now().getTime() + REFRESH_TOKEN_TTL_MS),
     };
   }
 }

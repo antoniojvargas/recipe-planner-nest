@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../users/users.module.js';
+import { AUTH_CLOCK, systemAuthClock } from './auth.clock.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthTokensService } from './auth-tokens.service.js';
@@ -29,6 +30,7 @@ import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
     PasswordHasher,
     RefreshSessionsRepository,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: AUTH_CLOCK, useValue: systemAuthClock },
   ],
 })
 export class AuthModule {}
