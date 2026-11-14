@@ -7,6 +7,7 @@ export interface CreateHouseholdInput {
   name: string;
   members?: HouseholdMember[];
   inviteCodeHash?: string;
+  inviteCodeExpiresAt?: Date;
 }
 
 /**
@@ -36,7 +37,11 @@ export class HouseholdsRepository {
 
   /** Solo devuelve un hogar si el hash del código de invitación coincide. */
   async findByInviteCodeHash(inviteCodeHash: string): Promise<Household | null> {
-    return this.householdModel.findOne({ inviteCodeHash }).lean<Household>().exec();
+    return this.householdModel
+      .findOne({ inviteCodeHash })
+      .select('+inviteCodeExpiresAt')
+      .lean<Household>()
+      .exec();
   }
 
   async addMember(householdId: string, member: HouseholdMember): Promise<Household | null> {
@@ -61,12 +66,16 @@ export class HouseholdsRepository {
       .exec();
   }
 
-  /** Guarda el hash del código de invitación vigente; el código en claro no se persiste. */
-  async setInviteCodeHash(householdId: string, inviteCodeHash: string): Promise<Household | null> {
+  /** Guarda el hash y la caducidad del código de invitación vigente; el código no se persiste. */
+  async setInviteCode(
+    householdId: string,
+    inviteCodeHash: string,
+    inviteCodeExpiresAt: Date,
+  ): Promise<Household | null> {
     return this.householdModel
       .findByIdAndUpdate(
         householdId,
-        { $set: { inviteCodeHash } },
+        { $set: { inviteCodeHash, inviteCodeExpiresAt } },
         { returnDocument: 'after', runValidators: true },
       )
       .lean<Household>()

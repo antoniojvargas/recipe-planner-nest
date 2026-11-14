@@ -53,7 +53,7 @@ describe('HouseholdsRepository', () => {
     expect(query.lean).toHaveBeenCalledOnce();
   });
 
-  it('busca por hash del código de invitación y con lean', async () => {
+  it('busca por hash del código de invitación con su caducidad', async () => {
     const { model, mocks } = createModelMock();
     const repository = new HouseholdsRepository(model);
     const query = mockMongooseQuery(household);
@@ -61,6 +61,7 @@ describe('HouseholdsRepository', () => {
 
     await expect(repository.findByInviteCodeHash('hash')).resolves.toBe(household);
     expect(mocks.findOne).toHaveBeenCalledWith({ inviteCodeHash: 'hash' });
+    expect(query.select).toHaveBeenCalledWith('+inviteCodeExpiresAt');
     expect(query.lean).toHaveBeenCalledOnce();
   });
 
@@ -80,16 +81,17 @@ describe('HouseholdsRepository', () => {
     expect(query.lean).toHaveBeenCalledOnce();
   });
 
-  it('guarda el hash del código de invitación sin exponer el código', async () => {
+  it('guarda el hash y la caducidad del código de invitación', async () => {
     const { model, mocks } = createModelMock();
     const repository = new HouseholdsRepository(model);
     const query = mockMongooseQuery(household);
     mocks.findByIdAndUpdate.mockReturnValue(query);
+    const expiresAt = new Date('2026-11-15T12:00:00.000Z');
 
-    await repository.setInviteCodeHash(householdId, 'hash');
+    await repository.setInviteCode(householdId, 'hash', expiresAt);
     expect(mocks.findByIdAndUpdate).toHaveBeenCalledWith(
       householdId,
-      { $set: { inviteCodeHash: 'hash' } },
+      { $set: { inviteCodeHash: 'hash', inviteCodeExpiresAt: expiresAt } },
       { returnDocument: 'after', runValidators: true },
     );
     expect(query.lean).toHaveBeenCalledOnce();

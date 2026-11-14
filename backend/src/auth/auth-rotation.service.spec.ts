@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import type { PinoLogger } from 'nestjs-pino';
 import { InMemoryRefreshSessionsRepository } from '../../test/support/in-memory-refresh-sessions.repository.js';
 import { AppException } from '../common/exceptions/app.exception.js';
+import type { HouseholdsRepository } from '../households/households.repository.js';
 import type { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
 import type { AuthClock } from './auth.clock.js';
@@ -51,7 +52,8 @@ function createRotationService(clock: AuthClock & { at: Date } = fixedClock()) {
 
   const service = new AuthService(
     {} as UsersRepository,
-    refreshSessions as unknown as ConstructorParameters<typeof AuthService>[1],
+    {} as HouseholdsRepository,
+    refreshSessions as unknown as ConstructorParameters<typeof AuthService>[2],
     {} as PasswordHasher,
     tokens,
     logger as unknown as PinoLogger,

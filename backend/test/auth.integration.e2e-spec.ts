@@ -8,6 +8,7 @@ import type { ErrorResponse } from '@recipe-planner/contracts';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
 import { RefreshSessionsRepository } from './../src/auth/refresh-sessions.repository.js';
+import { HouseholdsRepository } from './../src/households/households.repository.js';
 import { UsersRepository } from './../src/users/users.repository.js';
 import { InMemoryRefreshSessionsRepository } from './support/in-memory-refresh-sessions.repository.js';
 import { InMemoryUsersRepository } from './support/in-memory-users.repository.js';
@@ -52,10 +53,18 @@ function cookieHeader(...pairs: [string, string | undefined][]): string[] {
 describe('Auth (integración)', () => {
   let app: NestFastifyApplication;
   let users: InMemoryUsersRepository;
+  let households: { items: unknown[]; create: ReturnType<typeof vi.fn> };
   let refreshSessions: InMemoryRefreshSessionsRepository;
 
   beforeAll(async () => {
     users = new InMemoryUsersRepository();
+    households = {
+      items: [],
+      create: vi.fn((input: unknown) => {
+        households.items.push(input);
+        return Promise.resolve(input);
+      }),
+    };
     refreshSessions = new InMemoryRefreshSessionsRepository();
 
     const moduleFixture: TestingModule = await withFakeInfra(
@@ -63,6 +72,8 @@ describe('Auth (integración)', () => {
     )
       .overrideProvider(UsersRepository)
       .useValue(users)
+      .overrideProvider(HouseholdsRepository)
+      .useValue(households)
       .overrideProvider(RefreshSessionsRepository)
       .useValue(refreshSessions)
       .compile();
@@ -75,6 +86,8 @@ describe('Auth (integración)', () => {
 
   beforeEach(() => {
     users.users.length = 0;
+    households.items.length = 0;
+    households.create.mockClear();
     refreshSessions.sessions.length = 0;
   });
 

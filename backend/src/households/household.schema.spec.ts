@@ -56,7 +56,8 @@ describe('HouseholdSchema', () => {
     expect(HouseholdSchema.indexes()).toContainEqual([{ 'members.userId': 1 }, expect.anything()]);
   });
 
-  it('oculta inviteCodeHash en las consultas por defecto', () => {
+  it('oculta inviteCodeHash e inviteCodeExpiresAt en las consultas por defecto', () => {
     expect(HouseholdSchema.path('inviteCodeHash').options.select).toBe(false);
+    expect(HouseholdSchema.path('inviteCodeExpiresAt').options.select).toBe(false);
   });
 });

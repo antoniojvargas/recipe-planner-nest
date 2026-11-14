@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { MongooseModule } from '@nestjs/mongoose';
+import { HouseholdsModule } from '../households/households.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { AUTH_CLOCK, systemAuthClock } from './auth.clock.js';
 import { AuthController } from './auth.controller.js';
@@ -21,6 +22,7 @@ import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
 @Module({
   imports: [
     UsersModule,
+    HouseholdsModule,
     MongooseModule.forFeature([{ name: RefreshSession.name, schema: RefreshSessionSchema }]),
   ],
   controllers: [AuthController],

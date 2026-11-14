@@ -4,6 +4,7 @@ import { ERROR_CODES } from '@recipe-planner/contracts';
 import type { ClientSession } from 'mongoose';
 import { PinoLogger } from 'nestjs-pino';
 import { AppException } from '../common/exceptions/app.exception.js';
+import { HouseholdsRepository } from '../households/households.repository.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { User, UserDocument } from '../users/user.schema.js';
 import { AUTH_CLOCK, type AuthClock } from './auth.clock.js';
@@ -48,6 +49,7 @@ type RotationResult =
 export class AuthService {
   constructor(
     private readonly users: UsersRepository,
+    private readonly households: HouseholdsRepository,
     private readonly refreshSessions: RefreshSessionsRepository,
     private readonly passwords: PasswordHasher,
     private readonly tokens: AuthTokensService,
@@ -63,6 +65,17 @@ export class AuthService {
       email: input.email,
       passwordHash,
       displayName: input.displayName,
+    });
+
+    await this.households.create({
+      name: `Hogar de ${user.displayName}`,
+      members: [
+        {
+          userId: user._id,
+          role: 'owner',
+          joinedAt: this.clock.now(),
+        },
+      ],
     });
 
     return this.openSession(user);
