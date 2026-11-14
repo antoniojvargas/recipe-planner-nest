@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './user.schema.js';
+import { UsersRepository } from './users.repository.js';
 
 /**
  * Perfil del usuario autenticado (`displayName`, email) y su relación con los hogares.
@@ -10,6 +11,7 @@ import { User, UserSchema } from './user.schema.js';
  */
 @Module({
   imports: [MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
-  exports: [MongooseModule],
+  providers: [UsersRepository],
+  exports: [MongooseModule, UsersRepository],
 })
 export class UsersModule {}

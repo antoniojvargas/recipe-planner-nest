@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Household, HouseholdSchema } from './household.schema.js';
+import { HouseholdsRepository } from './households.repository.js';
 
 /**
  * Hogares compartidos, membresías, roles e invitaciones con código.
@@ -10,6 +11,7 @@ import { Household, HouseholdSchema } from './household.schema.js';
  */
 @Module({
   imports: [MongooseModule.forFeature([{ name: Household.name, schema: HouseholdSchema }])],
-  exports: [MongooseModule],
+  providers: [HouseholdsRepository],
+  exports: [MongooseModule, HouseholdsRepository],
 })
 export class HouseholdsModule {}
