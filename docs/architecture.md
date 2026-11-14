@@ -307,6 +307,143 @@ que dejen de aceptar trabajo antes de que Redis y Mongo se cierren.
 re-lanzarse la señal): eso dispara el evento `exit` y pino puede vaciar sus buffers antes de
 salir.
 
+## Sesión: access token y refresh rotatorio
+
+La sesión usa dos credenciales con trabajos distintos. El **access token** autoriza cada
+petición: es un JWT firmado con `JWT_ACCESS_SECRET`, dura 15 minutos (`ACCESS_TOKEN_TTL`) y se
+verifica sin tocar la base. El **refresh token** solo sirve para renovar la sesión: es un valor
+opaco de 256 bits generado con un CSPRNG, dura 30 días (`REFRESH_TOKEN_TTL`) y su estado vive en
+Mongo, una fila por token emitido. El access token es barato de comprobar pero no se puede
+revocar antes de caducar; el refresh token es el que se invalida de verdad.
+
+### Cookies
+
+| Cookie          | Contenido                                       | Duración | `Path`              |
+| --------------- | ----------------------------------------------- | -------- | ------------------- |
+| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/api`              |
+| `refresh_token` | cadena aleatoria opaca, sin estructura ni firma | 30 días  | `/api/auth/refresh` |
+
+Las dos son `httpOnly` (el JavaScript del frontend no las lee), `SameSite=Lax` y `Secure` fuera de
+desarrollo, y no llevan `Domain`: son host-only. `Path` no es un control de acceso —el cliente
+puede enviar una cookie a donde quiera—, sino una reducción de superficie:
+
+- `Path=/api` en el access token hace que solo viaje a la API. En el mismo origen no se envía al
+  pedir HTML, JS o imágenes del frontend, así que no acaba en logs, cachés ni peticiones que no lo
+  necesitan.
+- `Path=/api/auth/refresh` en el refresh token es todavía más estrecho: solo lo recibe el endpoint
+  que lo consume. Ningún otro controlador puede leerlo por accidente ni reenviarlo, y no viaja en
+  cada petición autenticada.
+- El logout borra las dos cookies repitiendo su `Path` y con `Max-Age=0`; el navegador solo
+  elimina una cookie si coinciden nombre, dominio y path.
+- `SameSite=Lax` impide que un POST cross-site lleve las cookies, y CORS solo permite el origen de
+  `FRONTEND_URL`; entre las dos cosas, un formulario de otro sitio no puede refrescar ni cerrar la
+  sesión del usuario.
+
+El refresh token no lleva firma: no hace falta demostrar que lo emitió el servidor, porque la
+validez la decide la fila de `refresh_sessions`. Un valor aleatorio sin datos dentro no se puede
+leer, adivinar ni reutilizar tras revocarlo.
+
+El access token lleva `fid`, el `familyId` de la sesión, además de `sub`, `iat` y `exp`. Es un
+identificador de sesión, no un secreto. Hace falta porque la cookie de refresh tiene un `Path` tan
+estrecho que el navegador no la envía a `/api/auth/logout`: el logout identifica la familia que
+debe revocar leyendo `fid` del access token, que sí llega a todas las rutas de `/api`.
+
+### Modelo `RefreshSession`
+
+Colección `refresh_sessions`, un documento por token emitido:
+
+| Campo       | Tipo            | Significado                                                            |
+| ----------- | --------------- | ---------------------------------------------------------------------- |
+| `familyId`  | `string` (UUID) | cadena de rotaciones a la que pertenece el token; la abre el login     |
+| `userId`    | `ObjectId`      | dueño de la sesión, referencia a `users`                               |
+| `tokenHash` | `string`        | SHA-256 del token en claro; el token nunca se guarda                   |
+| `expiresAt` | `Date`          | `now + 30 días` en el momento de emitirlo                              |
+| `usedAt`    | `Date \| null`  | cuándo se canjeó; `null` mientras sigue siendo válido                  |
+| `revokedAt` | `Date \| null`  | cuándo se revocó la fila (por logout o por detección de reutilización) |
+| `createdAt` | `Date`          | cuándo se emitió, para auditoría y para ordenar la familia             |
+
+Índices:
+
+- **Único en `tokenHash`**: el refresh busca por igualdad y no puede haber dos filas con el mismo
+  hash.
+- **`familyId`**: revocar una familia es un `updateMany` por este campo.
+- **TTL en `expiresAt`** (`expireAfterSeconds: 0`): Mongo borra las filas caducadas como limpieza.
+  El TTL corre cada ~60 s, así que **no es seguridad**: al leer siempre se comprueba `expiresAt`.
+  Una fila caducada que aún no se ha borrado produce 401 igual.
+
+Se guarda el hash y no el token para que una copia de la base (backup, dump, acceso de lectura) no
+permita suplantar sesiones. Es un hash rápido, sin sal ni KDF lento, porque el token ya tiene 256
+bits de entropía: no hay diccionario que probar y una sal impediría buscar por igualdad. Es el
+mismo criterio que separa el hash de contraseñas (lento, con sal) del hash de un token aleatorio.
+
+La familia es lo que permite detectar robo. Cada login o registro abre una familia nueva y cada
+refresh emite el siguiente eslabón **con el mismo `familyId`**; por tanto, todos los tokens de una
+sesión están relacionados y se pueden revocar juntos. Dos dispositivos son dos familias, y cerrar
+sesión en uno no afecta al otro.
+
+### Flujo de rotación
+
+1. **Login o registro**: se genera un `familyId` nuevo y un refresh token aleatorio; se inserta la
+   fila con su hash, `expiresAt` a 30 días y `usedAt`/`revokedAt` en `null`. Se firma el access
+   token y se escriben las dos cookies.
+2. **`POST /api/auth/refresh`**: se lee la cookie, se calcula el hash y se consume el token con una
+   única operación atómica:
+
+   ```text
+   findOneAndUpdate(
+     { tokenHash, usedAt: null, revokedAt: null, expiresAt: { $gt: now } },
+     { $set: { usedAt: now } },
+   )
+   ```
+
+   Que la condición incluya `usedAt: null` es lo que hace el token de un solo uso: si dos
+   peticiones llegan a la vez, solo una encuentra la fila y la marca; la otra no puede canjearla.
+   Si la actualización no encuentra fila, se lee por `tokenHash` solo para clasificar el motivo
+   (la tabla siguiente); esa lectura decide la respuesta y el efecto, pero nunca acepta el token.
+   La transacción se ejecuta con `withTransaction`, que reintenta los conflictos de escritura: si
+   dos peticiones compiten por el mismo token, una confirma y la otra vuelve a empezar, ya ve
+   `usedAt` y revoca la familia.
+
+3. Si la fila se consumió, se inserta el siguiente token de la misma familia (`familyId` igual,
+   hash nuevo, `expiresAt` nuevo) y se responden 204 con las cookies actualizadas: access token
+   nuevo y refresh token nuevo con los mismos `Path` y duración.
+4. **Logout**: se marca `revokedAt` en toda la familia con un `updateMany` y se borran las cookies.
+   El refresh robado deja de valer de inmediato.
+
+Qué ocurre cuando el token no se puede canjear:
+
+| Situación                                 | Respuesta              | Efecto                                                                                                         |
+| ----------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| No hay cookie o el hash no existe         | 401 `UNAUTHORIZED`     | nada                                                                                                           |
+| `expiresAt` ya pasó                       | 401 `TOKEN_EXPIRED`    | nada; la fila la borrará el TTL                                                                                |
+| `revokedAt` no es `null`                  | 401 `UNAUTHORIZED`     | nada                                                                                                           |
+| `usedAt` no es `null` (token ya canjeado) | 401 `UNAUTHORIZED`     | **se revoca la familia entera**: alguien reutilizó un token que ya se había cambiado, señal de robo o de copia |
+| Fila válida y sin usar                    | 204 con cookies nuevas | se marca `usedAt` y se emite el siguiente eslabón                                                              |
+
+La reutilización se registra como evento de seguridad con `userId`, `familyId`, `requestId` e IP,
+nunca con el token ni su hash. No se distingue en la respuesta entre «no existe», «revocado» y
+«reutilizado»: el cliente solo sabe que la sesión terminó y debe volver a autenticarse.
+
+### Consecuencias
+
+- **Un refresh token sirve una sola vez.** Si lo roban, el ladrón y el cliente legítimo compiten por
+  el siguiente eslabón; en cuanto uno de los dos usa el token que el otro ya canjeó, la familia
+  entera cae. Es lo que convierte un robo silencioso en un cierre de sesión visible.
+- **Consumir y emitir van en la misma transacción.** Son dos escrituras (marcar `usedAt` e insertar
+  el nuevo token); si el proceso muere entre ambas, la transacción se aborta y el token anterior
+  sigue válido. Nunca queda un token consumido sin sucesor. El replica set de Mongo que ya exige
+  el proyecto permite hacerlo atómico.
+- **Dos refresh en paralelo son indistinguibles de un robo.** El backend no añade una ventana de
+  gracia: el segundo en llegar revoca la familia. El frontend debe hacer _single-flight_ —una sola
+  promesa de refresh en vuelo, compartida por todas las peticiones que reciben 401— y reintentar
+  cada petición una vez. Sin eso, abrir dos pestañas a la vez puede cerrar la sesión.
+- **Revocar no invalida el access token actual.** Sobrevive hasta 15 minutos, que es el precio de
+  verificarlo sin base de datos; por eso su TTL es corto y no lleva roles ni `householdId`: la
+  autorización por hogar se resuelve en cada petición, y un cambio de rol no espera a que caduque
+  un claim viejo.
+- **El TTL es limpieza, no seguridad.** Las comprobaciones de `expiresAt` y `revokedAt` se hacen
+  siempre al leer; que Mongo tarde en borrar una fila no reabre una sesión.
+
 ## CORS, cabeceras de seguridad y cookies
 
 Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y los e2e:
@@ -323,8 +460,33 @@ Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y 
   Helmet añade además `X-Content-Type-Options: nosniff`, `X-Frame-Options` y
   `Referrer-Policy: no-referrer`.
 - **`@fastify/cookie`** deja `request.cookies` y `reply.setCookie()` disponibles para la sesión
-  (`httpOnly`, `SameSite=Lax`). El token no se firma con el secreto del plugin: es un JWT que ya
-  lleva su propia firma.
+  (`httpOnly`, `SameSite=Lax`). Ninguna cookie se firma con el secreto del plugin: el access token
+  es un JWT que ya lleva su propia firma y el refresh token es opaco y se valida contra
+  `refresh_sessions` (ver «Sesión: access token y refresh rotatorio»).
+
+### Protección CSRF en mutaciones
+
+Las peticiones que modifican estado (`POST`, `PUT`, `PATCH`, `DELETE`) se protegen con dos capas
+(`CsrfGuard`, global):
+
+1. **Comprobación de `Origin`**: la cabecera debe coincidir exactamente con `FRONTEND_URL`. Bloquea
+   envíos cross-site iniciados desde un navegador hacia la API.
+2. **Patrón _double submit_**: la cookie `csrf_token` (legible por JavaScript, `SameSite=Lax`,
+   `Secure` en producción) debe coincidir con la cabecera `X-CSRF-Token`. Un sitio atacante puede
+   provocar que el navegador envíe cookies, pero no puede leer el valor de una cookie de otro
+   origen para reproducirlo en la cabecera.
+
+Aquí se añade la segunda capa porque el **refresh token tiene una vida larga (30 días)** y se
+presenta automáticamente como cookie. `SameSite=Lax` y la comprobación de origen reducen mucho la
+superficie, pero la defensa en profundidad importa: si en algún contexto el navegador adjuntara
+credenciales de forma inesperada o una validación de origen resultara insuficiente, el atacante
+seguiría sin poder forjar la cabecera con el valor de la cookie. El access token es de corta
+duración, pero el vector de sesión persistente es el refresh, y por eso se refuerza también el
+resto de mutaciones autenticadas por cookies.
+
+Las peticiones seguras (`GET`, `HEAD`, `OPTIONS`) no modifican estado y quedan fuera de la
+comprobación; el guard emite la cookie `csrf_token` si aún no existe para que el cliente pueda
+firmar sus mutaciones.
 
 `fastify` es dependencia directa del backend: el código importa sus tipos (`FastifyRequest`,
 `FastifyReply`) y `@fastify/cookie` aumenta el módulo `fastify` para declarar `cookies` y

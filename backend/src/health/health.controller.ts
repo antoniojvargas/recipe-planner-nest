@@ -1,4 +1,5 @@
 import { Controller, Get, HttpStatus, Res, ServiceUnavailableException } from '@nestjs/common';
+import { Public } from '../auth/decorators/public.decorator.js';
 import {
   HealthCheck,
   HealthCheckService,
@@ -19,6 +20,7 @@ import { StorageHealthIndicator } from './storage.health.js';
  * justo la útil en un health check. El cuerpo mantiene el formato de Terminus
  * (`status`, `info`, `error`, `details`) tanto en 200 como en 503.
  */
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(

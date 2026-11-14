@@ -9,7 +9,7 @@ import { appConfig, type AppConfig } from './config/index.js';
  */
 const EXPOSED_HEADERS = ['X-Request-Id'];
 
-const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Request-Id'];
+const ALLOWED_HEADERS = ['Content-Type', 'Authorization', 'X-Request-Id', 'X-CSRF-Token'];
 
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 

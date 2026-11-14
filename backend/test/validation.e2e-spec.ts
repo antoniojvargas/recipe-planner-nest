@@ -10,6 +10,7 @@ import type { ErrorResponse } from '@recipe-planner/contracts';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
 import { ParseObjectIdPipe } from './../src/common/pipes/parse-object-id.pipe.js';
+import { Public } from './../src/auth/decorators/public.decorator.js';
 import { withFakeInfra } from './support/fake-infra.js';
 
 class CreateRecipeDto {
@@ -24,6 +25,7 @@ class CreateRecipeDto {
 }
 
 /** Controlador de prueba: comprueba que los pipes globales llegan a las rutas reales. */
+@Public()
 @Controller('probe')
 class ProbeController {
   @Post()
@@ -36,6 +38,10 @@ class ProbeController {
     return { recipeId };
   }
 }
+
+const ORIGIN = 'http://localhost:3001';
+const CSRF_TOKEN = 'test-csrf-token';
+const CSRF_COOKIE = `csrf_token=${CSRF_TOKEN}`;
 
 describe('Validación (e2e)', () => {
   let app: NestFastifyApplication;
@@ -61,6 +67,9 @@ describe('Validación (e2e)', () => {
   it('devuelve el cuerpo transformado cuando es válido', async () => {
     const response = await request(app.getHttpServer() as App)
       .post('/api/probe')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ name: 'Paella', servings: '4' })
       .expect(201);
 
@@ -70,6 +79,9 @@ describe('Validación (e2e)', () => {
   it('responde 400 VALIDATION_ERROR con un detalle por propiedad', async () => {
     const response = await request(app.getHttpServer() as App)
       .post('/api/probe')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', CSRF_COOKIE)
       .send({ name: 'Pa', servings: 0, sobra: true })
       .expect(400);
 
