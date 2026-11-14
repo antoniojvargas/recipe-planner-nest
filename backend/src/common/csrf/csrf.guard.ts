@@ -1,4 +1,10 @@
-import { HttpStatus, Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  HttpStatus,
+  Inject,
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { appConfig, type AppConfig } from '../../config/index.js';
