@@ -44,6 +44,8 @@ export const MealPlanSlotSchema = SchemaFactory.createForClass(MealPlanSlot);
 
 @Schema({ timestamps: true, collection: 'meal_plans' })
 export class MealPlan {
+  _id: Types.ObjectId;
+
   /** Hogar al que pertenece el plan; límite de aislamiento de todas las consultas. */
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Household', required: true })
   householdId: Types.ObjectId;

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
-import { MealPlan } from './meal-plan.schema.js';
+import { MealPlan, type MealPlanSlot } from './meal-plan.schema.js';
 
 /**
  * Único punto de acceso a la colección `meal_plans`.
@@ -27,6 +27,22 @@ export class MealPlansRepository {
       .findOneAndUpdate(
         { householdId, weekStart },
         { $setOnInsert: { householdId, weekStart, slots: [] } },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, runValidators: true },
+      )
+      .lean<MealPlan>()
+      .exec();
+  }
+
+  /** Guarda el plan completo de la semana; lo crea si todavía no existe. */
+  async replaceSlots(
+    householdId: string,
+    weekStart: Date,
+    slots: MealPlanSlot[],
+  ): Promise<MealPlan | null> {
+    return this.mealPlanModel
+      .findOneAndUpdate(
+        { householdId, weekStart },
+        { $set: { slots }, $setOnInsert: { householdId, weekStart } },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, runValidators: true },
       )
       .lean<MealPlan>()

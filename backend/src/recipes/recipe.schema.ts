@@ -64,6 +64,8 @@ export const RecipeSourceSchema = SchemaFactory.createForClass(RecipeSource);
 
 @Schema({ timestamps: true, collection: 'recipes' })
 export class Recipe {
+  _id: Types.ObjectId;
+
   /** Hogar al que pertenece la receta; límite de aislamiento de todas las consultas. */
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Household', required: true })
   householdId: Types.ObjectId;

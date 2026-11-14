@@ -51,6 +51,8 @@ export const ShoppingListItemSchema = SchemaFactory.createForClass(ShoppingListI
   versionKey: 'version',
 })
 export class ShoppingList {
+  _id: Types.ObjectId;
+
   /** Hogar al que pertenece la lista; límite de aislamiento de todas las consultas. */
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Household', required: true })
   householdId: Types.ObjectId;

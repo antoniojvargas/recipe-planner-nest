@@ -63,3 +63,22 @@ datos de ejemplo, `make test` y `make test-frontend` para las pruebas, `make lin
 Prettier, y `make help` para ver todos los atajos. Para trabajar sin contenedores, `npm run
 start:dev -w backend` y `npm run dev -w frontend` (este último necesita `--port 3001` si la API ya
 ocupa el 3000).
+
+## Datos de ejemplo
+
+`npm run seed` (o `make seed` con la pila levantada) rellena la base de datos con un hogar de
+prueba: dos usuarios que comparten casa, 25 recetas con ingredientes y pasos, el plan de la semana
+en curso y una despensa básica.
+
+| Usuario            | Contraseña    | Rol en el hogar |
+| ------------------ | ------------- | --------------- |
+| `ana@example.com`  | `Recetas123!` | propietaria     |
+| `luis@example.com` | `Recetas123!` | miembro         |
+
+El script se conecta con la `MONGO_URL` del entorno. Para ejecutarlo desde el host hace falta un
+`.env` con una URL accesible (por ejemplo, `MONGO_URL=mongodb://localhost:27017/recipes?replicaSet=rs0`
+con Mongo publicado en el 27017); dentro de Docker la variable ya apunta al servicio `mongo`.
+
+Es idempotente: los usuarios se buscan por correo, el hogar por nombre y las recetas por título, así
+que se puede ejecutar varias veces sin duplicar datos. El plan de la semana y la despensa se
+actualizan con los valores del seed.

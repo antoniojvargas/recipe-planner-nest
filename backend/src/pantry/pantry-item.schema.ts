@@ -4,6 +4,8 @@ import { SchemaTypes, Types, type HydratedDocument } from 'mongoose';
 
 @Schema({ timestamps: true, collection: 'pantry_items' })
 export class PantryItem {
+  _id: Types.ObjectId;
+
   /** Hogar al que pertenece el artículo; límite de aislamiento de todas las consultas. */
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Household', required: true })
   householdId: Types.ObjectId;

@@ -40,4 +40,20 @@ describe('MealPlansRepository', () => {
     );
     expect(query.lean).toHaveBeenCalledOnce();
   });
+
+  it('reemplaza los huecos y crea el plan si no existe', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new MealPlansRepository(model);
+    const query = mockMongooseQuery(plan);
+    mocks.findOneAndUpdate.mockReturnValue(query);
+    const slots = [{ day: 0, meal: 'lunch' as const, recipeId: new Types.ObjectId(), servings: 2 }];
+
+    await repository.replaceSlots(householdId, weekStart, slots);
+    expect(mocks.findOneAndUpdate).toHaveBeenCalledWith(
+      { householdId, weekStart },
+      { $set: { slots }, $setOnInsert: { householdId, weekStart } },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true, runValidators: true },
+    );
+    expect(query.lean).toHaveBeenCalledOnce();
+  });
 });

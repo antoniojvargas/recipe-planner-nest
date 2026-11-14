@@ -28,6 +28,8 @@ export const HouseholdMemberSchema = SchemaFactory.createForClass(HouseholdMembe
 
 @Schema({ timestamps: true, collection: 'households' })
 export class Household {
+  _id: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   name: string;
 

@@ -1,8 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import type { HydratedDocument } from 'mongoose';
+import { Types, type HydratedDocument } from 'mongoose';
 
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
+  _id: Types.ObjectId;
+
   /**
    * Correo de acceso. Se guarda en minúsculas y sin espacios: el índice único solo
    * protege de duplicados si todos los caminos de escritura normalizan igual.

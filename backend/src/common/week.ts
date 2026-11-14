@@ -18,3 +18,19 @@ export const WEEK_START_VALIDATION = {
   validator: isWeekStart,
   message: 'weekStart debe ser el lunes de la semana a las 00:00 UTC',
 } as const;
+
+/**
+ * Lunes a las 00:00 UTC de la semana a la que pertenece `date`.
+ *
+ * Se calcula en UTC y con el domingo como último día, para que el resultado sea siempre un
+ * `weekStart` válido aunque el cliente esté en otra zona horaria.
+ */
+export function startOfWeek(date: Date = new Date()): Date {
+  const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = monday.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+
+  monday.setUTCDate(monday.getUTCDate() - daysFromMonday);
+
+  return monday;
+}
