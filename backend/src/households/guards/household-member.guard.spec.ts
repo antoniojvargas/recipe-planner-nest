@@ -143,8 +143,7 @@ describe('HouseholdMemberGuard', () => {
     }
 
     const handler = Object.getOwnPropertyDescriptor(TestController.prototype, 'handler')?.value as
-      | object
-      | undefined;
+      object | undefined;
     const metadata = Reflect.getMetadata(HOUSEHOLD_ROLE_KEY, handler ?? {}) as unknown;
 
     expect(metadata).toBe('owner');

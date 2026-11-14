@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
+import { HouseholdRole } from './decorators/household-role.decorator.js';
 import { CreateHouseholdDto } from './dto/create-household.dto.js';
 import { JoinHouseholdDto } from './dto/join-household.dto.js';
+import { HouseholdMemberGuard } from './guards/household-member.guard.js';
 import { HouseholdsService } from './households.service.js';
 import type { HouseholdInviteResponse, HouseholdResponse } from './households.types.js';
 
@@ -25,6 +27,8 @@ export class HouseholdsController {
   }
 
   @Post(':id/invite')
+  @UseGuards(HouseholdMemberGuard)
+  @HouseholdRole('owner')
   @HttpCode(HttpStatus.CREATED)
   async createInvite(
     @Param('id', ParseObjectIdPipe) id: string,
@@ -43,6 +47,7 @@ export class HouseholdsController {
   }
 
   @Get(':id')
+  @UseGuards(HouseholdMemberGuard)
   async findOne(
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,

@@ -217,10 +217,26 @@ describe('Households (e2e)', () => {
     expect(households.households[0]?.inviteCodeHash).not.toBe(body.code);
   });
 
-  it('POST /api/households/:id/invite responde 403 si no es el propietario', async () => {
-    await registerAndGetAccessToken('ana@example.com', 'Ana');
+  it('POST /api/households/:id/invite responde 403 si es miembro pero no propietario', async () => {
+    const ownerToken = await registerAndGetAccessToken('ana@example.com', 'Ana');
     const memberToken = await registerAndGetAccessToken('bea@example.com', 'Bea');
     const anaHouseholdId = households.households[0]?._id.toString();
+
+    const invite = await request(app.getHttpServer() as App)
+      .post(`/api/households/${anaHouseholdId}/invite`)
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(ownerToken))
+      .expect(201);
+
+    const code = (invite.body as { code: string }).code;
+    await request(app.getHttpServer() as App)
+      .post('/api/households/join')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(memberToken))
+      .send({ code })
+      .expect(200);
 
     const response = await request(app.getHttpServer() as App)
       .post(`/api/households/${anaHouseholdId}/invite`)
@@ -305,5 +321,37 @@ describe('Households (e2e)', () => {
       .send({ code })
       .expect(404);
     expect((expired.body as ErrorResponse).error.code).toBe('NOT_FOUND');
+  });
+
+  describe('aislamiento entre hogares', () => {
+    it('un usuario de otro hogar recibe 404 en cada ruta anidada bajo /api/households/:householdId/...', async () => {
+      await registerAndGetAccessToken('ana@example.com', 'Ana');
+      const outsiderToken = await registerAndGetAccessToken('bea@example.com', 'Bea');
+      const anaHouseholdId = households.households[0]?._id.toString();
+
+      const getHousehold = await request(app.getHttpServer() as App)
+        .get(`/api/households/${anaHouseholdId}`)
+        .set('Cookie', authedCookies(outsiderToken))
+        .expect(404);
+
+      expect((getHousehold.body as ErrorResponse).error).toEqual({
+        code: 'NOT_FOUND',
+        message: 'Hogar no encontrado',
+        details: [],
+      });
+
+      const createInvite = await request(app.getHttpServer() as App)
+        .post(`/api/households/${anaHouseholdId}/invite`)
+        .set('Origin', ORIGIN)
+        .set('X-CSRF-Token', CSRF_TOKEN)
+        .set('Cookie', authedCookies(outsiderToken))
+        .expect(404);
+
+      expect((createInvite.body as ErrorResponse).error).toEqual({
+        code: 'NOT_FOUND',
+        message: 'Hogar no encontrado',
+        details: [],
+      });
+    });
   });
 });
