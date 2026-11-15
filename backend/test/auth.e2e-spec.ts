@@ -132,7 +132,7 @@ describe('Auth: sesión (e2e)', () => {
     const refresh = cookieNamed(cookies, 'refresh_token');
     const secure = process.env.APP_ENV === 'production';
 
-    expect(access).toContain('Path=/api;');
+    expect(access).toContain('Path=/;');
     expect(access).toContain('HttpOnly');
     expect(access).toContain('SameSite=Lax');
     expect(access).toContain('Max-Age=900');
@@ -221,7 +221,7 @@ describe('Auth: sesión (e2e)', () => {
       );
 
       const cookies = responseCookies(response);
-      expect(cookieNamed(cookies, 'access_token')).toContain('Path=/api;');
+      expect(cookieNamed(cookies, 'access_token')).toContain('Path=/;');
       expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/api/auth/refresh;');
     });
 
@@ -355,7 +355,7 @@ describe('Auth: sesión (e2e)', () => {
       const cookies = responseCookies(response);
       expect(cookieNamed(cookies, 'access_token')).toContain('Max-Age=0');
       expect(cookieNamed(cookies, 'refresh_token')).toContain('Max-Age=0');
-      expect(cookieNamed(cookies, 'access_token')).toContain('Path=/api;');
+      expect(cookieNamed(cookies, 'access_token')).toContain('Path=/;');
       expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/api/auth/refresh;');
     });
 

@@ -20,7 +20,7 @@ describe('setSessionCookies', () => {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
-      path: '/api',
+      path: '/',
       maxAge: ACCESS_TOKEN_MAX_AGE_SECONDS,
     });
     expect(setCookie).toHaveBeenNthCalledWith(2, 'refresh_token', 'opaque-refresh', {
@@ -54,7 +54,7 @@ describe('clearSessionCookies', () => {
       httpOnly: true,
       sameSite: 'lax',
       secure: false,
-      path: '/api',
+      path: '/',
       maxAge: 0,
     });
     expect(setCookie).toHaveBeenNthCalledWith(2, 'refresh_token', '', {

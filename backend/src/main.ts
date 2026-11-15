@@ -4,6 +4,7 @@ import { Logger } from 'nestjs-pino';
 import { AppModule, ObserveInstrument } from './app.module.js';
 import { configureApp } from './app.setup.js';
 import { exposeRequestId, requestIdAdapterOptions } from './config/request-id.js';
+import { registerRealtimeAdapter } from './realtime/redis-io.adapter.js';
 
 const app = await NestFactory.create<NestFastifyApplication>(
   AppModule,
@@ -18,6 +19,10 @@ const app = await NestFactory.create<NestFastifyApplication>(
 app.useLogger(app.get(Logger));
 exposeRequestId(app);
 await configureApp(app);
+
+// Socket.IO sobre Redis: varias réplicas comparten salas y el worker puede publicar. Se
+// registra antes de escuchar porque el servidor de sockets se crea al inicializar.
+registerRealtimeAdapter(app);
 
 // SIGTERM/SIGINT pasan por el apagado ordenado: Nest deja de aceptar conexiones HTTP y
 // `ShutdownService` cierra sockets, colas, Redis y Mongo en ese orden. `useProcessExit` deja

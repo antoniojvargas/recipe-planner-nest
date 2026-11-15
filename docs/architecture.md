@@ -320,16 +320,18 @@ revocar antes de caducar; el refresh token es el que se invalida de verdad.
 
 | Cookie          | Contenido                                       | Duración | `Path`              |
 | --------------- | ----------------------------------------------- | -------- | ------------------- |
-| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/api`              |
+| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/`                 |
 | `refresh_token` | cadena aleatoria opaca, sin estructura ni firma | 30 días  | `/api/auth/refresh` |
 
 Las dos son `httpOnly` (el JavaScript del frontend no las lee), `SameSite=Lax` y `Secure` fuera de
 desarrollo, y no llevan `Domain`: son host-only. `Path` no es un control de acceso —el cliente
 puede enviar una cookie a donde quiera—, sino una reducción de superficie:
 
-- `Path=/api` en el access token hace que solo viaje a la API. En el mismo origen no se envía al
-  pedir HTML, JS o imágenes del frontend, así que no acaba en logs, cachés ni peticiones que no lo
-  necesitan.
+- `Path=/` en el access token hace que viaje a la API y al handshake de Socket.IO
+  (`/socket.io`), que también lo verifica. Con `Path=/api` el navegador no lo enviaría al
+  socket, que es un path hermano, y el gateway no tendría con qué autenticar; sigue siendo
+  `httpOnly`, así que el JavaScript de la página no lo lee. El refresh token conserva un ámbito
+  estrecho.
 - `Path=/api/auth/refresh` en el refresh token es todavía más estrecho: solo lo recibe el endpoint
   que lo consume. Ningún otro controlador puede leerlo por accidente ni reenviarlo, y no viaja en
   cada petición autenticada.
@@ -443,6 +445,33 @@ nunca con el token ni su hash. No se distingue en la respuesta entre «no existe
   un claim viejo.
 - **El TTL es limpieza, no seguridad.** Las comprobaciones de `expiresAt` y `revokedAt` se hacen
   siempre al leer; que Mongo tarde en borrar una fila no reabre una sesión.
+
+## Tiempo real
+
+El gateway vive en el namespace `/realtime` (`REALTIME_NAMESPACE` en `contracts`) y no sirve
+eventos a quien no esté autenticado:
+
+- **Handshake autenticado.** Un middleware del namespace lee la cookie `access_token` del
+  header `Cookie` y la verifica con `AuthTokensService`, el mismo verificador del guard HTTP.
+  Si es válida, deja `{ id, familyId }` en `socket.data.user`; el resto del gateway (salas por
+  hogar) lo usa sin volver a mirar el token. Un token caducado rechaza con
+  `TOKEN_EXPIRED` para que el cliente refresque y reconecte; uno ausente o inválido, con
+  `UNAUTHORIZED`. El error viaja en `connect_error` como `{ code, message }`.
+- **Origin comprobado.** El `Origin` del handshake tiene que ser `FRONTEND_URL`. El navegador
+  no deja falsificarlo, así que una página de otro sitio no puede abrir el socket con las
+  cookies del usuario; sin `Origin` (clientes que no son navegadores) también se rechaza.
+  Socket.IO recibe además el CORS de `FRONTEND_URL` con credenciales para el polling inicial.
+- **Adaptador de Redis.** `RedisIoAdapter` sustituye el adaptador local de Nest por
+  `@socket.io/redis-adapter` sobre dos conexiones propias de `REDIS_URL` (el cliente
+  compartido no puede quedar en modo suscripción). Los eventos se publican en el canal
+  `socket.io` de Redis, así que un socket conectado a una réplica recibe lo que originó otra.
+  El worker no sirve sockets: publicará en el mismo canal con `@socket.io/redis-emitter` y el
+  adaptador lo repartirá a los clientes de todas las réplicas.
+- **Apagado.** El adaptador registra su tarea en `ShutdownService` con `SHUTDOWN_ORDER.realtime`:
+  Nest cierra primero el servidor de sockets y después se cierran las conexiones de Redis.
+- **La cookie tiene que llegar al handshake.** Por eso el access token usa `Path=/` y no
+  `/api`: el socket vive en `/socket.io`, un path hermano. El refresh token sigue limitado a
+  `/api/auth/refresh`.
 
 ## CORS, cabeceras de seguridad y cookies
 
