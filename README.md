@@ -35,6 +35,17 @@ pisarse entre ellos.
 | E2E            | Playwright                                                                                                                                    |                                                                                            |
 | Contenedores   | Docker Compose (dev, test, e2e, prod con `output: 'standalone'`)                                                                              |                                                                                            |
 
+## Capas de prueba
+
+Cuatro capas de testing, desde unitarios hasta integración completa con contenedores:
+
+| Capa | Comandos | Descripción |
+| ---- | -------- | ----------- |
+| **Unit tests** | `npm run test:unit` | Tests unitarios con Vitest, 30 tests en 4 archivos. Umbrales: 80% líneas, ramas, functions, statements. Cobertura en `coverage/unit/`. |
+| **E2E tests** | `npm run test:e2e` | Tests e2e/integration con Vitest + Supertest + Testcontainers. 89 tests en 16 archivos. Umbrales: 80% cobertura. Cobertura en `coverage/`. |
+| **Integration tests** | `npm run test:integration` | Tests de integración con infraestructura real (Testcontainers/Docker). 6 tests en 2 archivos. Requieren Docker. |
+| **API contract** | `npm run test:openapi` / `npm run export:openapi` | Validación del contrato OpenAPI. Genera/actualiza `src/openapi.json` y compara con `.vitest.openapi.snapshot.json`. Fallece si el contrato diverge. |
+
 ## Arranque
 
 Requisitos: Node.js 22 y Docker con Compose (el repo usa OrbStack o Docker Desktop).
