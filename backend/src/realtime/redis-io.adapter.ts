@@ -98,6 +98,18 @@ export class RedisIoAdapter extends IoAdapter {
     this.closed = true;
     await Promise.allSettled([closeRedisClient(this.pubClient), closeRedisClient(this.subClient)]);
   }
+
+  /**
+   * Resuelve cuando las dos conexiones responden.
+   *
+   * En la conexión de suscripción, `ping` se encola detrás del `psubscribe`, así que cuando
+   * resuelve el adaptador ya está escuchando. Lo usan las pruebas antes de publicar desde el
+   * emisor del worker; en producción no hace falta esperar porque el servidor tarda más en
+   * aceptar el primer socket que Redis en suscribirse.
+   */
+  async ready(): Promise<void> {
+    await Promise.all([this.pubClient.ping(), this.subClient.ping()]);
+  }
 }
 
 /**
