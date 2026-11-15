@@ -3,6 +3,7 @@ import type { Namespace } from 'socket.io';
 import type { AuthTokensService } from '../auth/auth-tokens.service.js';
 import type { AppConfig } from '../config/index.js';
 import type { HouseholdsService } from '../households/households.service.js';
+import type { RealtimePublisherService } from './realtime-publisher.service.js';
 import type { RealtimeRoomsService } from './realtime-rooms.service.js';
 import {
   RealtimeGateway,
@@ -30,6 +31,7 @@ interface GatewayHarness {
   middleware: Middleware;
   households: { findIdsForMember: ReturnType<typeof vi.fn> };
   rooms: { attach: ReturnType<typeof vi.fn>; joinUserChannel: ReturnType<typeof vi.fn> };
+  publisher: { attach: ReturnType<typeof vi.fn> };
 }
 
 /** Crea el gateway con las dependencias dobladas y captura el middleware del namespace. */
@@ -42,10 +44,12 @@ function createGateway(
     attach: vi.fn(),
     joinUserChannel: vi.fn().mockResolvedValue(undefined),
   };
+  const publisher = { attach: vi.fn() };
   const gateway = new RealtimeGateway(
     { verifyAccessToken } as unknown as AuthTokensService,
     households as unknown as HouseholdsService,
     rooms as unknown as RealtimeRoomsService,
+    publisher as unknown as RealtimePublisherService,
     { frontendUrl: ALLOWED_ORIGIN } as AppConfig,
   );
   let middleware: Middleware | undefined;
@@ -60,7 +64,7 @@ function createGateway(
     throw new Error('El gateway no registró el middleware del handshake');
   }
 
-  return { gateway, middleware, households, rooms };
+  return { gateway, middleware, households, rooms, publisher };
 }
 
 function handshake(middleware: Middleware, headers: Handshake): HandshakeResult {
@@ -172,6 +176,14 @@ describe('RealtimeGateway', () => {
       const rejection = await error;
 
       expect((rejection as RealtimeHandshakeError).data.code).toBe(ERROR_CODES.UNAUTHORIZED);
+    });
+  });
+
+  describe('afterInit', () => {
+    it('entrega el namespace al publicador de eventos', () => {
+      const { publisher } = createGateway(vi.fn());
+
+      expect(publisher.attach).toHaveBeenCalledOnce();
     });
   });
 

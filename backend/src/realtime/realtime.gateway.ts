@@ -11,6 +11,7 @@ import {
 import { readCookie } from '../auth/cookie-header.js';
 import { appConfig, type AppConfig } from '../config/index.js';
 import { HouseholdsService } from '../households/households.service.js';
+import { RealtimePublisherService } from './realtime-publisher.service.js';
 import { RealtimeRoomsService } from './realtime-rooms.service.js';
 import { householdRoom } from './rooms.js';
 
@@ -79,6 +80,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly tokens: AuthTokensService,
     private readonly households: HouseholdsService,
     private readonly rooms: RealtimeRoomsService,
+    private readonly publisher: RealtimePublisherService,
     @Inject(appConfig.KEY) config: AppConfig,
   ) {
     this.allowedOrigin = normalizeOrigin(config.frontendUrl) ?? config.frontendUrl;
@@ -86,6 +88,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
 
   afterInit(server: Namespace): void {
     this.rooms.attach(server);
+    this.publisher.attach(server);
 
     server.use((socket, next) => {
       void this.authenticate(socket as RealtimeSocket).then(

@@ -38,4 +38,50 @@ export class InMemoryImportsRepository {
 
     return Promise.resolve({ job, created: true });
   }
+
+  findById(importId: string): Promise<ImportJob | null> {
+    return Promise.resolve(this.jobs.find((job) => job._id.toString() === importId) ?? null);
+  }
+
+  markProcessing(importId: string): Promise<ImportJob | null> {
+    return this.update(importId, (job) => {
+      job.status = 'processing';
+      job.errorCode = undefined;
+      job.errorMessage = undefined;
+    });
+  }
+
+  markCompleted(importId: string, recipeId: string): Promise<ImportJob | null> {
+    return this.update(importId, (job) => {
+      job.status = 'completed';
+      job.recipeId = new Types.ObjectId(recipeId);
+      job.errorCode = undefined;
+      job.errorMessage = undefined;
+    });
+  }
+
+  markFailed(importId: string, code: string, message: string): Promise<ImportJob | null> {
+    return this.update(importId, (job) => {
+      job.status = 'failed';
+      job.recipeId = undefined;
+      job.errorCode = code;
+      job.errorMessage = message;
+    });
+  }
+
+  private update(
+    importId: string,
+    change: (job: StoredImportJob) => void,
+  ): Promise<ImportJob | null> {
+    const job = this.jobs.find((item) => item._id.toString() === importId);
+
+    if (job === undefined) {
+      return Promise.resolve(null);
+    }
+
+    change(job);
+    job.updatedAt = new Date();
+
+    return Promise.resolve(job);
+  }
 }

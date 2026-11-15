@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { RecipesRepository } from '../recipes/recipes.repository.js';
+import { RecipesRepository } from '../recipes/recipes.repository.js';
 import type { MealPlan } from '../meal-plans/meal-plan.schema.js';
 import type { PantryItem } from '../pantry/pantry-item.schema.js';
 import { Unit } from '@recipe-planner/contracts';

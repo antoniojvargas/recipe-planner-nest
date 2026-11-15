@@ -465,8 +465,8 @@ eventos a quien no esté autenticado:
   `@socket.io/redis-adapter` sobre dos conexiones propias de `REDIS_URL` (el cliente
   compartido no puede quedar en modo suscripción). Los eventos se publican en el canal
   `socket.io` de Redis, así que un socket conectado a una réplica recibe lo que originó otra.
-  El worker no sirve sockets: publicará en el mismo canal con `@socket.io/redis-emitter` y el
-  adaptador lo repartirá a los clientes de todas las réplicas.
+  El worker no sirve sockets: publica en el mismo canal con `@socket.io/redis-emitter` y el
+  adaptador lo reparte a los clientes de todas las réplicas.
 - **Apagado.** El adaptador registra su tarea en `ShutdownService` con `SHUTDOWN_ORDER.realtime`:
   Nest cierra primero el servidor de sockets y después se cierran las conexiones de Redis.
 - **La cookie tiene que llegar al handshake.** Por eso el access token usa `Path=/` y no
@@ -505,6 +505,35 @@ no elige salas. Hay dos tipos (`src/realtime/rooms.ts`) y no forman parte de
   propietario, el miembro más antiguo pasa a serlo —un hogar sin propietario no podría invitar—;
   y el último miembro no puede salir, porque el hogar quedaría huérfano arrastrando recetas,
   planes y listas (409 `CONFLICT`).
+
+### Eventos
+
+Los servicios de dominio no conocen Socket.IO: emiten a través de `RealtimePublisher`
+(`src/realtime/realtime-publisher.ts`), una interfaz con `publish(event, payload)` que recibe
+los nombres y las cargas de `packages/contracts` (`SOCKET_EVENTS`). El publicador deduce la
+sala del `payload.householdId`, así que un evento nunca se puede emitir a un hogar distinto del
+que describe.
+
+| Evento                      | Cuándo                                            | Payload                                          |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| `shopping.item.updated`     | se marca o edita un ítem de la lista              | semana, ítem, `checked`, quién lo marcó, versión |
+| `shopping.list.regenerated` | se regenera la lista desde el plan y la despensa  | semana y versión                                 |
+| `meal-plan.updated`         | se asigna o quita una receta de un hueco          | semana y huecos que cambiaron                    |
+| `import.finished`           | el worker termina de importar una receta          | hogar, importación y receta                      |
+| `import.failed`             | el worker agota los reintentos de una importación | hogar, importación, código y mensaje             |
+
+Una sola implementación (`RealtimePublisherService`) sirve a los dos procesos:
+
+- **API.** El gateway le entrega su namespace en `afterInit` y publica con
+  `namespace.to('household:{id}')`. Con el adaptador de Redis, el evento llega a los sockets de
+  todas las réplicas.
+- **Worker.** No hay gateway ni sockets: publica con `@socket.io/redis-emitter` en el mismo
+  canal (`REALTIME_REDIS_KEY`) y namespace. El adaptador de la API lo reparte a las salas.
+
+`publish` es síncrono y no lanza. La escritura que originó el evento ya está confirmada, así que
+un fallo al notificar se registra y se sigue: el peor caso es que ese socket tarde en ver el
+cambio hasta que recargue o se reconecte. En el worker, `import.failed` solo se publica en el
+último intento, para que un 503 pasajero no genere un aviso por cada reintento.
 
 ## CORS, cabeceras de seguridad y cookies
 
