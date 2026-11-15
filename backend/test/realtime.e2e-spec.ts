@@ -1,11 +1,17 @@
 import type { AddressInfo } from 'node:net';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
-import { ERROR_CODES } from '@recipe-planner/contracts';
+import {
+  ERROR_CODES,
+  SESSION_EXPIRED_EVENT,
+  type SessionExpiredPayload,
+} from '@recipe-planner/contracts';
+import { SignJWT } from 'jose';
 import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { AuthTokensService } from '../src/auth/auth-tokens.service.js';
+import { authConfig, type AuthConfig } from '../src/config/index.js';
 import { HouseholdsRepository } from '../src/households/households.repository.js';
 import { withFakeInfra } from './support/fake-infra.js';
 import { InMemoryHouseholdsRepository } from './support/in-memory-households.repository.js';
@@ -98,5 +104,49 @@ describe('Gateway /realtime (e2e)', () => {
     await expect(
       connect({ origin: ALLOWED_ORIGIN, cookie: 'access_token=no-es-un-jwt' }),
     ).resolves.toEqual({ connected: false, code: ERROR_CODES.UNAUTHORIZED });
+  });
+
+  it('avisa de la caducidad y desconecta un socket de larga duración', async () => {
+    const secret = new TextEncoder().encode(app.get<AuthConfig>(authConfig.KEY).accessSecret);
+    const token = await new SignJWT({ fid: 'family-1' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setSubject('user-1')
+      .setIssuedAt()
+      // Los dos segundos dejan margen para completar el handshake antes del cierre.
+      .setExpirationTime(Math.floor(Date.now() / 1_000) + 2)
+      .sign(secret);
+    const client: Socket = io(`${url}/realtime`, {
+      transports: ['websocket'],
+      reconnection: false,
+      extraHeaders: { origin: ALLOWED_ORIGIN, cookie: `access_token=${token}` },
+    });
+
+    try {
+      const expired = new Promise<SessionExpiredPayload>((resolve) => {
+        client.on(SESSION_EXPIRED_EVENT, resolve);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error('timeout al conectar'));
+        }, 2_000);
+
+        client.on('connect', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        client.on('connect_error', (error: Error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+      });
+
+      await expect(expired).resolves.toMatchObject({ code: ERROR_CODES.TOKEN_EXPIRED });
+      await vi.waitFor(() => {
+        expect(client.connected).toBe(false);
+      });
+    } finally {
+      client.close();
+    }
   });
 });

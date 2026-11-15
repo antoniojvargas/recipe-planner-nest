@@ -1,5 +1,6 @@
-import { ERROR_CODES } from '@recipe-planner/contracts';
+import { ERROR_CODES, SESSION_EXPIRED_EVENT } from '@recipe-planner/contracts';
 import type { Namespace } from 'socket.io';
+import { EXPIRED_SESSION_MESSAGE } from '../auth/auth.constants.js';
 import type { AuthTokensService } from '../auth/auth-tokens.service.js';
 import type { AppConfig } from '../config/index.js';
 import type { HouseholdsService } from '../households/households.service.js';
@@ -79,22 +80,35 @@ function handshake(middleware: Middleware, headers: Handshake): HandshakeResult 
 function fakeConnectedSocket(userId = 'user-1'): {
   socket: RealtimeSocket;
   join: ReturnType<typeof vi.fn>;
+  emit: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
 } {
   const join = vi.fn().mockResolvedValue(undefined);
+  const emit = vi.fn();
+  const disconnect = vi.fn();
   const socket = {
-    data: { user: { id: userId, familyId: 'family-1' } },
+    id: 'socket-1',
+    connected: true,
+    data: {
+      user: { id: userId, familyId: 'family-1' },
+    },
     join,
+    emit,
+    disconnect,
   } as unknown as RealtimeSocket;
 
-  return { socket, join };
+  return { socket, join, emit, disconnect };
 }
 
 describe('RealtimeGateway', () => {
   describe('handshake', () => {
     it('deja la identidad en el socket cuando el token y el origen son válidos', async () => {
-      const verify = vi
-        .fn()
-        .mockResolvedValue({ status: 'valid', userId: 'user-1', familyId: 'family-1' });
+      const verify = vi.fn().mockResolvedValue({
+        status: 'valid',
+        userId: 'user-1',
+        familyId: 'family-1',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1_000),
+      });
       const { socket, error } = handshake(createGateway(verify).middleware, {
         origin: ALLOWED_ORIGIN,
         cookie: 'theme=dark; access_token=header.payload.signature',
@@ -103,6 +117,7 @@ describe('RealtimeGateway', () => {
       await expect(error).resolves.toBeUndefined();
       expect(verify).toHaveBeenCalledWith('header.payload.signature');
       expect(socket.data.user).toEqual({ id: 'user-1', familyId: 'family-1' });
+      expect(socket.data.expiresAt).toBeGreaterThan(Date.now());
     });
 
     it('rechaza con UNAUTHORIZED cuando no viaja la cookie access_token', async () => {
@@ -143,9 +158,12 @@ describe('RealtimeGateway', () => {
     });
 
     it('rechaza con UNAUTHORIZED un origen distinto de FRONTEND_URL sin verificar el token', async () => {
-      const verify = vi
-        .fn()
-        .mockResolvedValue({ status: 'valid', userId: 'user-1', familyId: 'family-1' });
+      const verify = vi.fn().mockResolvedValue({
+        status: 'valid',
+        userId: 'user-1',
+        familyId: 'family-1',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1_000),
+      });
       const { error } = handshake(createGateway(verify).middleware, {
         origin: 'http://evil.example',
         cookie: 'access_token=header.payload.signature',
@@ -207,6 +225,65 @@ describe('RealtimeGateway', () => {
       await expect(harness.gateway.handleConnection(socket)).resolves.toBeUndefined();
       expect(harness.rooms.joinUserChannel).toHaveBeenCalledWith(socket);
       expect(join).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('caducidad del access token', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('emite session.expired y desconecta cuando llega el exp del token', async () => {
+      const harness = createGateway(vi.fn());
+      const { socket, emit, disconnect } = fakeConnectedSocket('user-1');
+
+      socket.data.expiresAt = Date.now() + 60_000;
+
+      await harness.gateway.handleConnection(socket);
+
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(emit).not.toHaveBeenCalled();
+      expect(disconnect).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(emit).toHaveBeenCalledWith(SESSION_EXPIRED_EVENT, {
+        code: ERROR_CODES.TOKEN_EXPIRED,
+        message: EXPIRED_SESSION_MESSAGE,
+      });
+      expect(disconnect).toHaveBeenCalledWith(true);
+    });
+
+    it('cierra de inmediato un socket cuyo token ya caducó al conectar', async () => {
+      const harness = createGateway(vi.fn());
+      const { socket, emit, disconnect } = fakeConnectedSocket('user-1');
+
+      socket.data.expiresAt = Date.now() - 1;
+
+      await harness.gateway.handleConnection(socket);
+
+      expect(emit).toHaveBeenCalledWith(SESSION_EXPIRED_EVENT, {
+        code: ERROR_CODES.TOKEN_EXPIRED,
+        message: EXPIRED_SESSION_MESSAGE,
+      });
+      expect(disconnect).toHaveBeenCalledWith(true);
+    });
+
+    it('cancela el temporizador cuando el cliente se desconecta antes', async () => {
+      const harness = createGateway(vi.fn());
+      const { socket, emit, disconnect } = fakeConnectedSocket('user-1');
+
+      socket.data.expiresAt = Date.now() + 60_000;
+
+      await harness.gateway.handleConnection(socket);
+      harness.gateway.handleDisconnect(socket);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(emit).not.toHaveBeenCalled();
+      expect(disconnect).not.toHaveBeenCalled();
     });
   });
 });

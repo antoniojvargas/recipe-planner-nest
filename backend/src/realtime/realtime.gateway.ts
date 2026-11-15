@@ -1,6 +1,17 @@
 import { Inject, Logger } from '@nestjs/common';
-import { type OnGatewayConnection, type OnGatewayInit, WebSocketGateway } from '@nestjs/websockets';
-import { ERROR_CODES, REALTIME_NAMESPACE, type ErrorCode } from '@recipe-planner/contracts';
+import {
+  type OnGatewayConnection,
+  type OnGatewayDisconnect,
+  type OnGatewayInit,
+  WebSocketGateway,
+} from '@nestjs/websockets';
+import {
+  ERROR_CODES,
+  REALTIME_NAMESPACE,
+  SESSION_EXPIRED_EVENT,
+  type ErrorCode,
+  type SessionExpiredPayload,
+} from '@recipe-planner/contracts';
 import type { DefaultEventsMap, Namespace, Socket } from 'socket.io';
 import { AuthTokensService } from '../auth/auth-tokens.service.js';
 import {
@@ -21,8 +32,17 @@ export interface RealtimeIdentity {
   familyId: string;
 }
 
+/**
+ * `setTimeout` de Node desborda por encima de 2^31-1 ms. El TTL real es de 15 minutos, pero
+ * el temporizador se reprograma por tramos para que una configuración mayor no cierre el
+ * socket antes de tiempo.
+ */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+
 export interface RealtimeSocketData {
   user: RealtimeIdentity;
+  /** `exp` del access token en milisegundos; el gateway cierra el socket cuando llega. */
+  expiresAt?: number;
 }
 
 export type RealtimeSocket = Socket<
@@ -59,6 +79,17 @@ function normalizeOrigin(value: string): string | undefined {
 }
 
 /**
+ * Estado de la conexión tras uno o varios `await`.
+ *
+ * La comprobación va en una función para que el analizador no la trate como constante: entre
+ * la consulta de hogares y el `join` el temporizador de caducidad puede haber cerrado el
+ * socket.
+ */
+function isSocketClosed(socket: RealtimeSocket): boolean {
+  return socket.disconnected;
+}
+
+/**
  * Gateway del namespace `/realtime`.
  *
  * La autenticación ocurre en el middleware del namespace, antes de `handleConnection`: se
@@ -72,9 +103,11 @@ function normalizeOrigin(value: string): string | undefined {
  * permite que varias réplicas de la API compartan salas y que el worker publique eventos.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
-export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
   private readonly allowedOrigin: string;
+  /** Temporizador de caducidad de cada socket, para cancelarlo al desconectarse. */
+  private readonly expiryTimers = new WeakMap<RealtimeSocket, ReturnType<typeof setTimeout>>();
 
   constructor(
     private readonly tokens: AuthTokensService,
@@ -111,10 +144,25 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
   async handleConnection(socket: RealtimeSocket): Promise<void> {
     const userId = socket.data.user.id;
 
+    // Se programa antes de las consultas: aunque resolver los hogares tarde o falle, el
+    // socket ya tiene una hora límite.
+    this.scheduleExpiry(socket);
+
+    if (isSocketClosed(socket)) {
+      // El token ya había caducado al conectar: `scheduleExpiry` cerró el socket y no hay
+      // salas que unir.
+      return;
+    }
+
     await this.rooms.joinUserChannel(socket);
 
     try {
       const householdIds = await this.households.findIdsForMember(userId);
+
+      if (isSocketClosed(socket)) {
+        return;
+      }
+
       await socket.join(householdIds.map(householdRoom));
     } catch (error) {
       // Sin salas de hogar el socket sigue conectado, pero no recibe sus eventos hasta que
@@ -124,6 +172,69 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
         error instanceof Error ? error.stack : String(error),
       );
     }
+  }
+
+  /** Cancela el temporizador de caducidad: ya no hay socket que cerrar. */
+  handleDisconnect(socket: RealtimeSocket): void {
+    const timer = this.expiryTimers.get(socket);
+
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.expiryTimers.delete(socket);
+    }
+  }
+
+  /**
+   * Cierra el socket cuando caduca el token con el que se abrió.
+   *
+   * La conexión puede durar más que el access token de 15 minutos, así que el handshake deja
+   * el `exp` en el socket y aquí se programa el cierre. Se avisa con `session.expired`
+   * —Socket.IO no permite adjuntar datos al `disconnect`— y se corta la conexión: el cliente
+   * refresca la sesión y reconecta con la cookie nueva.
+   */
+  private scheduleExpiry(socket: RealtimeSocket): void {
+    const { expiresAt } = socket.data;
+
+    if (expiresAt === undefined) {
+      return;
+    }
+
+    const remaining = expiresAt - Date.now();
+
+    if (remaining <= 0) {
+      this.expire(socket);
+      return;
+    }
+
+    const timer = setTimeout(
+      () => {
+        this.expiryTimers.delete(socket);
+        this.scheduleExpiry(socket);
+      },
+      Math.min(remaining, MAX_TIMER_DELAY_MS),
+    );
+
+    this.expiryTimers.set(socket, timer);
+  }
+
+  private expire(socket: RealtimeSocket): void {
+    const payload: SessionExpiredPayload = {
+      code: ERROR_CODES.TOKEN_EXPIRED,
+      message: EXPIRED_SESSION_MESSAGE,
+    };
+
+    try {
+      socket.emit(SESSION_EXPIRED_EVENT, payload);
+      this.logger.debug(`Access token caducado: se cierra el socket ${socket.id}`);
+    } catch (error) {
+      // Aunque el aviso no salga, la conexión tiene que cerrarse: el token ya no vale.
+      this.logger.error(
+        'No se pudo avisar de la caducidad del access token',
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+
+    socket.disconnect(true);
   }
 
   /** Lanza `RealtimeHandshakeError`; el middleware lo entrega como `connect_error`. */
@@ -136,6 +247,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     switch (verification.status) {
       case 'valid':
         socket.data.user = { id: verification.userId, familyId: verification.familyId };
+        socket.data.expiresAt = verification.expiresAt.getTime();
         return;
       // Un token caducado se distingue para que el cliente sepa que debe refrescar y
       // reconectar; cualquier otro fallo es una sesión que no vale.

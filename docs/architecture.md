@@ -10,9 +10,9 @@ tipos que se pueden ejecutar igual en Node y en el navegador, sin dependencias e
 
 - **Eventos de Socket.IO**: el namespace (`/realtime`), los nombres de evento
   (`shopping.item.updated`, `shopping.list.regenerated`, `meal-plan.updated`,
-  `import.finished`, `import.failed`) y la forma de su carga útil. Emisor y receptor comparten
-  la misma definición, así que renombrar un evento o cambiar un campo rompe la compilación en
-  ambos lados.
+  `import.finished`, `import.failed`, `session.expired`) y la forma de su carga útil. Emisor y
+  receptor comparten la misma definición, así que renombrar un evento o cambiar un campo rompe
+  la compilación en ambos lados.
 - **Códigos de error**: los valores de `error.code` del sobre común
   (`VALIDATION_ERROR`, `TOKEN_EXPIRED`, `NOT_FOUND`, …), el tipo `ErrorResponse` y la forma de
   `details`. El cliente decide a partir del código; el texto del mensaje no es contrato.
@@ -457,6 +457,12 @@ eventos a quien no esté autenticado:
   hogar) lo usa sin volver a mirar el token. Un token caducado rechaza con
   `TOKEN_EXPIRED` para que el cliente refresque y reconecte; uno ausente o inválido, con
   `UNAUTHORIZED`. El error viaja en `connect_error` como `{ code, message }`.
+- **Caducidad en conexiones largas.** El handshake deja el `exp` del token en el socket y el
+  gateway programa su cierre. Al caducar emite `session.expired` con
+  `{ code: 'TOKEN_EXPIRED', message }` y desconecta: Socket.IO no permite adjuntar datos al
+  `disconnect`, así que el aviso va en un evento propio. El cliente refresca con
+  `POST /api/auth/refresh` y llama a `socket.connect()`; el navegador envía la cookie nueva en
+  el handshake. El temporizador se cancela si el cliente se desconecta antes.
 - **Origin comprobado.** El `Origin` del handshake tiene que ser `FRONTEND_URL`. El navegador
   no deja falsificarlo, así que una página de otro sitio no puede abrir el socket con las
   cookies del usuario; sin `Origin` (clientes que no son navegadores) también se rechaza.
