@@ -1,0 +1,108 @@
+import { Injectable, BadRequestException } from '@nestjs/common';
+import type { HydratedDocument } from 'mongoose';
+import { isWeekStart } from '../common/week.js';
+import { MealPlan, MealPlanSlot, MEALS } from './meal-plan.schema.js';
+import { MealPlansRepository } from './meal-plans.repository.js';
+import { RecipesRepository } from '../recipes/recipes.repository.js';
+import { Types } from 'mongoose';
+
+@Injectable()
+export class MealPlansService {
+  constructor(
+    private readonly mealPlansRepository: MealPlansRepository,
+    private readonly recipesRepository: RecipesRepository,
+  ) {}
+
+  async getPlan(
+    householdId: string,
+    weekStart: Date,
+  ): Promise<HydratedDocument<MealPlan>> {
+    if (!isWeekStart(weekStart)) {
+      throw new BadRequestException('weekStart debe ser el lunes de la semana a las 00:00 UTC');
+    }
+
+    const plan = await this.mealPlansRepository.upsertEmpty(householdId, weekStart);
+
+    if (plan === null) {
+      throw new BadRequestException('No se pudo crear el plan de la semana');
+    }
+
+    return plan as HydratedDocument<MealPlan>;
+  }
+
+  async updateSlots(
+    householdId: string,
+    weekStart: Date,
+    dto: { day: number; meal: string; recipeId?: string; servings?: number },
+  ): Promise<HydratedDocument<MealPlan>> {
+    if (dto.day < 0 || dto.day > 6) {
+      throw new BadRequestException('day debe ser un entero entre 0 (lunes) y 6 (domingo)');
+    }
+
+    if (!MEALS.includes(dto.meal as (typeof MEALS)[number])) {
+      throw new BadRequestException(`meal debe ser uno de: ${MEALS.join(', ')}`);
+    }
+
+    // Buscar el plan (usa lean, puede retornar null)
+    const plan = await this.mealPlansRepository.findByWeek(householdId, weekStart);
+    if (plan === null) {
+      throw new BadRequestException('El plan de la semana no existe');
+    }
+
+    // Si recipeId es nulo/undefined, se quita la receta del slot (elimina el slot)
+    if (dto.recipeId == null) {
+      const filteredSlots = plan.slots.filter(
+        (slot) => !(slot.day === dto.day && slot.meal === dto.meal),
+      );
+      const result = await this.mealPlansRepository.replaceSlots(
+        householdId,
+        weekStart,
+        filteredSlots,
+      );
+      return result as HydratedDocument<MealPlan>;
+    }
+
+    // Validar que la receta existe y pertenece al hogar usando findById
+    const recipeById = await this.recipesRepository.findById(
+      householdId,
+      dto.recipeId,
+    );
+    if (recipeById === null) {
+      throw new BadRequestException('La receta especificada no existe en este hogar');
+    }
+
+    // Verificar si ya existe una receta en este slot
+    const existingSlotIndex = plan.slots.findIndex(
+      (slot) => slot.day === dto.day && slot.meal === dto.meal,
+    );
+
+    const newSlot: MealPlanSlot = {
+      day: dto.day,
+      meal: dto.meal as (typeof MEALS)[number],
+      recipeId: new Types.ObjectId(dto.recipeId),
+      servings: dto.servings ?? recipeById.servings,
+    };
+
+    if (existingSlotIndex >= 0) {
+      // Ya hay una receta en este slot, actualizarla
+      const result = await this.mealPlansRepository.replaceSlots(
+        householdId,
+        weekStart,
+        [
+          ...plan.slots.slice(0, existingSlotIndex),
+          newSlot,
+          ...plan.slots.slice(existingSlotIndex + 1),
+        ],
+      );
+      return result as HydratedDocument<MealPlan>;
+    }
+
+    // No hay receta en este slot, agregar una nueva
+    const result = await this.mealPlansRepository.replaceSlots(
+      householdId,
+      weekStart,
+      [...plan.slots, newSlot],
+    );
+    return result as HydratedDocument<MealPlan>;
+  }
+}

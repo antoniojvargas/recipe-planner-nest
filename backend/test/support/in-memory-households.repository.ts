@@ -8,7 +8,7 @@ type StoredHousehold = Household & { _id: Types.ObjectId; inviteCodeExpiresAt?: 
 export class InMemoryHouseholdsRepository {
   readonly households: StoredHousehold[] = [];
 
-  create(input: CreateHouseholdInput): Promise<unknown> {
+  create(input: CreateHouseholdInput): StoredHousehold {
     const household = {
       _id: new Types.ObjectId(),
       name: input.name,
@@ -24,7 +24,7 @@ export class InMemoryHouseholdsRepository {
     } as StoredHousehold;
     this.households.push(household);
 
-    return Promise.resolve(household);
+    return household;
   }
 
   findById(householdId: string): Promise<Household | null> {

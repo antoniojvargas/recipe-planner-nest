@@ -12,7 +12,7 @@ type StoredUser = User & { passwordHash: string; _id: Types.ObjectId };
 export class InMemoryUsersRepository {
   readonly users: StoredUser[] = [];
 
-  create(input: CreateUserInput): Promise<unknown> {
+  create(input: CreateUserInput): StoredUser {
     const user = {
       _id: new Types.ObjectId(),
       email: normalizeEmail(input.email),
@@ -21,7 +21,7 @@ export class InMemoryUsersRepository {
     } as StoredUser;
     this.users.push(user);
 
-    return Promise.resolve(user);
+    return user;
   }
 
   findById(userId: string): Promise<User | null> {
