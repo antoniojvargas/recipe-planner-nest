@@ -12,7 +12,11 @@ import { registerRealtimeAdapter } from './realtime/redis-io.adapter.js';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(requestIdAdapterOptions()),
+    new FastifyAdapter({
+      // Limit body size to 1 MiB para evitar ataques de subida de archivos
+      // y consumos excesivos de memoria.
+      bodyLimit: 1_048_576,
+    }),
     {
       // La app arranca antes de que pino esté listo; los logs de arranque se enlazan después.
       bufferLogs: true,
