@@ -22,6 +22,7 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "test:integration": "vitest run --config ./vitest.config.integration.ts",
+    "test:unit": "vitest run --config ./vitest.config.unit.ts",
     "format:check": "prettier --check . --ignore-path ../.prettierignore",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "export:openapi": "node scripts/export-openapi.mjs",
