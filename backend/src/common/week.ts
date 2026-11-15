@@ -20,6 +20,16 @@ export const WEEK_START_VALIDATION = {
 } as const;
 
 /**
+ * `weekStart` tal como viaja en los eventos y en las URLs: `YYYY-MM-DD`.
+ *
+ * Se corta el ISO en UTC, no en la zona del servidor: la fecha guardada ya es el lunes a las
+ * 00:00 UTC y convertirla a local podría devolver el domingo anterior.
+ */
+export function toWeekStartString(weekStart: Date): string {
+  return weekStart.toISOString().slice(0, 10);
+}
+
+/**
  * Lunes a las 00:00 UTC de la semana a la que pertenece `date`.
  *
  * Se calcula en UTC y con el domingo como último día, para que el resultado sea siempre un

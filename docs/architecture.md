@@ -10,9 +10,9 @@ tipos que se pueden ejecutar igual en Node y en el navegador, sin dependencias e
 
 - **Eventos de Socket.IO**: el namespace (`/realtime`), los nombres de evento
   (`shopping.item.updated`, `shopping.list.regenerated`, `meal-plan.updated`,
-  `import.finished`, `import.failed`) y la forma de su carga útil. Emisor y receptor comparten
-  la misma definición, así que renombrar un evento o cambiar un campo rompe la compilación en
-  ambos lados.
+  `import.finished`, `import.failed`, `session.expired`) y la forma de su carga útil. Emisor y
+  receptor comparten la misma definición, así que renombrar un evento o cambiar un campo rompe
+  la compilación en ambos lados.
 - **Códigos de error**: los valores de `error.code` del sobre común
   (`VALIDATION_ERROR`, `TOKEN_EXPIRED`, `NOT_FOUND`, …), el tipo `ErrorResponse` y la forma de
   `details`. El cliente decide a partir del código; el texto del mensaje no es contrato.
@@ -320,16 +320,18 @@ revocar antes de caducar; el refresh token es el que se invalida de verdad.
 
 | Cookie          | Contenido                                       | Duración | `Path`              |
 | --------------- | ----------------------------------------------- | -------- | ------------------- |
-| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/api`              |
+| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/`                 |
 | `refresh_token` | cadena aleatoria opaca, sin estructura ni firma | 30 días  | `/api/auth/refresh` |
 
 Las dos son `httpOnly` (el JavaScript del frontend no las lee), `SameSite=Lax` y `Secure` fuera de
 desarrollo, y no llevan `Domain`: son host-only. `Path` no es un control de acceso —el cliente
 puede enviar una cookie a donde quiera—, sino una reducción de superficie:
 
-- `Path=/api` en el access token hace que solo viaje a la API. En el mismo origen no se envía al
-  pedir HTML, JS o imágenes del frontend, así que no acaba en logs, cachés ni peticiones que no lo
-  necesitan.
+- `Path=/` en el access token hace que viaje a la API y al handshake de Socket.IO
+  (`/socket.io`), que también lo verifica. Con `Path=/api` el navegador no lo enviaría al
+  socket, que es un path hermano, y el gateway no tendría con qué autenticar; sigue siendo
+  `httpOnly`, así que el JavaScript de la página no lo lee. El refresh token conserva un ámbito
+  estrecho.
 - `Path=/api/auth/refresh` en el refresh token es todavía más estrecho: solo lo recibe el endpoint
   que lo consume. Ningún otro controlador puede leerlo por accidente ni reenviarlo, y no viaja en
   cada petición autenticada.
@@ -443,6 +445,101 @@ nunca con el token ni su hash. No se distingue en la respuesta entre «no existe
   un claim viejo.
 - **El TTL es limpieza, no seguridad.** Las comprobaciones de `expiresAt` y `revokedAt` se hacen
   siempre al leer; que Mongo tarde en borrar una fila no reabre una sesión.
+
+## Tiempo real
+
+El gateway vive en el namespace `/realtime` (`REALTIME_NAMESPACE` en `contracts`) y no sirve
+eventos a quien no esté autenticado:
+
+- **Handshake autenticado.** Un middleware del namespace lee la cookie `access_token` del
+  header `Cookie` y la verifica con `AuthTokensService`, el mismo verificador del guard HTTP.
+  Si es válida, deja `{ id, familyId }` en `socket.data.user`; el resto del gateway (salas por
+  hogar) lo usa sin volver a mirar el token. Un token caducado rechaza con
+  `TOKEN_EXPIRED` para que el cliente refresque y reconecte; uno ausente o inválido, con
+  `UNAUTHORIZED`. El error viaja en `connect_error` como `{ code, message }`.
+- **Caducidad en conexiones largas.** El handshake deja el `exp` del token en el socket y el
+  gateway programa su cierre. Al caducar emite `session.expired` con
+  `{ code: 'TOKEN_EXPIRED', message }` y desconecta: Socket.IO no permite adjuntar datos al
+  `disconnect`, así que el aviso va en un evento propio. El cliente refresca con
+  `POST /api/auth/refresh` y llama a `socket.connect()`; el navegador envía la cookie nueva en
+  el handshake. El temporizador se cancela si el cliente se desconecta antes.
+- **Origin comprobado.** El `Origin` del handshake tiene que ser `FRONTEND_URL`. El navegador
+  no deja falsificarlo, así que una página de otro sitio no puede abrir el socket con las
+  cookies del usuario; sin `Origin` (clientes que no son navegadores) también se rechaza.
+  Socket.IO recibe además el CORS de `FRONTEND_URL` con credenciales para el polling inicial.
+- **Adaptador de Redis.** `RedisIoAdapter` sustituye el adaptador local de Nest por
+  `@socket.io/redis-adapter` sobre dos conexiones propias de `REDIS_URL` (el cliente
+  compartido no puede quedar en modo suscripción). Los eventos se publican en el canal
+  `socket.io` de Redis, así que un socket conectado a una réplica recibe lo que originó otra.
+  El worker no sirve sockets: publica en el mismo canal con `@socket.io/redis-emitter` y el
+  adaptador lo reparte a los clientes de todas las réplicas.
+- **Apagado.** El adaptador registra su tarea en `ShutdownService` con `SHUTDOWN_ORDER.realtime`:
+  Nest cierra primero el servidor de sockets y después se cierran las conexiones de Redis.
+- **La cookie tiene que llegar al handshake.** Por eso el access token usa `Path=/` y no
+  `/api`: el socket vive en `/socket.io`, un path hermano. El refresh token sigue limitado a
+  `/api/auth/refresh`.
+
+### Salas
+
+Un socket solo recibe lo de sus hogares, y la pertenencia se decide en el servidor: el cliente
+no elige salas. Hay dos tipos (`src/realtime/rooms.ts`) y no forman parte de
+`packages/contracts`, porque no son un contrato con el frontend.
+
+| Sala             | Quién está dentro                                 | Para qué                                    |
+| ---------------- | ------------------------------------------------- | ------------------------------------------- |
+| `household:{id}` | todos los sockets de todos los miembros del hogar | repartir los eventos de dominio del hogar   |
+| `user:{id}`      | todas las conexiones abiertas de un usuario       | reubicar sus sockets cuando cambia de hogar |
+
+- **Al conectar**, `handleConnection` une el socket a `user:{id}` y después a
+  `household:{id}` de cada uno de sus hogares. Entra primero en la sala del usuario para que una
+  membresía que cambie mientras se consultan los hogares llegue igualmente: `onJoined`/`onLeft`
+  ya alcanzan al socket.
+- **Al unirse o salir de un hogar**, `HouseholdsService` avisa a `RealtimeRoomsService`, que
+  hace `namespace.in('user:{id}').socketsJoin(...)` o `.socketsLeave(...)`. Con el adaptador de
+  Redis eso alcanza también a los sockets conectados a otras réplicas, sin recorrerlos uno a uno
+  ni guardar un registro de conexiones. Crear un hogar y aceptar una invitación cuentan como
+  entrar.
+- **Un fallo de salas no tumba la escritura.** La membresía ya está confirmada cuando se
+  actualizan las salas; si el adaptador falla se registra el error y se sigue. El peor caso es
+  que ese socket tarde en ver el cambio hasta que se reconecte, que es preferible a devolver un
+  error por algo que sí se guardó.
+- **`RealtimeRoomsModule` vive aparte de `RealtimeModule`** para evitar un ciclo:
+  `RealtimeModule` importa `HouseholdsModule` (necesita los hogares del usuario al conectar) y
+  `HouseholdsModule` importa `RealtimeRoomsModule`. En contextos sin gateway (worker, seed) el
+  namespace no está y las actualizaciones se omiten.
+- **Salir de un hogar** (`POST /api/households/:id/leave`) aplica dos reglas: si se va el
+  propietario, el miembro más antiguo pasa a serlo —un hogar sin propietario no podría invitar—;
+  y el último miembro no puede salir, porque el hogar quedaría huérfano arrastrando recetas,
+  planes y listas (409 `CONFLICT`).
+
+### Eventos
+
+Los servicios de dominio no conocen Socket.IO: emiten a través de `RealtimePublisher`
+(`src/realtime/realtime-publisher.ts`), una interfaz con `publish(event, payload)` que recibe
+los nombres y las cargas de `packages/contracts` (`SOCKET_EVENTS`). El publicador deduce la
+sala del `payload.householdId`, así que un evento nunca se puede emitir a un hogar distinto del
+que describe.
+
+| Evento                      | Cuándo                                            | Payload                                          |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| `shopping.item.updated`     | se marca o edita un ítem de la lista              | semana, ítem, `checked`, quién lo marcó, versión |
+| `shopping.list.regenerated` | se regenera la lista desde el plan y la despensa  | semana y versión                                 |
+| `meal-plan.updated`         | se asigna o quita una receta de un hueco          | semana y huecos que cambiaron                    |
+| `import.finished`           | el worker termina de importar una receta          | hogar, importación y receta                      |
+| `import.failed`             | el worker agota los reintentos de una importación | hogar, importación, código y mensaje             |
+
+Una sola implementación (`RealtimePublisherService`) sirve a los dos procesos:
+
+- **API.** El gateway le entrega su namespace en `afterInit` y publica con
+  `namespace.to('household:{id}')`. Con el adaptador de Redis, el evento llega a los sockets de
+  todas las réplicas.
+- **Worker.** No hay gateway ni sockets: publica con `@socket.io/redis-emitter` en el mismo
+  canal (`REALTIME_REDIS_KEY`) y namespace. El adaptador de la API lo reparte a las salas.
+
+`publish` es síncrono y no lanza. La escritura que originó el evento ya está confirmada, así que
+un fallo al notificar se registra y se sigue: el peor caso es que ese socket tarde en ver el
+cambio hasta que recargue o se reconecte. En el worker, `import.failed` solo se publica en el
+último intento, para que un 503 pasajero no genere un aviso por cada reintento.
 
 ## CORS, cabeceras de seguridad y cookies
 

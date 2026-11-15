@@ -1,7 +1,12 @@
 /** Nombre y ámbito de las cookies de sesión, según el diseño de `docs/architecture.md`. */
 export const ACCESS_TOKEN_COOKIE = 'access_token';
 export const REFRESH_TOKEN_COOKIE = 'refresh_token';
-export const ACCESS_TOKEN_COOKIE_PATH = '/api';
+/**
+ * El access token viaja a todo el host porque el handshake de Socket.IO (`/socket.io`) también
+ * lo necesita para autenticar; con `Path=/api` el navegador no lo enviaría. Sigue siendo
+ * `httpOnly` y el refresh token conserva un ámbito estrecho.
+ */
+export const ACCESS_TOKEN_COOKIE_PATH = '/';
 export const REFRESH_TOKEN_COOKIE_PATH = '/api/auth/refresh';
 
 /**

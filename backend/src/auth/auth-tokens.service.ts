@@ -15,7 +15,13 @@ export interface IssuedRefreshToken {
 
 /** Resultado de verificar un access token; el guard decide qué error HTTP corresponde. */
 export type AccessTokenVerification =
-  | { status: 'valid'; userId: string; familyId: string }
+  | {
+      status: 'valid';
+      userId: string;
+      familyId: string;
+      /** Instante de `exp`, para que el socket de larga duración se cierre al caducar. */
+      expiresAt: Date;
+    }
   | { status: 'expired' }
   | { status: 'invalid' };
 
@@ -60,11 +66,20 @@ export class AuthTokensService {
     try {
       const { payload } = await jwtVerify(token, this.accessKey, { algorithms: ['HS256'] });
 
-      if (typeof payload.sub !== 'string' || typeof payload.fid !== 'string') {
+      if (
+        typeof payload.sub !== 'string' ||
+        typeof payload.fid !== 'string' ||
+        typeof payload.exp !== 'number'
+      ) {
         return { status: 'invalid' };
       }
 
-      return { status: 'valid', userId: payload.sub, familyId: payload.fid };
+      return {
+        status: 'valid',
+        userId: payload.sub,
+        familyId: payload.fid,
+        expiresAt: new Date(payload.exp * 1_000),
+      };
     } catch (error) {
       return error instanceof errors.JWTExpired ? { status: 'expired' } : { status: 'invalid' };
     }

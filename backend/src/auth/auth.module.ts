@@ -34,5 +34,7 @@ import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: AUTH_CLOCK, useValue: systemAuthClock },
   ],
+  // El handshake de Socket.IO verifica el access token con el mismo servicio que el guard.
+  exports: [AuthTokensService],
 })
 export class AuthModule {}

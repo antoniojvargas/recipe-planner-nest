@@ -59,4 +59,50 @@ export class ImportsRepository {
       return { job: existing, created: false };
     }
   }
+
+  async findById(importId: string): Promise<ImportJob | null> {
+    return this.importModel.findById(importId).lean<ImportJob>().exec();
+  }
+
+  /** El worker marca el trabajo como en curso y limpia el error de un intento anterior. */
+  async markProcessing(importId: string): Promise<ImportJob | null> {
+    return this.importModel
+      .findByIdAndUpdate(
+        importId,
+        { $set: { status: 'processing' }, $unset: { errorCode: '', errorMessage: '' } },
+        { returnDocument: 'after' },
+      )
+      .lean<ImportJob>()
+      .exec();
+  }
+
+  /** Cierra el trabajo con la receta creada. */
+  async markCompleted(importId: string, recipeId: string): Promise<ImportJob | null> {
+    return this.importModel
+      .findByIdAndUpdate(
+        importId,
+        {
+          $set: { status: 'completed', recipeId },
+          $unset: { errorCode: '', errorMessage: '' },
+        },
+        { returnDocument: 'after' },
+      )
+      .lean<ImportJob>()
+      .exec();
+  }
+
+  /** Guarda el fallo para que el cliente pueda explicar por qué no se importó. */
+  async markFailed(importId: string, code: string, message: string): Promise<ImportJob | null> {
+    return this.importModel
+      .findByIdAndUpdate(
+        importId,
+        {
+          $set: { status: 'failed', errorCode: code, errorMessage: message },
+          $unset: { recipeId: '' },
+        },
+        { returnDocument: 'after' },
+      )
+      .lean<ImportJob>()
+      .exec();
+  }
 }

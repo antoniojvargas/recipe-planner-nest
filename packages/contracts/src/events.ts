@@ -10,6 +10,21 @@ import type { Unit } from './units.js';
 
 export const REALTIME_NAMESPACE = '/realtime';
 
+/**
+ * Aviso que el servidor emite justo antes de cerrar un socket cuyo access token caducó.
+ *
+ * Socket.IO no permite adjuntar datos al evento `disconnect`, así que la caducidad se anuncia
+ * con este evento. El cliente debe refrescar la sesión (`POST /api/auth/refresh`) y volver a
+ * llamar a `socket.connect()`: al reconectarse, el navegador envía la cookie nueva.
+ */
+export const SESSION_EXPIRED_EVENT = 'session.expired';
+
+export interface SessionExpiredPayload {
+  /** `TOKEN_EXPIRED`, el mismo código que devuelve el guard HTTP. */
+  code: 'TOKEN_EXPIRED';
+  message: string;
+}
+
 export const SOCKET_EVENTS = {
   shoppingItemUpdated: 'shopping.item.updated',
   shoppingListRegenerated: 'shopping.list.regenerated',

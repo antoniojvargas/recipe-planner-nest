@@ -37,14 +37,18 @@ describe('AuthTokensService', () => {
     const familyId = '6f1e7a4e-0f4c-4f6e-9f0e-9c1f5b2a3d4c';
     const key = new TextEncoder().encode(CONFIG.accessSecret);
 
-    it('devuelve el usuario y la familia de un token válido', async () => {
+    it('devuelve el usuario, la familia y la caducidad de un token válido', async () => {
       const token = await service.createAccessToken(userId, familyId);
+      const verification = await service.verifyAccessToken(token);
 
-      await expect(service.verifyAccessToken(token)).resolves.toEqual({
-        status: 'valid',
-        userId,
-        familyId,
-      });
+      expect(verification).toMatchObject({ status: 'valid', userId, familyId });
+
+      if (verification.status === 'valid') {
+        const claims = decodeJwt(token);
+
+        expect(verification.expiresAt.getTime()).toBe((claims.exp ?? 0) * 1_000);
+        expect(verification.expiresAt.getTime()).toBeGreaterThan(Date.now());
+      }
     });
 
     it('distingue un token caducado de uno inválido', async () => {
@@ -70,7 +74,12 @@ describe('AuthTokensService', () => {
         .setExpirationTime('15m')
         .sign(key);
 
-      for (const token of [foreign, withoutFamily, undefined, '']) {
+      const withoutExpiration = await new SignJWT({ fid: familyId })
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .setSubject(userId)
+        .sign(key);
+
+      for (const token of [foreign, withoutFamily, withoutExpiration, undefined, '']) {
         await expect(service.verifyAccessToken(token)).resolves.toEqual({ status: 'invalid' });
       }
     });

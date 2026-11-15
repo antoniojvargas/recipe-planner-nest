@@ -1,22 +1,24 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject } from '@nestjs/common';
+import { SOCKET_EVENTS, type MealPlanUpdatedPayload } from '@recipe-planner/contracts';
 import type { HydratedDocument } from 'mongoose';
-import { isWeekStart } from '../common/week.js';
+import { isWeekStart, toWeekStartString } from '../common/week.js';
 import { MealPlan, MealPlanSlot, MEALS } from './meal-plan.schema.js';
 import { MealPlansRepository } from './meal-plans.repository.js';
 import { RecipesRepository } from '../recipes/recipes.repository.js';
+import { REALTIME_PUBLISHER, type RealtimePublisher } from '../realtime/realtime-publisher.js';
 import { Types } from 'mongoose';
+
+type UpdatedSlot = MealPlanUpdatedPayload['slots'][number];
 
 @Injectable()
 export class MealPlansService {
   constructor(
     private readonly mealPlansRepository: MealPlansRepository,
     private readonly recipesRepository: RecipesRepository,
+    @Inject(REALTIME_PUBLISHER) private readonly publisher: RealtimePublisher,
   ) {}
 
-  async getPlan(
-    householdId: string,
-    weekStart: Date,
-  ): Promise<HydratedDocument<MealPlan>> {
+  async getPlan(householdId: string, weekStart: Date): Promise<HydratedDocument<MealPlan>> {
     if (!isWeekStart(weekStart)) {
       throw new BadRequestException('weekStart debe ser el lunes de la semana a las 00:00 UTC');
     }
@@ -51,6 +53,7 @@ export class MealPlansService {
 
     // Si recipeId es nulo/undefined, se quita la receta del slot (elimina el slot)
     if (dto.recipeId == null) {
+      const previous = plan.slots.find((slot) => slot.day === dto.day && slot.meal === dto.meal);
       const filteredSlots = plan.slots.filter(
         (slot) => !(slot.day === dto.day && slot.meal === dto.meal),
       );
@@ -59,14 +62,21 @@ export class MealPlansService {
         weekStart,
         filteredSlots,
       );
+
+      this.publishUpdated(householdId, weekStart, [
+        {
+          day: dto.day as UpdatedSlot['day'],
+          meal: dto.meal as UpdatedSlot['meal'],
+          recipeId: null,
+          servings: previous?.servings ?? 0,
+        },
+      ]);
+
       return result as HydratedDocument<MealPlan>;
     }
 
     // Validar que la receta existe y pertenece al hogar usando findById
-    const recipeById = await this.recipesRepository.findById(
-      householdId,
-      dto.recipeId,
-    );
+    const recipeById = await this.recipesRepository.findById(householdId, dto.recipeId);
     if (recipeById === null) {
       throw new BadRequestException('La receta especificada no existe en este hogar');
     }
@@ -83,26 +93,43 @@ export class MealPlansService {
       servings: dto.servings ?? recipeById.servings,
     };
 
+    const updatedSlot: UpdatedSlot = {
+      day: newSlot.day as UpdatedSlot['day'],
+      meal: newSlot.meal,
+      recipeId: newSlot.recipeId.toString(),
+      servings: newSlot.servings,
+    };
+
     if (existingSlotIndex >= 0) {
       // Ya hay una receta en este slot, actualizarla
-      const result = await this.mealPlansRepository.replaceSlots(
-        householdId,
-        weekStart,
-        [
-          ...plan.slots.slice(0, existingSlotIndex),
-          newSlot,
-          ...plan.slots.slice(existingSlotIndex + 1),
-        ],
-      );
+      const result = await this.mealPlansRepository.replaceSlots(householdId, weekStart, [
+        ...plan.slots.slice(0, existingSlotIndex),
+        newSlot,
+        ...plan.slots.slice(existingSlotIndex + 1),
+      ]);
+
+      this.publishUpdated(householdId, weekStart, [updatedSlot]);
+
       return result as HydratedDocument<MealPlan>;
     }
 
     // No hay receta en este slot, agregar una nueva
-    const result = await this.mealPlansRepository.replaceSlots(
-      householdId,
-      weekStart,
-      [...plan.slots, newSlot],
-    );
+    const result = await this.mealPlansRepository.replaceSlots(householdId, weekStart, [
+      ...plan.slots,
+      newSlot,
+    ]);
+
+    this.publishUpdated(householdId, weekStart, [updatedSlot]);
+
     return result as HydratedDocument<MealPlan>;
+  }
+
+  /** Notifica solo los huecos que cambiaron; el cliente actualiza su plan sin releerlo. */
+  private publishUpdated(householdId: string, weekStart: Date, slots: UpdatedSlot[]): void {
+    this.publisher.publish(SOCKET_EVENTS.mealPlanUpdated, {
+      householdId,
+      weekStart: toWeekStartString(weekStart),
+      slots,
+    });
   }
 }

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { HouseholdRole } from './decorators/household-role.decorator.js';
@@ -44,6 +53,17 @@ export class HouseholdsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<HouseholdResponse> {
     return this.householdsService.joinWithCode(dto.code, user.id);
+  }
+
+  /** Abandona el hogar. Los sockets abiertos del usuario salen de su sala en el acto. */
+  @Post(':id/leave')
+  @UseGuards(HouseholdMemberGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async leave(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.householdsService.leave(id, user.id);
   }
 
   @Get(':id')
