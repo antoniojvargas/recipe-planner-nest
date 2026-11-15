@@ -3,6 +3,7 @@ import { ERROR_CODES } from '@recipe-planner/contracts';
 import { Types } from 'mongoose';
 import { AppException } from '../common/exceptions/app.exception.js';
 import { AUTH_CLOCK, type AuthClock } from '../auth/auth.clock.js';
+import { RealtimeRoomsService } from '../realtime/realtime-rooms.service.js';
 import type { Household } from './household.schema.js';
 import { HouseholdsRepository } from './households.repository.js';
 import {
@@ -34,6 +35,7 @@ function toResponse(household: Household): HouseholdResponse {
 export class HouseholdsService {
   constructor(
     private readonly households: HouseholdsRepository,
+    private readonly rooms: RealtimeRoomsService,
     @Inject(AUTH_CLOCK) private readonly clock: AuthClock,
   ) {}
 
@@ -49,6 +51,9 @@ export class HouseholdsService {
       ],
     });
 
+    // Crear también es entrar: los sockets abiertos del usuario pasan a escuchar el hogar.
+    this.rooms.onJoined(userId, household._id.toString());
+
     return toResponse(household);
   }
 
@@ -56,6 +61,11 @@ export class HouseholdsService {
     const households = await this.households.findByMember(userId);
 
     return households.map((household) => toResponse(household));
+  }
+
+  /** Ids de los hogares del usuario; las salas de Socket.IO se construyen con ellos. */
+  findIdsForMember(userId: string): Promise<string[]> {
+    return this.households.findIdsByMember(userId);
   }
 
   async findOneForMember(householdId: string, userId: string): Promise<HouseholdResponse> {
@@ -141,6 +151,54 @@ export class HouseholdsService {
       });
     }
 
+    this.rooms.onJoined(userId, updated._id.toString());
+
     return toResponse(updated);
+  }
+
+  /**
+   * Saca al usuario de un hogar. Si era el propietario y quedan miembros, el más antiguo pasa a
+   * serlo: un hogar sin propietario no podría emitir invitaciones. El último miembro no puede
+   * salir porque el hogar quedaría huérfano y borrarlo arrastraría recetas, planes y listas.
+   */
+  async leave(householdId: string, userId: string): Promise<void> {
+    const household = await this.households.findById(householdId);
+    const member = household?.members.find((item) => item.userId.toString() === userId);
+
+    if (household === null || member === undefined) {
+      throw new AppException({
+        status: HttpStatus.NOT_FOUND,
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Hogar no encontrado',
+      });
+    }
+
+    if (household.members.length === 1) {
+      throw new AppException({
+        status: HttpStatus.CONFLICT,
+        code: ERROR_CODES.CONFLICT,
+        message: 'El último miembro no puede salir del hogar',
+      });
+    }
+
+    const updated = await this.households.removeMember(householdId, userId);
+
+    if (updated === null) {
+      throw new AppException({
+        status: HttpStatus.NOT_FOUND,
+        code: ERROR_CODES.NOT_FOUND,
+        message: 'Hogar no encontrado',
+      });
+    }
+
+    if (member.role === 'owner') {
+      const [nextOwner] = [...updated.members].sort(
+        (a, b) => a.joinedAt.getTime() - b.joinedAt.getTime(),
+      );
+
+      await this.households.setMemberRole(householdId, nextOwner.userId.toString(), 'owner');
+    }
+
+    this.rooms.onLeft(userId, householdId);
   }
 }

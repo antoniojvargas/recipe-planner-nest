@@ -1,5 +1,5 @@
 import { Inject, Logger } from '@nestjs/common';
-import { type OnGatewayInit, WebSocketGateway } from '@nestjs/websockets';
+import { type OnGatewayConnection, type OnGatewayInit, WebSocketGateway } from '@nestjs/websockets';
 import { ERROR_CODES, REALTIME_NAMESPACE, type ErrorCode } from '@recipe-planner/contracts';
 import type { DefaultEventsMap, Namespace, Socket } from 'socket.io';
 import { AuthTokensService } from '../auth/auth-tokens.service.js';
@@ -10,6 +10,9 @@ import {
 } from '../auth/auth.constants.js';
 import { readCookie } from '../auth/cookie-header.js';
 import { appConfig, type AppConfig } from '../config/index.js';
+import { HouseholdsService } from '../households/households.service.js';
+import { RealtimeRoomsService } from './realtime-rooms.service.js';
+import { householdRoom } from './rooms.js';
 
 /** Identidad que el handshake deja en el socket, igual que `JwtAuthGuard` en la petición. */
 export interface RealtimeIdentity {
@@ -68,18 +71,22 @@ function normalizeOrigin(value: string): string | undefined {
  * permite que varias réplicas de la API compartan salas y que el worker publique eventos.
  */
 @WebSocketGateway({ namespace: REALTIME_NAMESPACE })
-export class RealtimeGateway implements OnGatewayInit {
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
   private readonly logger = new Logger(RealtimeGateway.name);
   private readonly allowedOrigin: string;
 
   constructor(
     private readonly tokens: AuthTokensService,
+    private readonly households: HouseholdsService,
+    private readonly rooms: RealtimeRoomsService,
     @Inject(appConfig.KEY) config: AppConfig,
   ) {
     this.allowedOrigin = normalizeOrigin(config.frontendUrl) ?? config.frontendUrl;
   }
 
   afterInit(server: Namespace): void {
+    this.rooms.attach(server);
+
     server.use((socket, next) => {
       void this.authenticate(socket as RealtimeSocket).then(
         () => {
@@ -90,6 +97,30 @@ export class RealtimeGateway implements OnGatewayInit {
         },
       );
     });
+  }
+
+  /**
+   * Une el socket a la sala privada del usuario y a la de cada uno de sus hogares.
+   *
+   * Primero entra en `user:{id}`: así una membresía que cambie mientras se consultan los
+   * hogares llega igualmente al socket, porque `onJoined`/`onLeft` ya lo alcanzan.
+   */
+  async handleConnection(socket: RealtimeSocket): Promise<void> {
+    const userId = socket.data.user.id;
+
+    await this.rooms.joinUserChannel(socket);
+
+    try {
+      const householdIds = await this.households.findIdsForMember(userId);
+      await socket.join(householdIds.map(householdRoom));
+    } catch (error) {
+      // Sin salas de hogar el socket sigue conectado, pero no recibe sus eventos hasta que
+      // se reconecte; tumbar la conexión por un fallo de lectura sería peor.
+      this.logger.error(
+        `No se pudieron resolver los hogares de ${userId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   /** Lanza `RealtimeHandshakeError`; el middleware lo entrega como `connect_error`. */

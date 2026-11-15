@@ -473,6 +473,39 @@ eventos a quien no esté autenticado:
   `/api`: el socket vive en `/socket.io`, un path hermano. El refresh token sigue limitado a
   `/api/auth/refresh`.
 
+### Salas
+
+Un socket solo recibe lo de sus hogares, y la pertenencia se decide en el servidor: el cliente
+no elige salas. Hay dos tipos (`src/realtime/rooms.ts`) y no forman parte de
+`packages/contracts`, porque no son un contrato con el frontend.
+
+| Sala             | Quién está dentro                                 | Para qué                                    |
+| ---------------- | ------------------------------------------------- | ------------------------------------------- |
+| `household:{id}` | todos los sockets de todos los miembros del hogar | repartir los eventos de dominio del hogar   |
+| `user:{id}`      | todas las conexiones abiertas de un usuario       | reubicar sus sockets cuando cambia de hogar |
+
+- **Al conectar**, `handleConnection` une el socket a `user:{id}` y después a
+  `household:{id}` de cada uno de sus hogares. Entra primero en la sala del usuario para que una
+  membresía que cambie mientras se consultan los hogares llegue igualmente: `onJoined`/`onLeft`
+  ya alcanzan al socket.
+- **Al unirse o salir de un hogar**, `HouseholdsService` avisa a `RealtimeRoomsService`, que
+  hace `namespace.in('user:{id}').socketsJoin(...)` o `.socketsLeave(...)`. Con el adaptador de
+  Redis eso alcanza también a los sockets conectados a otras réplicas, sin recorrerlos uno a uno
+  ni guardar un registro de conexiones. Crear un hogar y aceptar una invitación cuentan como
+  entrar.
+- **Un fallo de salas no tumba la escritura.** La membresía ya está confirmada cuando se
+  actualizan las salas; si el adaptador falla se registra el error y se sigue. El peor caso es
+  que ese socket tarde en ver el cambio hasta que se reconecte, que es preferible a devolver un
+  error por algo que sí se guardó.
+- **`RealtimeRoomsModule` vive aparte de `RealtimeModule`** para evitar un ciclo:
+  `RealtimeModule` importa `HouseholdsModule` (necesita los hogares del usuario al conectar) y
+  `HouseholdsModule` importa `RealtimeRoomsModule`. En contextos sin gateway (worker, seed) el
+  namespace no está y las actualizaciones se omiten.
+- **Salir de un hogar** (`POST /api/households/:id/leave`) aplica dos reglas: si se va el
+  propietario, el miembro más antiguo pasa a serlo —un hogar sin propietario no podría invitar—;
+  y el último miembro no puede salir, porque el hogar quedaría huérfano arrastrando recetas,
+  planes y listas (409 `CONFLICT`).
+
 ## CORS, cabeceras de seguridad y cookies
 
 Todo se registra en `configureApp` (`app.setup.ts`), compartido por `main.ts` y los e2e:

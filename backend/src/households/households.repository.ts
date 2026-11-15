@@ -35,6 +35,17 @@ export class HouseholdsRepository {
     return this.householdModel.find({ 'members.userId': userId }).lean<Household[]>().exec();
   }
 
+  /** Solo los `_id` de los hogares del usuario: es lo que necesitan las salas de Socket.IO. */
+  async findIdsByMember(userId: string): Promise<string[]> {
+    const households = await this.householdModel
+      .find({ 'members.userId': userId })
+      .select('_id')
+      .lean<Pick<Household, '_id'>[]>()
+      .exec();
+
+    return households.map((household) => household._id.toString());
+  }
+
   /** Solo devuelve un hogar si el hash del código de invitación coincide. */
   async findByInviteCodeHash(inviteCodeHash: string): Promise<Household | null> {
     return this.householdModel
@@ -60,6 +71,22 @@ export class HouseholdsRepository {
       .findByIdAndUpdate(
         householdId,
         { $pull: { members: { userId } } },
+        { returnDocument: 'after' },
+      )
+      .lean<Household>()
+      .exec();
+  }
+
+  /** Cambia el rol de un miembro concreto sin tocar al resto. */
+  async setMemberRole(
+    householdId: string,
+    userId: string,
+    role: HouseholdMember['role'],
+  ): Promise<Household | null> {
+    return this.householdModel
+      .findOneAndUpdate(
+        { _id: householdId, 'members.userId': userId },
+        { $set: { 'members.$.role': role } },
         { returnDocument: 'after' },
       )
       .lean<Household>()

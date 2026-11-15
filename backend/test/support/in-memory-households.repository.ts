@@ -41,6 +41,16 @@ export class InMemoryHouseholdsRepository {
     );
   }
 
+  findIdsByMember(userId: string): Promise<string[]> {
+    return Promise.resolve(
+      this.households
+        .filter((household) =>
+          household.members.some((member: HouseholdMember) => member.userId.toString() === userId),
+        )
+        .map((household) => household._id.toString()),
+    );
+  }
+
   findByInviteCodeHash(inviteCodeHash: string): Promise<Household | null> {
     const household = this.households.find((item) => item.inviteCodeHash === inviteCodeHash);
 
@@ -73,6 +83,25 @@ export class InMemoryHouseholdsRepository {
     household.members = household.members.filter(
       (member: HouseholdMember) => member.userId.toString() !== userId,
     );
+
+    return Promise.resolve(household);
+  }
+
+  setMemberRole(
+    householdId: string,
+    userId: string,
+    role: HouseholdMember['role'],
+  ): Promise<Household | null> {
+    const household = this.households.find((item) => item._id.toString() === householdId);
+    const member = household?.members.find(
+      (item: HouseholdMember) => item.userId.toString() === userId,
+    );
+
+    if (household === undefined || member === undefined) {
+      return Promise.resolve(null);
+    }
+
+    member.role = role;
 
     return Promise.resolve(household);
   }

@@ -1,9 +1,14 @@
 import type { AddressInfo } from 'node:net';
-import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import { Test } from '@nestjs/testing';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import { io, type Socket } from 'socket.io-client';
+import { AppModule } from '../src/app.module.js';
+import { configureApp } from '../src/app.setup.js';
 import { AuthTokensService } from '../src/auth/auth-tokens.service.js';
-import { createTestApp } from './support/test-app.js';
+import { HouseholdsRepository } from '../src/households/households.repository.js';
+import { withFakeInfra } from './support/fake-infra.js';
+import { InMemoryHouseholdsRepository } from './support/in-memory-households.repository.js';
 
 const ALLOWED_ORIGIN = 'http://localhost:3001';
 
@@ -15,6 +20,8 @@ interface ConnectResult {
 /**
  * Handshake real contra la app completa: el gateway, el middleware del namespace y el
  * verificador de tokens son los de producción; solo Mongo, Redis y S3 están doblados.
+ * `HouseholdsRepository` se dobla porque el gateway consulta los hogares al conectar y el
+ * modelo falso no sabe consultar.
  */
 describe('Gateway /realtime (e2e)', () => {
   let app: NestFastifyApplication;
@@ -22,7 +29,15 @@ describe('Gateway /realtime (e2e)', () => {
   let accessToken: string;
 
   beforeAll(async () => {
-    app = await createTestApp();
+    const moduleFixture = await withFakeInfra(Test.createTestingModule({ imports: [AppModule] }))
+      .overrideProvider(HouseholdsRepository)
+      .useValue(new InMemoryHouseholdsRepository())
+      .compile();
+
+    app = moduleFixture.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    await configureApp(app);
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
     await app.listen(0, '127.0.0.1');
 
     const address = app.getHttpServer().address() as AddressInfo;
