@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
+import { DocumentBuilder } from '@nestjs/swagger';
 import { AppModule, ObserveInstrument } from './app.module.js';
 import { configureApp } from './app.setup.js';
 import { exposeRequestId, requestIdAdapterOptions } from './config/request-id.js';
 import { registerRealtimeAdapter } from './realtime/redis-io.adapter.js';
+import { SwaggerModule } from '@nestjs/swagger';
 
 const app = await NestFactory.create<NestFastifyApplication>(
   AppModule,
@@ -17,8 +19,60 @@ const app = await NestFactory.create<NestFastifyApplication>(
 );
 
 app.useLogger(app.get(Logger));
-exposeRequestId(app);
-await configureApp(app);
+
+// Configuración de Swagger / OpenAPI
+const documentBuilder = new DocumentBuilder()
+  .setTitle('Recipe Planner API')
+  .setDescription('API para el planificador de recetas')
+  .setVersion('1.0')
+  .addServer(process.env.PUBLIC_URL ?? 'http://localhost:3000', 'Servidor de la API')
+  .addSecurity('cookie', {
+    type: 'apiKey',
+    in: 'cookie',
+    name: 'access_token',
+  })
+  .addSecurity('bearer', {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'JWT',
+  })
+  .addSecurityRequirements('cookie')
+  .addSecurityRequirements('bearer')
+  .addTag('auth', 'Autenticación y sesiones')
+  .addTag('households', 'Gestión de hogares')
+  .addTag('recipes', 'Recetas y planes')
+  .addTag('shopping', 'Listas de la compra')
+  .addTag('imports', 'Importaciones')
+  .addTag('media', 'Media y thumbnails')
+  .addTag('health', 'Health checks')
+  .build();
+
+const document = SwaggerModule.createDocument(app, documentBuilder);
+
+// La UI de Swagger sólo está disponible fuera de producción para evitar exponer
+// rutas internas en entornos de despliegue. En producción se sirve un HTML
+// estático mínimamente diferente que apunta al contrato versionado.
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (!isProduction) {
+  // Swagger UI con CSP relajada solo en entornos de desarrollo/local.
+  // Esto permite cargar los recursos (CSS/JS) desde CDNs o orígenes mixtos
+  // sin que el policy de seguridad del navegador bloquee la UI.
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayOperations: true,
+    },
+    customSiteTitle: 'Recipe Planner API Docs',
+  });
+} else {
+  // En producción servimos solo el JSON en /json; la UI no está expuesta.
+  SwaggerModule.setup('json', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
+}
 
 // Socket.IO sobre Redis: varias réplicas comparten salas y el worker puede publicar. Se
 // registra antes de escuchar porque el servidor de sockets se crea al inicializar.

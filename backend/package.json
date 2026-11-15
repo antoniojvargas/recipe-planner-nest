@@ -23,7 +23,10 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "test:integration": "vitest run --config ./vitest.config.integration.ts",
     "format:check": "prettier --check . --ignore-path ../.prettierignore",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "export:openapi": "node scripts/export-openapi.mjs",
+    "test:openapi": "node -e \"const fs = require('fs'); const expected = JSON.parse(fs.readFileSync('src/openapi.json', 'utf8')); const got = JSON.parse(fs.readFileSync('.vitest.openapi.snapshot.json', 'utf8')); if (JSON.stringify(expected) !== JSON.stringify(got)) process.exit(1);\";",
+    "update:openapi": "node scripts/export-openapi.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",
@@ -39,6 +42,7 @@
     "@nestjs/observe": "^0.3.0",
     "@nestjs/platform-fastify": "^12.5.0",
     "@nestjs/platform-socket.io": "^12.5.0",
+    "@nestjs/swagger": "^12.1.2",
     "@nestjs/terminus": "^12.1.0",
     "@nestjs/websockets": "^12.5.0",
     "@recipe-planner/contracts": "0.1.0",
@@ -62,7 +66,7 @@
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
-    "@nestjs/cli": "^12.0.0",
+    "@nestjs/cli": "^12.0.13",
     "@nestjs/mau": "^0.2.6",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
