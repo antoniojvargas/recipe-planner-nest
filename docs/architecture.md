@@ -632,6 +632,107 @@ por pino.
   `onRequest` devuelve el id en la respuesta. Así el mismo id aparece en el log de la petición, en
   la respuesta y en los logs del frontend, que lo reenvía como `X-Request-Id`.
 
+## Frontend: reparto de responsabilidades
+
+La web usa el App Router de Next.js y una regla por defecto: **todo es Server Component hasta que
+haga falta lo contrario**. El cliente recibe HTML ya renderizado, y solo los fragmentos que de
+verdad necesitan estado local, eventos del navegador o datos que cambian sin navegar se convierten
+en Client Components. Cada capa tiene una única forma de hablar con la API, para que no convivan
+dos maneras de autenticarse o de invalidar datos.
+
+| Necesidad                                                      | Dónde vive                                         |
+| -------------------------------------------------------------- | -------------------------------------------------- |
+| Leer datos para pintar una página                              | Server Component → `apiFetch` → `API_INTERNAL_URL` |
+| Mutación de un formulario: una acción, una escritura, recargar | Server Action → `apiFetch` + `revalidatePath`      |
+| Estado que cambia sin navegar o que comparten varios miembros  | Client Component + TanStack Query (+ Socket.IO)    |
+| Interactividad puramente local (raciones, Wake Lock, editor)   | Client Component con estado de React, sin Query    |
+
+### Server Components: carga de datos
+
+- **La petición sale del servidor de Next, no del navegador.** `apiFetch` (`src/server/api.ts`,
+  marcado con `import 'server-only'` para que un import accidental desde el cliente rompa el
+  build) llama a la API por `API_INTERNAL_URL`: `http://backend:3000` dentro de Compose,
+  `http://localhost:3000` en desarrollo local. Es una URL de red interna, sin prefijo
+  `NEXT_PUBLIC_`, y por tanto nunca llega al bundle del navegador. Al ser tráfico
+  servidor→servidor no hay preflight ni CORS de por medio.
+- **Se reenvían las cookies de la petición original.** El navegador manda a Next las cookies
+  `httpOnly` de la sesión; el Server Component no puede leerlas desde JavaScript, pero sí desde
+  `cookies()` de `next/headers`. `apiFetch` copia solo `access_token`, `refresh_token` y
+  `csrf_token` a la cabecera `Cookie` de la llamada interna. Filtrar por nombre evita reenviar
+  cookies ajenas al dominio de la API y hace explícito qué credenciales viajan. El JavaScript del
+  cliente nunca ve los tokens.
+- **Los datos de usuario no se cachean.** `apiFetch` usa `cache: 'no-store'`: una respuesta
+  autenticada pertenece a una persona y no puede acabar en una caché compartida entre peticiones
+  ni entre usuarios. Next 15 ya no cachea `fetch` por defecto, pero la opción se deja explícita
+  porque aquí es una regla de seguridad, no un detalle de rendimiento. La memoización de React
+  dentro de un mismo render sigue funcionando: dos componentes que piden lo mismo comparten una
+  sola llamada.
+- **`X-Request-Id` viaja de extremo a extremo.** Si la petición entrante ya trae uno, se reutiliza;
+  si no, `apiFetch` genera un UUID y lo devuelve junto con la respuesta. Así el id que aparece en
+  los logs de Next, en los de la API y en el mensaje de `error.tsx` es el mismo.
+- **Un 401 no se resuelve aquí.** Un Server Component no puede escribir cookies, así que no puede
+  rotar el refresh token. El refresco transparente ocurre en `middleware.ts`; el componente solo
+  ve el resultado: datos o una redirección a login.
+
+### Server Actions: mutaciones simples
+
+Una mutación es «simple» cuando es un formulario que envía una vez, provoca una escritura y
+termina en una recarga o una redirección. Es el caso de login, registro, cerrar sesión, crear un
+hogar, unirse con un código, marcar la despensa o guardar una receta. Esas acciones son **Server
+Actions**:
+
+- **Corren en el servidor**, así que reutilizan el mismo `apiFetch`, la misma `API_INTERNAL_URL` y
+  el mismo reenvío de cookies que los Server Components. No hay un segundo cliente HTTP que
+  mantener, ni tokens en el navegador, ni peticiones que dependan de CORS.
+- **Se pueden usar sin JavaScript.** El formulario es un `<form action={...}>` normal; Next lo
+  mejora con JavaScript cuando está disponible. El estado de error y de envío se lee con
+  `useActionState`, y los errores de campo vuelven desde `details` del 400 `VALIDATION_ERROR` para
+  marcar cada input con `aria-invalid` y su mensaje asociado. Un fallo no borra lo escrito.
+- **El CSRF lo exige la API, no Next.** Las Server Actions se invocan por POST desde el mismo
+  origen, y Next comprueba `Origin`/`Host`; aun así el `CsrfGuard` de la API vuelve a comprobarlo.
+  Por eso `apiFetch` añade `Origin: FRONTEND_URL` y la pareja `csrf_token` + `X-CSRF-Token` en las
+  mutaciones. El valor de la cookie lo lee el servidor, no el navegador.
+- **Tras escribir, se invalida lo que se pintó desde el servidor.** `revalidatePath` del segmento
+  afectado (o `revalidateTag`) hace que el siguiente render vuelva a pedir los datos; un
+  `redirect` cubre los flujos que terminan en otra página. Las cookies nuevas que devuelve la API
+  (`Set-Cookie` del login o del refresh) se copian a la respuesta con `cookies().set`, porque solo
+  una acción o un route handler pueden escribir cookies.
+
+La frontera con el cliente es deliberada: si una interacción necesita respuesta inmediata,
+deshacer un cambio o escuchar a otros miembros, no es una Server Action.
+
+### Client Components: partes interactivas en vivo
+
+La lista de la compra es el caso canónico: marcar un ítem mientras otra persona lo desmarca desde
+otro móvil. Un Server Component obligaría a una navegación o a una recarga por cada clic y no
+podría recibir cambios sin refrescar la página; por eso ese árbol es un Client Component:
+
+- **TanStack Query guarda el estado del servidor en el cliente.** El Server Component de la página
+  hace la primera carga con `apiFetch` y le pasa el resultado como `initialData` con su `queryKey`
+  (hogar + semana). El primer render ya trae datos, sin una segunda petición desde el navegador ni
+  un spinner inicial. `QueryClientProvider` se monta solo en el layout de las rutas interactivas,
+  no en el layout raíz, para que el resto de la aplicación siga siendo server-only y no cargue el
+  cliente de datos.
+- **Marcar es optimista y reversible.** `useMutation` con `onMutate` actualiza la caché al
+  instante, guarda el estado anterior y hace rollback en `onError`; al confirmar, `invalidateQueries`
+  reconcilia con la respuesta de la API. Es lo que hace que el botón de 48 px responda aunque la
+  red tarde, sin mentir si la escritura falla.
+- **Socket.IO aplica los eventos sobre la misma caché.** `shopping.item.updated` y
+  `shopping.list.regenerated` se traducen en `setQueryData` de la clave del hogar y la semana del
+  payload; ningún componente guarda una copia propia. La `version` del evento descarta eventos
+  atrasados, y al reconectar se invalidan las consultas para recuperar lo perdido mientras el
+  socket estaba caído. La conexión es única y con conteo de referencias (`src/realtime/socket.ts`),
+  viaja con `withCredentials` y se autentica por la cookie en el handshake, como se describe en
+  «Tiempo real». Los nombres y las cargas de los eventos salen de `packages/contracts`.
+- **El navegador llama a la API por el mismo origen.** `src/lib/api-client.ts` usa un _rewrite_ de
+  `/api` en `next.config.ts` hacia la API, así que las cookies `httpOnly` viajan solas y no hay
+  CORS en el cliente. Solo este cliente añade la cabecera `X-CSRF-Token` leyendo `csrf_token`
+  (que no es `httpOnly`) y reintenta una vez tras el refresh. `API_INTERNAL_URL` no aparece aquí.
+
+Que una parte de la interfaz sea interactiva no obliga a moverla entera al cliente: el patrón es
+un Client Component pequeño y con una responsabilidad (la lista, el escalado de raciones, el
+editor) dentro de un árbol que sigue renderizándose en el servidor.
+
 ## Reglas del workspace
 
 - Un único `package-lock.json` en la raíz; los workspaces (`backend`, `frontend`, `e2e`,
