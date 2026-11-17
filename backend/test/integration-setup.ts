@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeAll, afterAll, vi } from 'vitest';
-import { MongoMemoryServer } from 'mongodb';
-import { createContainer, type StartedTestContainer } from 'testcontainers';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 import { AppModule } from '../src/app.module.js';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
@@ -30,9 +30,7 @@ async function getMongoUrl(): Promise<string> {
   
   // Usar MongoMemoryServer para tests rápidos sin Docker
   if (!mongoContainer) {
-    mongoContainer = new MongoMemoryServer({
-      dbName: 'recipes-test',
-    });
+    mongoContainer = new MongoMemoryServer();
     await mongoContainer.start();
   }
   
