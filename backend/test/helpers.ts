@@ -21,7 +21,7 @@ export interface AuthAgent {
  */
 export async function createAuthenticatedAgent(
   email: string,
-  password: string = 'Correcta123'
+  password = 'Correcta123'
 ): Promise<AuthAgent> {
   // Arrancar la app en modo testing para obtener el servidor
   const moduleRef = await import('@nestjs/testing').then(m => m.Test.createTestingModule({ imports: [AppModule] })).then(mod => mod.Test.compile());
@@ -67,7 +67,7 @@ export interface RecipeFactoryInput {
   prepMinutes?: number;
   cookMinutes?: number;
   tags?: string[];
-  ingredients?: Array<{ name: string; quantity: number; unit: string }>;
+  ingredients?: { name: string; quantity: number; unit: string }[];
   steps?: string[];
   image?: string;
   source?: string;
@@ -108,7 +108,7 @@ export function createRecipeFactory(
 export interface MealPlanFactoryInput {
   householdId: string;
   weekStart: string;
-  slots?: Array<{ day: number; meal: string; recipeId?: string; servings: number }>;
+  slots?: { day: number; meal: string; recipeId?: string; servings: number }[];
 }
 
 export function createMealPlanFactory(

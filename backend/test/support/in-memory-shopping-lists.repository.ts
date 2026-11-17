@@ -21,7 +21,7 @@ export class InMemoryShoppingListsRepository {
     const date = new Date(weekStart);
 
     // Buscar si ya existe la lista
-    let list = this.lists.find(
+    const list = this.lists.find(
       (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === date.toISOString(),
     );
 
@@ -54,7 +54,7 @@ export class InMemoryShoppingListsRepository {
     const date = new Date(weekStart);
 
     // Encontrar la lista
-    let list = this.lists.find(
+    const list = this.lists.find(
       (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === date.toISOString(),
     );
 

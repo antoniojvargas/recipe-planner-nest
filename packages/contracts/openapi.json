@@ -1,0 +1,1346 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["App"]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok", "degraded"],
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up",
+                          "responseTime": 12
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["status"],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": ["up", "degraded", "down"]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["status"],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": ["up", "degraded", "down"]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up",
+                          "responseTime": 12
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["status"],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": ["up", "degraded", "down"]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["error", "shutting_down"],
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up",
+                          "responseTime": 12
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["status"],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": ["up", "degraded", "down"]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect",
+                          "responseTime": 3005
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["status"],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": ["up", "degraded", "down"]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up",
+                          "responseTime": 12
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect",
+                          "responseTime": 3005
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": ["status"],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": ["up", "degraded", "down"]
+                          },
+                          "responseTime": {
+                            "type": "number",
+                            "description": "Time the health indicator took to respond, in ms"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Health"]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "operationId": "AuthController_logoutAll",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": ["Auth"]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Auth"]
+      }
+    },
+    "/api/households": {
+      "post": {
+        "operationId": "HouseholdsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHouseholdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Households"]
+      },
+      "get": {
+        "operationId": "HouseholdsController_findMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Households"]
+      }
+    },
+    "/api/households/{id}/invite": {
+      "post": {
+        "operationId": "HouseholdsController_createInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Households"]
+      }
+    },
+    "/api/households/join": {
+      "post": {
+        "operationId": "HouseholdsController_join",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinHouseholdDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Households"]
+      }
+    },
+    "/api/households/{id}/leave": {
+      "post": {
+        "operationId": "HouseholdsController_leave",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": ["Households"]
+      }
+    },
+    "/api/households/{id}": {
+      "get": {
+        "operationId": "HouseholdsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Households"]
+      }
+    },
+    "/api/households/{householdId}/recipes": {
+      "post": {
+        "operationId": "RecipesController_create",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Recipes"]
+      },
+      "get": {
+        "operationId": "RecipesController_list",
+        "parameters": [
+          {
+            "name": "householdId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Recipes"]
+      }
+    },
+    "/api/households/{householdId}/recipes/{recipeId}": {
+      "get": {
+        "operationId": "RecipesController_findOne",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Recipes"]
+      },
+      "patch": {
+        "operationId": "RecipesController_update",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Recipes"]
+      },
+      "delete": {
+        "operationId": "RecipesController_remove",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": ["Recipes"]
+      }
+    },
+    "/api/households/{householdId}/recipes/{recipeId}/image": {
+      "put": {
+        "operationId": "RecipesController_confirmImage",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Recipes"]
+      }
+    },
+    "/api/households/{householdId}/media/upload-url": {
+      "post": {
+        "operationId": "MediaController_createUploadUrl",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadUrlDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": ["Media"]
+      }
+    },
+    "/api/households/{householdId}/imports": {
+      "post": {
+        "operationId": "ImportsController_create",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": ["Imports"]
+      }
+    },
+    "/api/households/{householdId}/meal-plans/{weekStart}": {
+      "get": {
+        "operationId": "MealPlansController_getPlan",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["MealPlans"]
+      }
+    },
+    "/api/households/{householdId}/meal-plans/{weekStart}/slots": {
+      "put": {
+        "operationId": "MealPlansController_updateSlots",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["MealPlans"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMealPlanSlotBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/shopping-lists/{weekStart}/generate": {
+      "post": {
+        "operationId": "ShoppingListsController_generate",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["ShoppingLists"]
+      }
+    },
+    "/api/households/{householdId}/shopping-lists/{weekStart}/items/{itemId}": {
+      "patch": {
+        "operationId": "ShoppingListsController_updateItem",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["ShoppingLists"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShoppingItemBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/shopping-lists/{weekStart}/items": {
+      "post": {
+        "operationId": "ShoppingListsController_addManualItem",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["ShoppingLists"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddShoppingItemBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/pantry": {
+      "get": {
+        "operationId": "PantryController_getPantry",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Pantry"]
+      },
+      "post": {
+        "operationId": "PantryController_upsertPantryItem",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Pantry"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PantryItemBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/pantry/{name}": {
+      "delete": {
+        "operationId": "PantryController_removePantryItem",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Pantry"]
+      }
+    }
+  },
+  "info": {
+    "title": "Recipe Planner API",
+    "description": "API para el planificador de recetas",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor de la API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      },
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "AuthUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "email", "displayName"]
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          }
+        },
+        "required": ["user"]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": ["email", "password", "displayName"]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "CreateHouseholdDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": ["name"]
+      },
+      "JoinHouseholdDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 8
+          }
+        },
+        "required": ["code"]
+      },
+      "RecipeIngredientDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "unit", "pinch"]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": ["name", "quantity", "unit"]
+      },
+      "RecipeStepDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": ["text"]
+      },
+      "CreateRecipeDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "servings": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "prepMinutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cookMinutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 40
+            }
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientDto"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeStepDto"
+            }
+          }
+        },
+        "required": ["title", "servings"]
+      },
+      "UpdateRecipeDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "servings": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "prepMinutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cookMinutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 40
+            }
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientDto"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeStepDto"
+            }
+          }
+        }
+      },
+      "ConfirmImageDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["key"]
+      },
+      "CreateUploadUrlDto": {
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": ["image/jpeg", "image/png", "image/webp"]
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5242880
+          }
+        },
+        "required": ["contentType", "size"]
+      },
+      "CreateImportDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          }
+        },
+        "required": ["url"]
+      },
+      "UpdateShoppingItemBody": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          },
+          "checked": {
+            "type": "boolean"
+          },
+          "checkedBy": {
+            "type": "string"
+          }
+        }
+      },
+      "AddShoppingItemBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "unit", "pinch"]
+          },
+          "checked": {
+            "type": "boolean"
+          },
+          "checkedBy": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "quantity", "unit"]
+      },
+      "UpdateMealPlanSlotBody": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 6
+          },
+          "meal": {
+            "type": "string",
+            "enum": ["breakfast", "lunch", "dinner"]
+          },
+          "recipeId": {
+            "type": "string"
+          },
+          "servings": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["day", "meal"]
+      },
+      "PantryItemBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "unit", "pinch"]
+          }
+        },
+        "required": ["name", "quantity", "unit"]
+      }
+    }
+  },
+  "security": [
+    {
+      "cookie": []
+    },
+    {
+      "bearer": []
+    }
+  ]
+}

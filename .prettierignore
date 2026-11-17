@@ -13,3 +13,6 @@ blob-report/
 .DS_Store
 INSTRUCCIONES.md
 MEJORAS.md
+
+# OpenAPI types generated from packages/contracts/openapi.json
+frontend/src/server/openapi.d.ts

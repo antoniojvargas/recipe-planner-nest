@@ -20,6 +20,7 @@ export default tseslint.config(
       '**/test-results/**',
       '**/*.tsbuildinfo',
       '**/next-env.d.ts',
+      '**/openapi.d.ts',
     ],
   },
   js.configs.recommended,

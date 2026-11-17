@@ -59,8 +59,9 @@ export class AuthController {
   }
 
   /**
-   * Rota el refresh token y devuelve solo cookies nuevas. El token llega en la cookie con
-   * `Path=/api/auth/refresh`; cualquier otro endpoint de la API no la recibe.
+   * Rota el refresh token y devuelve solo cookies nuevas. La cookie viaja a todo el host
+   * (`Path=/`) para que el middleware de Next pueda refrescar una navegación antes de
+   * renderizarla; este es el único endpoint que la lee y ningún otro controlador la consume.
    */
   @Public()
   @Post('refresh')
