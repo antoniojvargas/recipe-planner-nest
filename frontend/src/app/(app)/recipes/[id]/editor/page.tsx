@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import ImportDialog from '@/app/(app)/recipes/[id]/import-dialog';
+
 const RecipeSchema = z.object({
   title: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
@@ -83,6 +85,8 @@ export default function RecipeEditor({
   return (
     <section className="p-6 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold mb-6">Editor de Recetas</h2>
+
+      <ImportDialog recipeId={params.id} />
 
       <form
         onSubmit={handleSubmit(onSubmit)}
