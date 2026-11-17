@@ -4,7 +4,6 @@ import { AppModule } from '../src/app.module.js';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import { AuthTokensService } from '../src/auth/auth-tokens.service.js';
-import { sign } from 'jose';
 
 export interface AuthAgent {
   agent: ReturnType<typeof request>;
