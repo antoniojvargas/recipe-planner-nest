@@ -4,7 +4,7 @@ import type { PantryItemInput } from '../src/pantry/pantry.repository.js';
 export class InMemoryPantryRepository {
   readonly items: { name: string; quantity: number; unit: string; householdId: string }[] = [];
 
-  async findByHousehold(householdId: string): Promise<Array<{ name: string; quantity: number; unit: string }>> {
+  async findByHousehold(householdId: string): Promise<{ name: string; quantity: number; unit: string }[]> {
     return this.items
       .filter((item) => item.householdId === householdId)
       .map(({ name, quantity, unit }) => ({ name, quantity, unit }));

@@ -29,7 +29,7 @@ function parseNumber(value: string): number {
   const trimmed = value.trim();
 
   // Caso: "1 1/2" → 1.5
-  const fractionMatch = trimmed.match(/^(\d+)\s+(\d+\/\d+)$/);
+  const fractionMatch = /^(\d+)\s+(\d+\/\d+)$/.exec(trimmed);
   if (fractionMatch) {
     const whole = parseInt(fractionMatch[1], 10);
     const [num, den] = fractionMatch[2].split('/').map(Number);
@@ -37,7 +37,7 @@ function parseNumber(value: string): number {
   }
 
   // Caso: "1/2" → 0.5
-  const simpleFraction = trimmed.match(/^(\d+)\/(\d+)$/);
+  const simpleFraction = /^(\d+)\/(\d+)$/.exec(trimmed);
   if (simpleFraction) {
     return parseInt(simpleFraction[1], 10) / parseInt(simpleFraction[2], 10);
   }
@@ -84,7 +84,7 @@ function normalizeUnit(raw: string): { unit: Unit; original: string; note?: stri
   }
 
   // 4. Si no coincide con nada del catálogo, devolver el original y poner note
-  return { unit: 'unit' as Unit, original: raw, note: `Unidad no reconocida: "${raw}"` };
+  return { unit: 'unit', original: raw, note: `Unidad no reconocida: "${raw}"` };
 }
 
 /** Escape de expresiones regulares para usar en replace. */
@@ -128,17 +128,17 @@ export function parseIngredient(text: string): ParsedIngredient {
   // - "1 1/2" (número mixto con espacio)
   let quantityMatch;
   // Primero intentamos el número mixto "1 1/2"
-  const mixedMatch = trimmed.match(/^(\d+\s+\d+\/\d+)/);
+  const mixedMatch = /^(\d+\s+\d+\/\d+)/.exec(trimmed);
   if (mixedMatch) {
     quantityMatch = mixedMatch;
   } else {
     // Luego intentamos la fracción simple "1/2"
-    const simpleMatch = trimmed.match(/^(\d+\/\d+)/);
+    const simpleMatch = /^(\d+\/\d+)/.exec(trimmed);
     if (simpleMatch) {
       quantityMatch = simpleMatch;
     } else {
       // Finalmente, el entero "1"
-      quantityMatch = trimmed.match(/^(\d+)/);
+      quantityMatch = /^(\d+)/.exec(trimmed);
     }
   }
 
@@ -148,7 +148,7 @@ export function parseIngredient(text: string): ParsedIngredient {
     // Ahora en 'remaining' tenemos lo que sigue: "g de arroz", "tazas de harina", etc.
     // Patrón para desglosar: cantidad unidad [de] nombre
     const caseAPattern = /^(\S+)\s+(de)?\s*(.+)$/i;
-    const caseAMatch = remaining.match(caseAPattern);
+    const caseAMatch = caseAPattern.exec(remaining);
 
     if (caseAMatch) {
       const unitCandidate = caseAMatch[1].trim();   // la posible unidad
@@ -202,7 +202,7 @@ export function parseIngredient(text: string): ParsedIngredient {
 
   // --- Caso B: "<cantidad> <nombre>" sin unidad explícita ---
   // Ejemplos: "harina sin unidades", "2 tazas" (si tazas va seguida de nada más)
-  const caseBMatch = trimmed.match(/^(\d+(?:\s+\d+\/\d+)?)\s+(.+)$/);
+  const caseBMatch = /^(\d+(?:\s+\d+\/\d+)?)\s+(.+)$/.exec(trimmed);
 
   if (caseBMatch) {
     const rawQuantity = caseBMatch[1];
@@ -268,9 +268,9 @@ export function extractRecipeFromJsonLd(html: string): {
   try {
     // Buscar el bloque <script type="application/ld+json">
     const ldRegex = /<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i;
-    const match = html.match(ldRegex);
+    const match = ldRegex.exec(html);
 
-    if (!match || !match[1]) {
+    if (!match?.[1]) {
       return { success: false, recipe: null };
     }
 
@@ -376,7 +376,7 @@ export function extractRecipeFromMicrodata(html: string): {
   try {
     // Buscar container con itemtype Recipe (http o https)
     const containerRegex = /<div\s+[^>]*itemtype="https?:\/\/schema\.org\/Recipe"[^>]*>([\s\S]*?)<\/div>/i;
-    const containerMatch = html.match(containerRegex);
+    const containerMatch = containerRegex.exec(html);
 
     if (!containerMatch) {
       return { success: false, recipe: null };
@@ -386,8 +386,8 @@ export function extractRecipeFromMicrodata(html: string): {
 
     // Extraer nombre (puede estar en span o meta con itemprop="name")
     // Los tags <meta> son auto-cerrados, por lo que hay que capturarlos distinto
-    const metaMatch = containerContent.match(/<meta[^>]*itemprop="name"[^>]*content="([^"]*)"/i);
-    const spanMatch = containerContent.match(/<span[^>]*itemprop="name"[^>]*>([^<]*)<\/span>/i);
+    const metaMatch = /<meta[^>]*itemprop="name"[^>]*content="([^"]*)"/i.exec(containerContent);
+    const spanMatch = /<span[^>]*itemprop="name"[^>]*>([^<]*)<\/span>/i.exec(containerContent);
     const title = metaMatch ? metaMatch[1] : (spanMatch ? spanMatch[1] : 'Receta de microdata');
 
     // Extraer ingredientes (pueden estar en spans, divs o text nodes)

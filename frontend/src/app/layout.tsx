@@ -1,32 +1,37 @@
-import type { Metadata } from 'next';
-import { Fraunces, Inter } from 'next/font/google';
-import './globals.css';
+import { cookies } from 'next/headers';
+import { apiFetch } from '@/server/api';
 
-const inter = Inter({
-  variable: '--font-inter',
-  subsets: ['latin'],
-  display: 'swap',
-});
+export function generateStaticParams() {
+  // Los parámetros se generan dinámicamente; no hay parámetros estáticos.
+  return [];
+}
 
-const fraunces = Fraunces({
-  variable: '--font-fraunces',
-  subsets: ['latin'],
-  display: 'swap',
-});
-
-export const metadata: Metadata = {
-  title: 'Recipe Planner',
-  description: 'Recipes, weekly meal plan and a shared shopping list for your household.',
-};
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Comprobar sesión en el servidor: leer la cookie access_token y validarla.
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('access_token')?.value;
+
+  if (!accessToken) {
+    // Si no hay token, continuamos sin usuario; las rutas interactivas
+    // decidirán si redirigen a login.
+  } else {
+    try {
+      await apiFetch.GET('/api/auth/me');
+    } catch {
+      // Si el token es inválido, limpiamos las cookies.
+      cookieStore.delete('access_token');
+      cookieStore.delete('refresh_token');
+      cookieStore.delete('csrf_token');
+    }
+  }
+
   return (
     <html lang="es">
-      <body className={`${inter.variable} ${fraunces.variable} antialiased`}>{children}</body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
