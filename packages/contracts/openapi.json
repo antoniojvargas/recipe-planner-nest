@@ -900,6 +900,85 @@
           }
         }
       }
+    },
+    "/api/households/{householdId}/pantry": {
+      "get": {
+        "operationId": "PantryController_getPantry",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Pantry"]
+      },
+      "post": {
+        "operationId": "PantryController_upsertPantryItem",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Pantry"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PantryItemBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}/pantry/{name}": {
+      "delete": {
+        "operationId": "PantryController_removePantryItem",
+        "parameters": [
+          {
+            "name": "householdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["Pantry"]
+      }
     }
   },
   "info": {
