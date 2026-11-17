@@ -15,24 +15,18 @@ export async function loginAction(
 ) {
   const email = formData.get('email') as string | null;
 
-  // Llamada a la API con reenvío de cookies
   const response = await fetch(`${API_BASE}/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ email }),
-    // Next reenvía las cookies httpOnly automáticamente en servidor→servidor,
-    // pero como esta es una acción del servidor, necesitamos manualmente si el
-    // backend las devuelve en Set-Cookie. Usamos credentials: 'include' para
-    // que el navegador envíe las cookies automáticamente.
     credentials: 'include',
   });
 
   const data = await response.json();
 
   if (!response.ok) {
-    // Preservamos el email y devolvemos errores de campo
     return {
       status: 'error',
       email: email || '',
@@ -40,26 +34,20 @@ export async function loginAction(
     };
   }
 
-    // Login exitoso: las cookies nuevas vienen en Set-Cookie, las leemos y las
-    // escribimos en la respuesta para que el navegador las guarde.
-    const cookieStore = await cookies();
+  const cookieStore = await cookies();
+  const setCookieHeader = response.headers.get('set-cookie');
+  if (setCookieHeader) {
+    const cookiesArray = Array.isArray(setCookieHeader)
+      ? setCookieHeader
+      : [setCookieHeader];
 
-    // Copiar cookies de sesión de la respuesta
-    const setCookieHeader = response.headers.get('set-cookie');
-    if (setCookieHeader) {
-      // Next.js cookies().set espera un array o string de Set-Cookie
-      const cookiesArray = Array.isArray(setCookieHeader)
-        ? setCookieHeader
-        : [setCookieHeader];
-
-      for (const cookie of cookiesArray) {
-        cookieStore.set(cookie.split(';')[0].split('=')[0], cookie.split('=').slice(1).join('='));
-      }
+    for (const cookie of cookiesArray) {
+      cookieStore.set(cookie.split(';')[0].split('=')[0], cookie.split('=').slice(1).join('='));
     }
-
-    // Redirigir a la home o al dashboard
-    redirect('/');
   }
+
+  redirect('/');
+}
 
 export async function registerAction(
   prevState: {
@@ -93,7 +81,6 @@ export async function registerAction(
     };
   }
 
-  // Registro exitoso: copiar cookies
   const cookieStore = await cookies();
   const setCookieHeader = response.headers.get('set-cookie');
   if (setCookieHeader) {
@@ -107,4 +94,62 @@ export async function registerAction(
   }
 
   redirect('/');
+}
+
+export async function logoutAction(
+  prevState: {
+    status: 'idle' | 'pending' | 'success' | 'error';
+  },
+  formData: FormData,
+) {
+  const response = await fetch(`${API_BASE}/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      status: 'error',
+      message: data.error?.message || 'Error al cerrar sesión',
+    };
+  }
+
+  // Cerrar sesión: borrar las cookies de sesión
+  const cookieStore = await cookies();
+  cookieStore.set('access_token', '', { path: '/', maxAge: 0 });
+  cookieStore.set('refresh_token', '', { path: '/', maxAge: 0 });
+  cookieStore.set('csrf_token', '', { path: '/', maxAge: 0 });
+
+  redirect('/auth/login');
+}
+
+export async function logoutAllAction(
+  prevState: {
+    status: 'idle' | 'pending' | 'success' | 'error';
+  },
+  formData: FormData,
+) {
+  const response = await fetch(`${API_BASE}/logout-all`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      status: 'error',
+      message: data.error?.message || 'Error al cerrar todas las sesiones',
+    };
+  }
+
+  // Cerrar todas las sesiones: borrar las cookies de sesión
+  const cookieStore = await cookies();
+  cookieStore.set('access_token', '', { path: '/', maxAge: 0 });
+  cookieStore.set('refresh_token', '', { path: '/', maxAge: 0 });
+  cookieStore.set('csrf_token', '', { path: '/', maxAge: 0 });
+
+  redirect('/auth/login');
 }
