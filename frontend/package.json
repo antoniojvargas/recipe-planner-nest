@@ -15,6 +15,7 @@
     "generate:api-types": "openapi-typescript ../packages/contracts/openapi.json -o src/server/openapi.d.ts"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.107.1",
     "next": "15.5.29",
     "openapi-fetch": "^0.17.0",
     "react": "19.1.0",
