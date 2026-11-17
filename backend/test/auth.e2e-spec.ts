@@ -136,7 +136,7 @@ describe('Auth: sesión (e2e)', () => {
     expect(access).toContain('HttpOnly');
     expect(access).toContain('SameSite=Lax');
     expect(access).toContain('Max-Age=900');
-    expect(refresh).toContain('Path=/api/auth/refresh;');
+    expect(refresh).toContain('Path=/;');
     expect(refresh).toContain('HttpOnly');
     expect(refresh).toContain('SameSite=Lax');
     expect(refresh).toContain('Max-Age=2592000');
@@ -222,7 +222,7 @@ describe('Auth: sesión (e2e)', () => {
 
       const cookies = responseCookies(response);
       expect(cookieNamed(cookies, 'access_token')).toContain('Path=/;');
-      expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/api/auth/refresh;');
+      expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/;');
     });
 
     it('si el token ya se usó, revoca la familia y responde 401', async () => {
@@ -356,7 +356,7 @@ describe('Auth: sesión (e2e)', () => {
       expect(cookieNamed(cookies, 'access_token')).toContain('Max-Age=0');
       expect(cookieNamed(cookies, 'refresh_token')).toContain('Max-Age=0');
       expect(cookieNamed(cookies, 'access_token')).toContain('Path=/;');
-      expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/api/auth/refresh;');
+      expect(cookieNamed(cookies, 'refresh_token')).toContain('Path=/;');
     });
 
     it('revoca todas las sesiones del usuario en logout-all', async () => {

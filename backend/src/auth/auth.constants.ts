@@ -2,12 +2,14 @@
 export const ACCESS_TOKEN_COOKIE = 'access_token';
 export const REFRESH_TOKEN_COOKIE = 'refresh_token';
 /**
- * El access token viaja a todo el host porque el handshake de Socket.IO (`/socket.io`) también
- * lo necesita para autenticar; con `Path=/api` el navegador no lo enviaría. Sigue siendo
- * `httpOnly` y el refresh token conserva un ámbito estrecho.
+ * Ambas cookies viajan a todo el host. El access token lo necesita el handshake de Socket.IO
+ * (`/socket.io`), que es un path hermano de `/api`; el refresh token lo necesita el middleware
+ * de Next para renovar la sesión antes de renderizar una navegación (los Server Components no
+ * pueden escribir cookies). Siguen siendo `httpOnly`, `SameSite=Lax` y `Secure` fuera de
+ * desarrollo, y el endpoint de refresh es el único que lee el refresh token.
  */
 export const ACCESS_TOKEN_COOKIE_PATH = '/';
-export const REFRESH_TOKEN_COOKIE_PATH = '/api/auth/refresh';
+export const REFRESH_TOKEN_COOKIE_PATH = '/';
 
 /**
  * `Max-Age` de cada cookie. Coincide con el TTL del token que lleva dentro:

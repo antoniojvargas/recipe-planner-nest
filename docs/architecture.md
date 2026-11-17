@@ -318,25 +318,30 @@ revocar antes de caducar; el refresh token es el que se invalida de verdad.
 
 ### Cookies
 
-| Cookie          | Contenido                                       | Duración | `Path`              |
-| --------------- | ----------------------------------------------- | -------- | ------------------- |
-| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/`                 |
-| `refresh_token` | cadena aleatoria opaca, sin estructura ni firma | 30 días  | `/api/auth/refresh` |
+| Cookie          | Contenido                                       | Duración | `Path` |
+| --------------- | ----------------------------------------------- | -------- | ------ |
+| `access_token`  | JWT firmado (`sub`, `fid`, `iat`, `exp`)        | 15 min   | `/`    |
+| `refresh_token` | cadena aleatoria opaca, sin estructura ni firma | 30 días  | `/`    |
+| `csrf_token`    | token del doble submit (legible por JavaScript) | 30 días  | `/`    |
 
-Las dos son `httpOnly` (el JavaScript del frontend no las lee), `SameSite=Lax` y `Secure` fuera de
-desarrollo, y no llevan `Domain`: son host-only. `Path` no es un control de acceso —el cliente
-puede enviar una cookie a donde quiera—, sino una reducción de superficie:
+Las dos cookies de sesión son `httpOnly` (el JavaScript del frontend no las lee), `SameSite=Lax`
+y `Secure` fuera de desarrollo, y no llevan `Domain`: son host-only. `Path` no es un control de
+acceso —el cliente puede enviar una cookie a donde quiera—, sino una reducción de superficie:
 
 - `Path=/` en el access token hace que viaje a la API y al handshake de Socket.IO
   (`/socket.io`), que también lo verifica. Con `Path=/api` el navegador no lo enviaría al
   socket, que es un path hermano, y el gateway no tendría con qué autenticar; sigue siendo
-  `httpOnly`, así que el JavaScript de la página no lo lee. El refresh token conserva un ámbito
-  estrecho.
-- `Path=/api/auth/refresh` en el refresh token es todavía más estrecho: solo lo recibe el endpoint
-  que lo consume. Ningún otro controlador puede leerlo por accidente ni reenviarlo, y no viaja en
-  cada petición autenticada.
-- El logout borra las dos cookies repitiendo su `Path` y con `Max-Age=0`; el navegador solo
-  elimina una cookie si coinciden nombre, dominio y path.
+  `httpOnly`, así que el JavaScript de la página no lo lee.
+- `Path=/` en el refresh token lo necesita el middleware de Next: renueva la sesión **antes**
+  de renderizar una navegación, y para eso tiene que recibir la cookie en la petición a
+  `/recipes`, no solo en `/api/auth/refresh`. Con el ámbito estrecho anterior el servidor no
+  podía refrescar y la única salida era un salto extra por el navegador. Sigue siendo
+  `httpOnly`, ningún otro controlador la lee y solo el endpoint de refresh la consume.
+- `Path=/` en `csrf_token` permite al middleware firmar su POST de refresh con el mismo doble
+  submit que usa el resto de mutaciones. No es `httpOnly`, pero tampoco es un secreto: su valor
+  solo protege si el atacante no puede leerlo desde otro origen, y eso lo garantiza el navegador.
+- El logout borra las dos cookies de sesión repitiendo su `Path` y con `Max-Age=0`; el navegador
+  solo elimina una cookie si coinciden nombre, dominio y path.
 - `SameSite=Lax` impide que un POST cross-site lleve las cookies, y CORS solo permite el origen de
   `FRONTEND_URL`; entre las dos cosas, un formulario de otro sitio no puede refrescar ni cerrar la
   sesión del usuario.
@@ -346,9 +351,9 @@ validez la decide la fila de `refresh_sessions`. Un valor aleatorio sin datos de
 leer, adivinar ni reutilizar tras revocarlo.
 
 El access token lleva `fid`, el `familyId` de la sesión, además de `sub`, `iat` y `exp`. Es un
-identificador de sesión, no un secreto. Hace falta porque la cookie de refresh tiene un `Path` tan
-estrecho que el navegador no la envía a `/api/auth/logout`: el logout identifica la familia que
-debe revocar leyendo `fid` del access token, que sí llega a todas las rutas de `/api`.
+identificador de sesión, no un secreto. Hace falta porque el logout identifica la familia que
+debe revocar leyendo `fid` del access token; la cookie de refresh solo se usa para rotar y no
+hace falta que llegue al endpoint de logout.
 
 ### Modelo `RefreshSession`
 
@@ -476,8 +481,9 @@ eventos a quien no esté autenticado:
 - **Apagado.** El adaptador registra su tarea en `ShutdownService` con `SHUTDOWN_ORDER.realtime`:
   Nest cierra primero el servidor de sockets y después se cierran las conexiones de Redis.
 - **La cookie tiene que llegar al handshake.** Por eso el access token usa `Path=/` y no
-  `/api`: el socket vive en `/socket.io`, un path hermano. El refresh token sigue limitado a
-  `/api/auth/refresh`.
+  `/api`: el socket vive en `/socket.io`, un path hermano. El refresh token también usa `/`
+  para que el middleware de Next pueda renovar la sesión en una navegación; el handshake no lo
+  lee.
 
 ### Salas
 
@@ -673,6 +679,37 @@ dos maneras de autenticarse o de invalidar datos.
 - **Un 401 no se resuelve aquí.** Un Server Component no puede escribir cookies, así que no puede
   rotar el refresh token. El refresco transparente ocurre en `middleware.ts`; el componente solo
   ve el resultado: datos o una redirección a login.
+
+#### Refresco de sesión en el middleware
+
+El refresco no puede vivir en `apiFetch`. En React, escribir cookies es una mutación de la
+respuesta, y un Server Component solo puede leerlas: si su `fetch` recibe un 401
+`TOKEN_EXPIRED`, el `Set-Cookie` del refresh no tiene dónde guardarse. Tampoco vale reintentar
+dentro del componente, porque el segundo intento seguiría enviando el access token viejo.
+`middleware.ts` corre **antes** del render, sobre la petición, y sí puede reescribir tanto la
+petición que ve el Server Component como la respuesta que recibe el navegador.
+
+- **Disparo proactivo.** El middleware decodifica el `exp` del access token (sin verificar la
+  firma: eso es trabajo de la API) y renueva cuando caduca en menos de 30 s. Así la API no llega
+  a responder 401 y la navegación no pierde el estado de un formulario en curso, cosa que sí
+  pasaría con una redirección a login o a una ruta de refresh.
+- **Una sola llamada de refresh por petición.** `POST ${API_INTERNAL_URL}/api/auth/refresh`
+  lleva `refresh_token` y `csrf_token` en la cabecera `Cookie`, `Origin: FRONTEND_URL` y
+  `X-CSRF-Token`, porque el `CsrfGuard` también protege esta mutación. `API_INTERNAL_URL` evita
+  el salto por el navegador y el CORS.
+- **Se copian las cookies dos veces.** El `Set-Cookie` de la API se escribe en la respuesta al
+  navegador y, con los mismos valores, en la cabecera `Cookie` de la petición que continúa al
+  render (`NextResponse.next({ request: { headers } })`). La navegación se repite una vez con
+  credenciales nuevas, que es el «reintento» visible para el usuario: no hay 401, ni redirect,
+  ni parpadeo.
+- **Un fallo definitivo limpia la sesión.** Si el refresh responde 400/401/403 (token revocado,
+  familia reutilizada, cookies incompletas), el middleware borra las tres cookies y deja que el
+  layout de la app redirija a login. Si la API no responde o devuelve 5xx, la petición sigue y
+  el mismo layout decide: no se cierra la sesión por un fallo transitorio.
+- **El matcher excluye estáticos, imágenes y `/api`.** Solo se refresca en rutas de la app: ni
+  `_next/static`, ni `_next/image`, ni el socket, ni los assets. El rewrite de `/api` y
+  `src/lib/api-client.ts` gestionan sus propios reintentos desde el navegador, donde el refresh
+  sí puede seguir el flujo normal. Sin ese recorte, cada asset dispararía una llamada al refresh.
 
 ### Server Actions: mutaciones simples
 

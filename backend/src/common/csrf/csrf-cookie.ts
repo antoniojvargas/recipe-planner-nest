@@ -21,7 +21,8 @@ export function setCsrfCookie(
     httpOnly: false,
     sameSite: 'lax',
     secure,
-    path: '/api',
+    // `Path=/` para que el middleware de Next pueda firmar el refresh de una navegación.
+    path: '/',
     maxAge: CSRF_COOKIE_MAX_AGE_SECONDS,
   });
 }
