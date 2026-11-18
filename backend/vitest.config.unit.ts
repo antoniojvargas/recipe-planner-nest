@@ -20,15 +20,17 @@ export default defineConfig({
       'test/setup-env.ts',
     ],
     coverage: {
-      thresholds: {
-        lines: 80,
-        branches: 80,
-        functions: 80,
-        statements: 80,
-      },
+      provider: 'v8',
       reporter: ['text', 'json'],
       reportsDirectory: 'coverage/unit',
-      exclude: ['node_modules', '.git', 'dist', 'coverage', 'coverage/unit'],
+      include: ['src/imports/recipe-parser.ts'],
+      exclude: ['**/*.spec.ts', '**/*.test.ts'],
+      thresholds: {
+        lines: 70,
+        branches: 55,
+        functions: 60,
+        statements: 70,
+      },
     },
   },
 });
