@@ -32,15 +32,20 @@ import {
  * origen resulta insuficiente, el atacante seguiría sin poder forjar la cabecera con el
  * valor de la cookie. Las peticiones seguras (GET/HEAD/OPTIONS) no modifican estado y se
  * omiten.
+ *
+ * Excepción: el endpoint de reinicio de datos de e2e (`/api/testing/reset`) solo existe
+ * en `APP_ENV=test` y se exime de CSRF para que la automatización pueda invocarlo.
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
   private readonly frontendOrigin: string;
   private readonly secure: boolean;
+  private readonly isTest: boolean;
 
   constructor(@Inject(appConfig.KEY) config: AppConfig) {
     this.frontendOrigin = config.frontendUrl.replace(/\/$/, '');
     this.secure = config.env === 'production';
+    this.isTest = config.env === 'test';
   }
 
   canActivate(context: ExecutionContext): boolean {
@@ -51,6 +56,10 @@ export class CsrfGuard implements CanActivate {
     ensureCsrfCookie(request, reply, { secure: this.secure });
 
     if (SAFE_METHODS.has(request.method.toUpperCase())) {
+      return true;
+    }
+
+    if (this.isTest && request.url.startsWith('/api/testing/reset')) {
       return true;
     }
 

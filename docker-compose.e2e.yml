@@ -1,0 +1,167 @@
+# Pila completa para pruebas end-to-end con Playwright.
+# Ejecuta la app en modo test (APP_ENV=test), con datos efímeros y un endpoint
+# de reinicio disponible solo en ese entorno:
+#   docker compose -f docker-compose.e2e.yml up --build --wait
+#   npm run test -w e2e
+name: recipe-planner-e2e
+
+x-backend-environment: &backend-environment
+  NODE_ENV: test
+  PORT: '3000'
+  APP_ENV: test
+  LOG_LEVEL: info
+  MONGO_URL: mongodb://mongo:27017/recipes-e2e?replicaSet=rs0
+  REDIS_URL: redis://redis:6379
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_ENDPOINT: http://localhost:9000
+  S3_BUCKET: recipes
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-e2e-access-secret-with-32-characters-min}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-e2e-refresh-secret-with-32-characters-min}
+  SMTP_HOST: mailpit
+  SMTP_PORT: '1025'
+  MAIL_FROM: Recipe Planner <no-reply@recipe-planner.local>
+  FRONTEND_URL: http://localhost:3001
+  API_INTERNAL_URL: http://backend:3000
+  IMPORT_ALLOWED_HOSTS: fixtures
+
+services:
+  mongo:
+    image: mongo:7
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27017:27017'
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval '
+          try { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] }); } catch (e) {}
+          db.hello().isWritablePrimary' | grep -q true
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - '9000:9000'
+      # La consola web de MinIO no se expone en la pila E2E.
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_BUCKET: recipes
+    volumes:
+      - ./infra/minio/cors.json:/config/cors.json:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}"
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        mc anonymous set none "local/$${S3_BUCKET}"
+        mc cors set "local/$${S3_BUCKET}" /config/cors.json
+    restart: 'no'
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    restart: unless-stopped
+
+  fixtures:
+    image: nginx:alpine
+    volumes:
+      - ./e2e/fixtures/import-server:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      <<: *backend-environment
+    ports:
+      - '3000:3000'
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ['node', 'dist/worker.js']
+    environment:
+      <<: *backend-environment
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      NODE_ENV: test
+      API_INTERNAL_URL: http://backend:3000
+      FRONTEND_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+    ports:
+      - '3001:3001'
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
