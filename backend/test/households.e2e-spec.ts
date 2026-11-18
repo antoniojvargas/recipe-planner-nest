@@ -167,7 +167,11 @@ describe('Households (e2e)', () => {
       .expect(200);
 
     expect(response.body as HouseholdResponse).toEqual(
-      expect.objectContaining({ id: householdId, name: 'Hogar de Ana' }),
+      expect.objectContaining({
+        id: householdId,
+        name: 'Hogar de Ana',
+        members: [expect.objectContaining({ displayName: 'Ana', role: 'owner' })],
+      }),
     );
   });
 

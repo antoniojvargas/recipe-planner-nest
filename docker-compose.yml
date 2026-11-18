@@ -162,6 +162,8 @@ services:
       NODE_ENV: development
       API_INTERNAL_URL: http://backend:3000
       FRONTEND_URL: http://localhost:3001
+      # El navegador conecta el socket directamente con el puerto publicado de la API.
+      NEXT_PUBLIC_API_URL: http://localhost:3000
     ports:
       - '3001:3001'
     volumes:

@@ -314,7 +314,7 @@ describe('Entrega de eventos de /realtime (e2e)', () => {
     return list;
   }
 
-  function markItem(householdId: string, token: string, itemId: Types.ObjectId, userId: string) {
+  function markItem(householdId: string, token: string, itemId: Types.ObjectId) {
     return request(app.getHttpServer() as App)
       .patch(
         `/api/households/${householdId}/shopping-lists/${WEEK_PATH}/items/${itemId.toString()}`,
@@ -322,7 +322,7 @@ describe('Entrega de eventos de /realtime (e2e)', () => {
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', CSRF_TOKEN)
       .set('Cookie', authedCookies(token))
-      .send({ checked: true, checkedBy: userId });
+      .send({ checked: true });
   }
 
   function nextItemUpdate(client: Socket): Promise<ShoppingItemUpdatedPayload> {
@@ -345,7 +345,7 @@ describe('Entrega de eventos de /realtime (e2e)', () => {
     const bea = await connect(beaToken);
     const received = nextItemUpdate(bea);
 
-    await markItem(householdId, anaToken, itemId, anaId).expect(200);
+    await markItem(householdId, anaToken, itemId).expect(200);
 
     await expect(received).resolves.toEqual({
       householdId,
@@ -364,7 +364,6 @@ describe('Entrega de eventos de /realtime (e2e)', () => {
     const beaToken = await register('bea@example.com', 'Bea');
     const carlaToken = await register('carla@example.com', 'Carla');
     const householdId = await householdIdOf(anaToken);
-    const anaId = await userIdOf(anaToken);
 
     await join(await invite(householdId, anaToken), beaToken);
 
@@ -380,7 +379,7 @@ describe('Entrega de eventos de /realtime (e2e)', () => {
       receivedByCarla.push(payload);
     });
 
-    await markItem(householdId, anaToken, itemId, anaId).expect(200);
+    await markItem(householdId, anaToken, itemId).expect(200);
 
     await expect(receivedByBea).resolves.toMatchObject({ itemId: itemId.toString() });
     // Si el aislamiento fallara, el evento viajaría en la misma emisión que el de Bea; este

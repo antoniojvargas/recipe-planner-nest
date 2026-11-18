@@ -131,16 +131,46 @@ describe('ShoppingListsService', () => {
     const [, , items] = lists.replaceItems.mock.calls[0] as [
       string,
       Date,
-      { name: string; checked: boolean; checkedBy?: Types.ObjectId }[],
+      { _id?: Types.ObjectId; name: string; checked: boolean; checkedBy?: Types.ObjectId }[],
     ];
 
     expect(items.map((item) => item.name)).toEqual(['servilletas', 'arroz', 'sal']);
     expect(items.find((item) => item.name === 'arroz')?.checked).toBe(true);
     expect(items.find((item) => item.name === 'arroz')?.checkedBy).toEqual(userId);
+    // El ítem del plan conserva su id aunque se regenere la lista.
+    expect(items.find((item) => item.name === 'arroz')?._id).toEqual(previousPlan._id);
     expect(publisher.publish).toHaveBeenCalledWith('shopping.list.regenerated', {
       householdId,
       weekStart: '2026-11-16',
       version: 4,
     });
+  });
+
+  it('no publica si regenerar la lista no cambia su contenido', async () => {
+    const { service, lists, generator, mealPlans, publisher } = createService();
+    const previousPlan = {
+      _id: new Types.ObjectId(),
+      name: 'arroz',
+      quantity: 1,
+      unit: 'kg',
+      checked: false,
+      source: 'plan',
+    };
+
+    lists.findByWeek.mockResolvedValue({ items: [previousPlan], version: 3 });
+    mealPlans.findByWeek.mockResolvedValue({ householdId, weekStart, slots: [] });
+    generator.generate.mockResolvedValue([{ name: 'arroz', quantity: 1, unit: 'kg' }]);
+    lists.replaceItems.mockResolvedValue({ householdId, weekStart, items: [], version: 3 });
+
+    await service.generate(householdId, weekStart);
+
+    const [, , items] = lists.replaceItems.mock.calls[0] as [
+      string,
+      Date,
+      { _id?: Types.ObjectId }[],
+    ];
+
+    expect(items[0]?._id).toEqual(previousPlan._id);
+    expect(publisher.publish).not.toHaveBeenCalled();
   });
 });

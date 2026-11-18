@@ -20,6 +20,33 @@ function normalizeName(name: string): string {
   return name.toLowerCase().trim();
 }
 
+/** Campos que definen el contenido de un ítem; el `_id` no cuenta como cambio. */
+function itemSignature(item: ShoppingItemInput): string {
+  return [
+    normalizeName(item.name),
+    String(item.quantity),
+    item.unit,
+    item.source ?? 'plan',
+    item.checked === true ? 'checked' : 'unchecked',
+    item.checkedBy?.toString() ?? '',
+  ].join('\u0000');
+}
+
+/** Compara dos listas de ítems sin importar el orden en que las devuelva el generador. */
+function sameContent(
+  left: readonly ShoppingItemInput[],
+  right: readonly ShoppingItemInput[],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const leftSignatures = left.map(itemSignature).sort();
+  const rightSignatures = right.map(itemSignature).sort();
+
+  return leftSignatures.every((signature, index) => signature === rightSignatures[index]);
+}
+
 /**
  * Casos de uso de la lista de la compra.
  *
@@ -67,6 +94,9 @@ export class ShoppingListsService {
         const previous = checkedByName.get(normalizeName(item.name));
 
         return {
+          // Conservar el `_id` mantiene estables las claves de la interfaz y los ids que
+          // viajan en `shopping.item.updated` entre regeneraciones de la misma lista.
+          ...(previous?._id === undefined ? {} : { _id: previous._id }),
           name: item.name,
           quantity: item.quantity,
           unit: item.unit,
@@ -76,10 +106,8 @@ export class ShoppingListsService {
         };
       });
 
-    const list = await this.lists.replaceItems(householdId, weekStart, [
-      ...manualItems,
-      ...planItems,
-    ]);
+    const items = [...manualItems, ...planItems];
+    const list = await this.lists.replaceItems(householdId, weekStart, items);
 
     if (list === null) {
       throw new NotFoundException(
@@ -87,11 +115,16 @@ export class ShoppingListsService {
       );
     }
 
-    this.publisher.publish(SOCKET_EVENTS.shoppingListRegenerated, {
-      householdId,
-      weekStart: toWeekStartString(weekStart),
-      version: list.version,
-    });
+    // Solo se avisa si el contenido cambió. Abrir la lista la regenera, y publicar siempre
+    // haría que cada cliente que invalida al recibir el evento disparase otra regeneración:
+    // un bucle de refrescos entre las pestañas del hogar.
+    if (!sameContent(previousItems, items)) {
+      this.publisher.publish(SOCKET_EVENTS.shoppingListRegenerated, {
+        householdId,
+        weekStart: toWeekStartString(weekStart),
+        version: list.version,
+      });
+    }
 
     return list;
   }
