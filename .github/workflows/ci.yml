@@ -117,6 +117,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build contracts
+        run: npm run build -w @recipe-planner/contracts
+
       - name: Tests with coverage
         run: npm run test -w frontend -- --coverage
 
