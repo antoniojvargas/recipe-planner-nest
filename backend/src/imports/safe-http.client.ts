@@ -232,6 +232,7 @@ export class SafeHttpClient {
   private readonly timeoutMs: number;
   private readonly maxBytes: number;
   private readonly maxRedirects: number;
+  private readonly allowedHosts: ReadonlySet<string>;
 
   constructor(options: SafeHttpClientOptions = {}) {
     this.resolver = options.resolver ?? systemResolver;
@@ -239,6 +240,19 @@ export class SafeHttpClient {
     this.timeoutMs = options.timeoutMs ?? SAFE_HTTP_TIMEOUT_MS;
     this.maxBytes = options.maxBytes ?? SAFE_HTTP_MAX_BYTES;
     this.maxRedirects = options.maxRedirects ?? SAFE_HTTP_MAX_REDIRECTS;
+    this.allowedHosts =
+      process.env.APP_ENV === 'test'
+        ? new Set(
+            (process.env.IMPORT_ALLOWED_HOSTS ?? '')
+              .split(',')
+              .map((host) => host.trim().toLowerCase())
+              .filter((host) => host.length > 0),
+          )
+        : new Set();
+  }
+
+  private isAllowedHost(hostname: string): boolean {
+    return this.allowedHosts.has(hostname.toLowerCase());
   }
 
   async get(rawUrl: string): Promise<SafeHttpResponse> {
@@ -369,7 +383,9 @@ export class SafeHttpClient {
     const hostname = stripBrackets(url.hostname);
 
     if (isIP(hostname) !== 0) {
-      this.assertPublic(hostname, url);
+      if (!this.isAllowedHost(hostname)) {
+        this.assertPublic(hostname, url);
+      }
 
       return hostname;
     }
@@ -388,8 +404,10 @@ export class SafeHttpClient {
       throw new SafeHttpError(`No se pudo resolver ${hostname}`, 'BLOCKED_HOST');
     }
 
-    for (const address of addresses) {
-      this.assertPublic(address, url);
+    if (!this.isAllowedHost(hostname)) {
+      for (const address of addresses) {
+        this.assertPublic(address, url);
+      }
     }
 
     // Se conecta a la primera dirección validada; no se vuelve a resolver el nombre.

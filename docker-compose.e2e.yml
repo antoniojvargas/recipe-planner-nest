@@ -24,6 +24,7 @@ x-backend-environment: &backend-environment
   MAIL_FROM: Recipe Planner <no-reply@recipe-planner.local>
   FRONTEND_URL: http://localhost:3001
   API_INTERNAL_URL: http://backend:3000
+  IMPORT_ALLOWED_HOSTS: fixtures
 
 services:
   mongo:
@@ -104,6 +105,12 @@ services:
     ports:
       - '1025:1025'
       - '8025:8025'
+    restart: unless-stopped
+
+  fixtures:
+    image: nginx:alpine
+    volumes:
+      - ./e2e/fixtures/import-server:/usr/share/nginx/html:ro
     restart: unless-stopped
 
   backend:
