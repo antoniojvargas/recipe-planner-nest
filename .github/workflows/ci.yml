@@ -187,6 +187,10 @@ jobs:
             e2e/test-results
           if-no-files-found: ignore
 
+      - name: Show E2E stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs minio minio-init mongo redis
+
       - name: Stop E2E stack
         if: always()
         run: docker compose -f docker-compose.e2e.yml down -v --remove-orphans
