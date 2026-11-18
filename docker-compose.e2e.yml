@@ -102,6 +102,8 @@ services:
       - |
         set -e
         apk add --no-cache aws-cli >/dev/null
+        export AWS_CONFIG_FILE=/tmp/aws-config
+        printf '[default]\ns3 =\n  addressing_style = path\n' > "$${AWS_CONFIG_FILE}"
         for i in $(seq 1 30); do
           aws --endpoint-url http://minio:9000 s3api list-buckets >/dev/null 2>&1 && break
           sleep 1
