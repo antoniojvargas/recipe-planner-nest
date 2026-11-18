@@ -84,32 +84,25 @@ services:
     restart: unless-stopped
 
   minio-init:
-    image: alpine:3.20
+    image: bitnamilegacy/minio:latest
     depends_on:
       minio:
         condition: service_healthy
     environment:
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-minioadmin}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-minioadmin}
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_EC2_METADATA_DISABLED: 'true'
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
       S3_BUCKET: recipes
     volumes:
       - ./infra/minio/cors.json:/config/cors.json:ro
-    command:
+    entrypoint:
       - /bin/sh
       - -c
       - |
         set -e
-        apk add --no-cache aws-cli >/dev/null
-        export AWS_CONFIG_FILE=/tmp/aws-config
-        printf '[default]\ns3 =\n  addressing_style = path\n' > "$${AWS_CONFIG_FILE}"
-        for i in $(seq 1 30); do
-          aws --endpoint-url http://minio:9000 s3api list-buckets >/dev/null 2>&1 && break
-          sleep 1
-        done
-        aws --endpoint-url http://minio:9000 s3api create-bucket --bucket "$${S3_BUCKET}" >/dev/null 2>&1 || true
-        aws --endpoint-url http://minio:9000 s3api put-bucket-cors --bucket "$${S3_BUCKET}" --cors-configuration file:///config/cors.json
+        mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}"
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        mc anonymous set none "local/$${S3_BUCKET}"
+        mc cors set "local/$${S3_BUCKET}" /config/cors.json || echo "Warning: could not set bucket CORS"
     restart: 'no'
 
   mailpit:

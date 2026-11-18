@@ -1,11 +1,12 @@
-{
-  "CORSRules": [
-    {
-      "AllowedOrigins": ["http://localhost:3001"],
-      "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
-      "AllowedHeaders": ["*"],
-      "ExposeHeaders": ["ETag"],
-      "MaxAgeSeconds": 3600
-    }
-  ]
-}
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>http://localhost:3001</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>
