@@ -67,7 +67,7 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
     ports:
       - '9000:9000'
-      - '9001:9001'
+      # La consola web de MinIO no se expone en la pila E2E.
     tmpfs:
       - /data
     healthcheck:
