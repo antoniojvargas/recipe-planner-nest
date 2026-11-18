@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { currentWeekStart, isWeekStartString } from '@/lib/week';
 import { requireCurrentUser } from '@/server/auth';
-import { requireHousehold } from '@/server/households';
+import { requireHousehold, type HouseholdMemberSummary } from '@/server/households';
 import { loadShoppingList } from '@/server/shopping-data';
 import { ShoppingList } from './shopping-list';
 
@@ -27,7 +27,7 @@ export default async function ShoppingListPage({
   const [household, currentUser] = await Promise.all([requireHousehold(), requireCurrentUser()]);
   const list = await loadShoppingList(household.id, weekStart);
   const memberNames = Object.fromEntries(
-    household.members.map((member) => [member.userId, member.displayName]),
+    household.members.map((member: HouseholdMemberSummary) => [member.userId, member.displayName]),
   );
 
   return (
