@@ -61,29 +61,21 @@ services:
     restart: unless-stopped
 
   minio:
-    image: alpine:3.20
-    command:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        apk add --no-cache curl ca-certificates >/dev/null
-        curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /usr/local/bin/minio
-        chmod +x /usr/local/bin/minio
-        exec minio server /data --console-address :9001
+    image: bitnamilegacy/minio:latest
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+      MINIO_DEFAULT_BUCKETS: ''
     ports:
       - '9000:9000'
       # La consola web de MinIO no se expone en la pila E2E.
     tmpfs:
-      - /data
+      - /bitnami/minio/data
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 5s
       timeout: 5s
-      retries: 30
+      retries: 20
       start_period: 30s
     restart: unless-stopped
 
