@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/server/api';
@@ -39,7 +39,7 @@ export default function ImportDialog({ recipeId }: ImportDialogProps) {
         setStatus('success');
         // Navigate to the recipe draft
         navigate(`/recipes/${recipeId}`);
-      }
+      },
     );
 
     // Listen for import.failed event
@@ -52,7 +52,7 @@ export default function ImportDialog({ recipeId }: ImportDialogProps) {
           code: payload.code,
           message: payload.message,
         });
-      }
+      },
     );
 
     return () => {
@@ -63,7 +63,7 @@ export default function ImportDialog({ recipeId }: ImportDialogProps) {
   }, [navigate, recipeId]);
 
   // Handle form submission - POST to import URL API
-  const onSubmit = async (event: React.FormEvent) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatus('importing');
     setError(null);
@@ -90,7 +90,9 @@ export default function ImportDialog({ recipeId }: ImportDialogProps) {
             <input
               type="text"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => {
+                setUrl(e.target.value);
+              }}
               placeholder="https://ejemplo.com/receta"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
               required

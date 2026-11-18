@@ -43,7 +43,7 @@ vi.mock('@/app/(auth)/actions', () => ({
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   redirect: vi.fn(),
-})));
+}));
 
 // Mock next/headers cookies
 vi.mock('next/headers', () => ({
@@ -52,7 +52,7 @@ vi.mock('next/headers', () => ({
     set: vi.fn(),
     delete: vi.fn(),
   }),
-})));
+}));
 
 // Mock the apiFetch
 vi.mock('@/server/api', () => ({
@@ -90,31 +90,7 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /entrar/i }));
 
     // Verify the action was called (mocked)
-    // @ts-expect-error - testing internal state
     const { loginAction } = await import('@/app/(auth)/actions');
     expect(loginAction).toHaveBeenCalled();
-  });
-});
-
-describe('RegisterPage', () => {
-  it('renders the registration form', () => {
-    render(<RegisterPage />);
-
-    expect(screen.getByRole('form')).toBeInTheDocument();
-    expect(screen.getByLabelText('Nombre')).toBeInTheDocument();
-    expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument();
-  });
-
-  it('shows name and email fields and submit button', async () => {
-    render(<RegisterPage />);
-
-    const nameInput = screen.getByLabelText('Nombre');
-    const emailInput = screen.getByLabelText('Correo electrónico');
-    expect(nameInput).toBeInTheDocument();
-    expect(emailInput).toBeInTheDocument();
-
-    const submitButton = screen.getByRole('button', { name: /crear cuenta/i });
-    expect(submitButton).toBeInTheDocument();
   });
 });

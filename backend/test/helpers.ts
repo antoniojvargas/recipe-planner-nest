@@ -13,41 +13,43 @@ export interface AuthAgent {
 
 /**
  * Crea un agente Supertest autenticado con un usuario registrado.
- * 
+ *
  * @param email - Email del usuario a registrar
  * @param password - Contraseña (opcional, usa una por defecto)
  * @returns Objeto con el agente y el token de acceso
  */
 export async function createAuthenticatedAgent(
   email: string,
-  password = 'Correcta123'
+  password = 'Correcta123',
 ): Promise<AuthAgent> {
   // Arrancar la app en modo testing para obtener el servidor
-  const moduleRef = await import('@nestjs/testing').then(m => m.Test.createTestingModule({ imports: [AppModule] })).then(mod => mod.Test.compile());
+  const moduleRef = await import('@nestjs/testing')
+    .then((m) => m.Test.createTestingModule({ imports: [AppModule] }))
+    .then((mod) => mod.Test.compile());
   const app = moduleRef.createNestApplication(new FastifyAdapter());
-  
+
   // Configurar la app
   const configureApp = (await import('../src/app.setup.js')).configureApp;
   await configureApp(app);
   await app.init();
-  
+
   // Registrar usuario
   const response = await request(app.getHttpServer())
     .post('/api/auth/register')
     .send({ email, password })
     .expect(201);
-  
+
   const token = response.headers['set-cookie']
     ?.find((cookie: string) => cookie.startsWith('access_token='))
     ?.split(';')[0]
     .split('=')[1];
-  
+
   if (!token) {
     throw new Error('No se pudo obtener el token de acceso');
   }
-  
+
   const agent = request.agent(app.getHttpServer());
-  
+
   return {
     agent,
     close: async () => await app.close(),
@@ -74,9 +76,7 @@ export interface RecipeFactoryInput {
 }
 
 /** Factory function para crear una receta en el repositorio de test. */
-export function createRecipeFactory(
-  repository: any
-) {
+export function createRecipeFactory(repository: any) {
   return async (input: RecipeFactoryInput): Promise<any> => {
     const now = new Date();
     const recipe = {
@@ -110,14 +110,12 @@ export interface MealPlanFactoryInput {
   slots?: { day: number; meal: string; recipeId?: string; servings: number }[];
 }
 
-export function createMealPlanFactory(
-  repository: any
-) {
+export function createMealPlanFactory(repository: any) {
   return async (input: MealPlanFactoryInput): Promise<any> => {
     const now = new Date();
     const weekStart = new Date(input.weekStart);
     const slots = input.slots ?? [];
-    
+
     const mealPlan = {
       _id: new Types.ObjectId(),
       householdId: new Types.ObjectId(input.householdId),
@@ -127,7 +125,7 @@ export function createMealPlanFactory(
       createdAt: now,
       updatedAt: now,
     };
-    
+
     repository.mealPlans?.push(mealPlan);
     return mealPlan;
   };

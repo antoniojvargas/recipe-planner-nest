@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Put,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Put, UseGuards } from '@nestjs/common';
 import { HouseholdMemberGuard } from '../households/guards/household-member.guard.js';
 import { MealPlansService } from './meal-plans.service.js';
 import { MealPlan } from './meal-plan.schema.js';

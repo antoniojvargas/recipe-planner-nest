@@ -79,7 +79,7 @@ vi.mock('next/headers', () => ({
     set: vi.fn(),
     delete: vi.fn(),
   }),
-})));
+}));
 
 // Mock next/navigation redirect
 vi.mock('next/navigation', () => ({

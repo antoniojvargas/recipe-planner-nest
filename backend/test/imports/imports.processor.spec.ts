@@ -30,9 +30,13 @@ describe('ImportsProcessor - parseIngredient', () => {
 });
 
 describe('ImportsProcessor - extractRecipe', () => {
-  const jsonLdHtml = '<html><body><script type="application/ld+json">{ "@context": "https://schema.org/", "@type": "Recipe", "name": "Paella Valenciana", "recipeIngredient": ["400 g de arroz"], "recipeInstructions": [{"@text": "Sofríe la verdura."}]}' + '</script>' + '</body></html>';
+  const jsonLdHtml =
+    '<html><body><script type="application/ld+json">{ "@context": "https://schema.org/", "@type": "Recipe", "name": "Paella Valenciana", "recipeIngredient": ["400 g de arroz"], "recipeInstructions": [{"@text": "Sofríe la verdura."}]}' +
+    '</script>' +
+    '</body></html>';
 
-  const microdataHtml = '<div itemscope itemtype="http://schema.org/Recipe"><meta itemprop="name" content="Curry de Verduras"/><span itemprop="recipeIngredient">200 g de brócoli</span></div>';
+  const microdataHtml =
+    '<div itemscope itemtype="http://schema.org/Recipe"><meta itemprop="name" content="Curry de Verduras"/><span itemprop="recipeIngredient">200 g de brócoli</span></div>';
 
   it('extrae de JSON-LD cuando esta presente', () => {
     const result = extractRecipe(jsonLdHtml);

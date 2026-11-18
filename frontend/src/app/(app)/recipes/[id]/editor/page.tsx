@@ -13,7 +13,7 @@ const RecipeSchema = z.object({
       name: z.string().min(1),
       quantity: z.number().min(0),
       unit: z.enum(['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'unit', 'pinch']),
-    })
+    }),
   ),
   steps: z.array(z.string().min(1)),
 });
@@ -24,11 +24,7 @@ interface RecipeFormValues extends z.infer<typeof RecipeSchema> {
   newStepText: string;
 }
 
-export default function RecipeEditor({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function RecipeEditor({ params }: { params: { id: string } }) {
   const [recipe, setRecipe] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -136,10 +132,7 @@ export default function RecipeEditor({
                 className="flex-1 px-2 py-1 border rounded"
                 aria-label="Nombre del ingrediente"
               />
-              <select
-                className="pl-2 py-1 border rounded w-24"
-                aria-label="Unidad del ingrediente"
-              >
+              <select className="pl-2 py-1 border rounded w-24" aria-label="Unidad del ingrediente">
                 {unitsOptions.map((unit) => (
                   <option key={unit.value} value={unit.value}>
                     {unit.label}
@@ -157,57 +150,56 @@ export default function RecipeEditor({
 
             <div className="mt-4 space-y-2">
               {simulatedRecipe.ingredients.map((ing, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-baseline gap-2 border-b py-2 last:border-0"
-                >
+                <div key={idx} className="flex items-baseline gap-2 border-b py-2 last:border-0">
                   <select
                     className="pr-2 py-1 border rounded w-24"
                     aria-label="Unidad del ingrediente"
-                >
-                  {unitsOptions.map((unit) => (
-                    <option key={unit.value} value={unit.value}>
-                      {unit.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="font-medium whitespace-nowrap">
-                  {simulatedRecipe.ingredients[idx].quantity} {simulatedRecipe.ingredients[idx].unit} {simulatedRecipe.ingredients[idx].name}
-                </span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    className="text-xs text-red-500 hover:text-red-700"
-                    aria-label="Quitar ingrediente"
                   >
-                    -
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs text-blue-500 hover:text-blue-700"
-                    aria-label="Mover ingrediente hacia arriba"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs text-blue-500 hover:text-blue-700"
-                    aria-label="Mover ingrediente hacia abajo"
-                  >
-                    ↓
-                  </button>
+                    {unitsOptions.map((unit) => (
+                      <option key={unit.value} value={unit.value}>
+                        {unit.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="font-medium whitespace-nowrap">
+                    {simulatedRecipe.ingredients[idx].quantity}{' '}
+                    {simulatedRecipe.ingredients[idx].unit} {simulatedRecipe.ingredients[idx].name}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="text-xs text-red-500 hover:text-red-700"
+                      aria-label="Quitar ingrediente"
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-blue-500 hover:text-blue-700"
+                      aria-label="Mover ingrediente hacia arriba"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-blue-500 hover:text-blue-700"
+                      aria-label="Mover ingrediente hacia abajo"
+                    >
+                      ↓
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <button
-            type="button"
-            className="mt-2 text-sm text-primary-600 hover:text-primary-700"
-            aria-label="Agregar otro ingrediente"
-          >
-            Agregar otro ingrediente
-          </button>
+            <button
+              type="button"
+              className="mt-2 text-sm text-primary-600 hover:text-primary-700"
+              aria-label="Agregar otro ingrediente"
+            >
+              Agregar otro ingrediente
+            </button>
+          </div>
         </div>
 
         {/* Pasos */}
@@ -231,13 +223,8 @@ export default function RecipeEditor({
 
           <div className="space-y-2">
             {simulatedRecipe.steps.map((step, idx) => (
-              <div
-                key={idx}
-                className="flex items-baseline gap-2 border-b py-2 last:border-0"
-              >
-                <span className="font-medium whitespace-nowrap">
-                  {step}
-                </span>
+              <div key={idx} className="flex items-baseline gap-2 border-b py-2 last:border-0">
+                <span className="font-medium whitespace-nowrap">{step}</span>
                 <div className="flex gap-1">
                   <button
                     type="button"

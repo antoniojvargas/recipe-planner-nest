@@ -33,10 +33,7 @@ export function sortPantryItems(items: readonly PantryItem[]): PantryItem[] {
 }
 
 /** Aplica la respuesta de un `upsert`: reemplaza por nombre normalizado o añade y ordena. */
-export function mergePantryItem(
-  items: readonly PantryItem[],
-  item: PantryItem,
-): PantryItem[] {
+export function mergePantryItem(items: readonly PantryItem[], item: PantryItem): PantryItem[] {
   const name = normalizePantryName(item.name);
   const exists = items.some((entry) => normalizePantryName(entry.name) === name);
   const next = exists

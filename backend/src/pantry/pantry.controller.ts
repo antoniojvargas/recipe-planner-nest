@@ -23,7 +23,9 @@ export class PantryController {
   /** Obtiene todos los artículos de la despensa del hogar. */
   @Get()
   @HttpCode(HttpStatus.OK)
-  async getPantry(@Param('householdId', ParseObjectIdPipe) householdId: string): Promise<PantryItem[]> {
+  async getPantry(
+    @Param('householdId', ParseObjectIdPipe) householdId: string,
+  ): Promise<PantryItem[]> {
     return this.pantryRepository.findByHousehold(householdId);
   }
 

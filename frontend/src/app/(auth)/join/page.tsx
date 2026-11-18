@@ -40,9 +40,7 @@ export default function JoinPage() {
       <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
         <h2 className="text-2xl font-bold mb-4">Unirse a un hogar</h2>
 
-        {error && (
-          <p className="text-red-500 mb-4">{error}</p>
-        )}
+        {error && <p className="text-red-500 mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -50,7 +48,9 @@ export default function JoinPage() {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => {
+                setCode(e.target.value);
+              }}
               required
               autoComplete="one-time-code"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"

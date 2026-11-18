@@ -30,16 +30,16 @@ export async function loginAction(
     return {
       status: 'error',
       email: email || '',
-      fieldErrors: data.error?.details || { email: data.error?.message || 'Credenciales inválidas' },
+      fieldErrors: data.error?.details || {
+        email: data.error?.message || 'Credenciales inválidas',
+      },
     };
   }
 
   const cookieStore = await cookies();
   const setCookieHeader = response.headers.get('set-cookie');
   if (setCookieHeader) {
-    const cookiesArray = Array.isArray(setCookieHeader)
-      ? setCookieHeader
-      : [setCookieHeader];
+    const cookiesArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
 
     for (const cookie of cookiesArray) {
       cookieStore.set(cookie.split(';')[0].split('=')[0], cookie.split('=').slice(1).join('='));
@@ -77,16 +77,17 @@ export async function registerAction(
       status: 'error',
       name: name || '',
       email: email || '',
-      fieldErrors: data.error?.details || { name: data.error?.message || 'Error de registro', email: data.error?.message || 'Error de registro' },
+      fieldErrors: data.error?.details || {
+        name: data.error?.message || 'Error de registro',
+        email: data.error?.message || 'Error de registro',
+      },
     };
   }
 
   const cookieStore = await cookies();
   const setCookieHeader = response.headers.get('set-cookie');
   if (setCookieHeader) {
-    const cookiesArray = Array.isArray(setCookieHeader)
-      ? setCookieHeader
-      : [setCookieHeader];
+    const cookiesArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
 
     for (const cookie of cookiesArray) {
       cookieStore.set(cookie.split(';')[0].split('=')[0], cookie.split('=').slice(1).join('='));

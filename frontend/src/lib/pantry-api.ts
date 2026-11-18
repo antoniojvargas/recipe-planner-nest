@@ -16,10 +16,7 @@ export async function fetchPantry(householdId: string): Promise<PantryItem[]> {
   return unwrapApiResult<PantryItem[]>(result, 'No se pudo cargar la despensa');
 }
 
-export async function upsertPantryItem(
-  householdId: string,
-  item: PantryItem,
-): Promise<PantryItem> {
+export async function upsertPantryItem(householdId: string, item: PantryItem): Promise<PantryItem> {
   const result = await apiClient.POST('/api/households/{householdId}/pantry', {
     params: { path: { householdId } },
     body: { name: item.name, quantity: item.quantity, unit: item.unit },

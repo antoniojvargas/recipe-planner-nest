@@ -46,10 +46,12 @@ describe('Shopping Lists (integration)', () => {
 
     it('debe conservar ítem manual y estado checked', async () => {
       const { user } = createTestUser(usersRepo);
-      const householdId = householdsRepo.create({
-        name: 'Casa de prueba',
-        members: [{ userId: user._id.toString(), role: 'owner' }],
-      })._id.toString();
+      const householdId = householdsRepo
+        .create({
+          name: 'Casa de prueba',
+          members: [{ userId: user._id.toString(), role: 'owner' }],
+        })
+        ._id.toString();
 
       // 1. Añadir directamente un ítem plan a la lista del repos
       // (simulando el replaceItems, pero accediendo la lista directamente)
@@ -65,7 +67,9 @@ describe('Shopping Lists (integration)', () => {
 
       // Acceder a la lista existente o crear una nueva
       let list = shoppingListsRepo.lists.find(
-        (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
+        (l) =>
+          l.householdId.toString() === householdId &&
+          l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
       );
 
       if (!list) {
@@ -96,17 +100,13 @@ describe('Shopping Lists (integration)', () => {
       list.version = 2;
 
       // 3. Verificar resultados
-      const manualItems = list.items.filter(
-        (item: any) => item.source === 'manual',
-      );
+      const manualItems = list.items.filter((item: any) => item.source === 'manual');
       expect(manualItems).toBeDefined();
       expect(manualItems?.length).toBe(1);
       expect(manualItems?.[0]?.checked).toBe(true);
       expect(manualItems?.[0]?.checkedBy).toBe(user._id.toString());
 
-      const planItems = list.items.filter(
-        (item: any) => item.source === 'plan',
-      );
+      const planItems = list.items.filter((item: any) => item.source === 'plan');
       expect(planItems).toBeDefined();
       expect(planItems?.length).toBe(1);
       expect(planItems?.[0]?.name).toBe('pollo');
@@ -114,14 +114,18 @@ describe('Shopping Lists (integration)', () => {
 
     it('debe conservar items manuales sin correspondencia en plan', async () => {
       const { user } = createTestUser(usersRepo);
-      const householdId = householdsRepo.create({
-        name: 'Casa de prueba',
-        members: [{ userId: user._id.toString(), role: 'owner' }],
-      })._id.toString();
+      const householdId = householdsRepo
+        .create({
+          name: 'Casa de prueba',
+          members: [{ userId: user._id.toString(), role: 'owner' }],
+        })
+        ._id.toString();
 
       // Añadir un ítem manual a la lista
       let list = shoppingListsRepo.lists.find(
-        (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
+        (l) =>
+          l.householdId.toString() === householdId &&
+          l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
       );
 
       if (!list) {
@@ -146,14 +150,10 @@ describe('Shopping Lists (integration)', () => {
       list.items.push(manualItem);
       list.version = 2;
 
-      const manualItems = list.items.filter(
-        (item: any) => item.source === 'manual',
-      );
+      const manualItems = list.items.filter((item: any) => item.source === 'manual');
       expect(manualItems).toBeDefined();
       expect(manualItems?.length).toBe(1);
-      const harinaItem = manualItems?.find(
-        (item: any) => item.name.toLowerCase() === 'harina',
-      );
+      const harinaItem = manualItems?.find((item: any) => item.name.toLowerCase() === 'harina');
       expect(harinaItem).toBeDefined();
       expect(harinaItem?.quantity).toBe(500);
       expect(harinaItem?.unit).toBe('g');
@@ -174,10 +174,12 @@ describe('Shopping Lists (integration)', () => {
 
     it('debe actualizar 20 ítems distintos de forma atómica sin pérdidas', () => {
       const { user } = createTestUser(usersRepo);
-      const householdId = householdsRepo.create({
-        name: 'Casa de prueba',
-        members: [{ userId: user._id.toString(), role: 'owner' }],
-      })._id.toString();
+      const householdId = householdsRepo
+        .create({
+          name: 'Casa de prueba',
+          members: [{ userId: user._id.toString(), role: 'owner' }],
+        })
+        ._id.toString();
 
       // Crear 25 ítems plan directamente en el repos
       const planItems: any[] = [];
@@ -195,7 +197,9 @@ describe('Shopping Lists (integration)', () => {
 
       // Guardar los ítems en la lista directamente
       let list = shoppingListsRepo.lists.find(
-        (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
+        (l) =>
+          l.householdId.toString() === householdId &&
+          l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
       );
 
       if (!list) {
@@ -217,9 +221,7 @@ describe('Shopping Lists (integration)', () => {
       let successfulResults = 0;
 
       for (const itemId of markedItemIds) {
-        const itemIndex = list.items.findIndex(
-          (i) => i._id.toString() === itemId.toString(),
-        );
+        const itemIndex = list.items.findIndex((i) => i._id.toString() === itemId.toString());
         if (itemIndex >= 0) {
           list.items[itemIndex].checked = true;
           list.items[itemIndex].checkedBy = user._id.toString();
@@ -231,18 +233,18 @@ describe('Shopping Lists (integration)', () => {
       expect(successfulResults).toBe(20);
 
       // Verificar que los 20 ítems marcados tienen checked: true
-      const markedCount = planItems.filter(
-        (item) => item.checked === true,
-      ).length;
+      const markedCount = planItems.filter((item) => item.checked === true).length;
       expect(markedCount).toBe(20);
     });
 
     it('debe mezclar updates de quantity y checked en items distintos sin conflictos', () => {
       const { user } = createTestUser(usersRepo);
-      const householdId = householdsRepo.create({
-        name: 'Casa de prueba',
-        members: [{ userId: user._id.toString(), role: 'owner' }],
-      })._id.toString();
+      const householdId = householdsRepo
+        .create({
+          name: 'Casa de prueba',
+          members: [{ userId: user._id.toString(), role: 'owner' }],
+        })
+        ._id.toString();
 
       // Crear 3 ítems plan directamente
       const planItems: any[] = [
@@ -277,7 +279,9 @@ describe('Shopping Lists (integration)', () => {
 
       // Guardar en la lista
       let list = shoppingListsRepo.lists.find(
-        (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
+        (l) =>
+          l.householdId.toString() === householdId &&
+          l.weekStart.toISOString() === TEST_MONDAY.toISOString(),
       );
 
       if (!list) {
@@ -295,15 +299,11 @@ describe('Shopping Lists (integration)', () => {
       list.version = 1;
 
       // Actualizar quantity del primer ítem
-      const firstItem = list.items.find(
-        (i) => i._id.toString() === planItems[0]._id.toString(),
-      );
+      const firstItem = list.items.find((i) => i._id.toString() === planItems[0]._id.toString());
       firstItem!.quantity = 10;
 
       // Actualizar checked del segundo ítem
-      const secondItem = list.items.find(
-        (i) => i._id.toString() === planItems[1]._id.toString(),
-      );
+      const secondItem = list.items.find((i) => i._id.toString() === planItems[1]._id.toString());
       secondItem!.checked = true;
       secondItem!.checkedBy = user._id.toString();
 

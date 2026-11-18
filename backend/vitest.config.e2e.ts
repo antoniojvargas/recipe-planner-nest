@@ -5,10 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: [
-      '**/*.e2e-spec.ts',
-      '**/*.integration-spec.ts',
-    ],
+    include: ['**/*.e2e-spec.ts', '**/*.integration-spec.ts'],
     exclude: ['node_modules', '.git'],
     setupFiles: ['./test/setup-env.ts'],
     coverage: {

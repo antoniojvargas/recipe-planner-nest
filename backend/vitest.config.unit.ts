@@ -28,13 +28,7 @@ export default defineConfig({
       },
       reporter: ['text', 'json'],
       directory: 'coverage/unit',
-      exclude: [
-        'node_modules',
-        '.git',
-        'dist',
-        'coverage',
-        'coverage/unit',
-      ],
+      exclude: ['node_modules', '.git', 'dist', 'coverage', 'coverage/unit'],
     },
   },
 });

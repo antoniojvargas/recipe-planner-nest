@@ -32,9 +32,7 @@ describe('scaleIngredients', () => {
   });
 
   it('scales ingredients with fractional factor', () => {
-    const ingredients = [
-      { name: 'Sal', quantity: 10, unit: 'g' },
-    ];
+    const ingredients = [{ name: 'Sal', quantity: 10, unit: 'g' }];
 
     // Factor: 3 servings / 4 original servings = 0.75
     const factor = 0.75;
@@ -50,9 +48,7 @@ describe('scaleIngredients', () => {
   });
 
   it('handles zero factor', () => {
-    const ingredients = [
-      { name: 'Agua', quantity: 500, unit: 'ml' },
-    ];
+    const ingredients = [{ name: 'Agua', quantity: 500, unit: 'ml' }];
 
     const factor = 0;
 

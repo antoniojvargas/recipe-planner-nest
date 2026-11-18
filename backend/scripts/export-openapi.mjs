@@ -20,13 +20,17 @@ function createInfraFakes() {
       models,
       model: (name) => (models[name] ??= { modelName: name }),
       db: { command: async () => ({ ok: 1 }) },
-      close: async () => {},
+      close: async () => {
+        /* noop */
+      },
     },
     redis: {
       status: 'ready',
       ping: async () => 'PONG',
       quit: async () => 'OK',
-      disconnect: () => {},
+      disconnect: () => {
+        /* noop */
+      },
     },
     storage: { send: async () => ({}) },
     mediaQueue: { add: async () => ({ id: 'test-job' }) },

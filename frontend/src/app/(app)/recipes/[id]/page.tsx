@@ -4,15 +4,11 @@ interface Recipe {
   id: string;
   title: string;
   servings: number;
-  ingredients: Array<{ name: string; quantity: number; unit: string }>;
-  steps: Array<{ text: string }>;
+  ingredients: { name: string; quantity: number; unit: string }[];
+  steps: { text: string }[];
 }
 
-export default function RecipeDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function RecipeDetailPage({ params }: { params: { id: string } }) {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
 
   // Datos simulados - en producción haría una llamada API
@@ -24,10 +20,7 @@ export default function RecipeDetailPage({
       { name: 'Arroz', quantity: 200, unit: 'g' },
       { name: 'Pollo', quantity: 300, unit: 'g' },
     ],
-    steps: [
-      { text: 'Cortar las verduras' },
-      { text: 'Cocinar el pollo' },
-    ],
+    steps: [{ text: 'Cortar las verduras' }, { text: 'Cocinar el pollo' }],
   };
 
   setRecipe(simulatedRecipe);
@@ -41,12 +34,16 @@ export default function RecipeDetailPage({
       <h1>{recipe.title}</h1>
       <p>Servings: {recipe.servings}</p>
       <ul>
-        {recipe.ingredients.map((ing) => <li key={ing.name}>
-          {ing.quantity} {ing.unit} {ing.name}
-        </li>)}
+        {recipe.ingredients.map((ing) => (
+          <li key={ing.name}>
+            {ing.quantity} {ing.unit} {ing.name}
+          </li>
+        ))}
       </ul>
       <ol>
-        {recipe.steps.map((step) => <li key={step.text}>{step.text}</li>)}
+        {recipe.steps.map((step) => (
+          <li key={step.text}>{step.text}</li>
+        ))}
       </ol>
     </div>
   );

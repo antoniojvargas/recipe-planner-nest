@@ -38,7 +38,7 @@ vi.mock('next/headers', () => ({
     set: vi.fn(),
     delete: vi.fn(),
   }),
-})));
+}));
 
 vi.mock('@/server/api', () => ({
   apiFetch: {

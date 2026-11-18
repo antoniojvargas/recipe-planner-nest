@@ -178,10 +178,7 @@ export function PantryBoard({ householdId, initialItems }: PantryBoardProps) {
       >
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_10rem]">
           <div>
-            <label
-              htmlFor="pantry-name"
-              className="mb-1 block text-xs font-medium text-pepper-500"
-            >
+            <label htmlFor="pantry-name" className="mb-1 block text-xs font-medium text-pepper-500">
               Producto
             </label>
             <input
@@ -217,10 +214,7 @@ export function PantryBoard({ householdId, initialItems }: PantryBoardProps) {
           </div>
 
           <div>
-            <label
-              htmlFor="pantry-unit"
-              className="mb-1 block text-xs font-medium text-pepper-500"
-            >
+            <label htmlFor="pantry-unit" className="mb-1 block text-xs font-medium text-pepper-500">
               Unidad
             </label>
             <select
@@ -289,8 +283,8 @@ export function PantryBoard({ householdId, initialItems }: PantryBoardProps) {
 
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-flour-400 bg-white p-6 text-sm text-pepper-500">
-          Todavía no hay nada apuntado. Añade arriba lo que tengas en casa y la lista de la
-          compra dejará de pedirlo.
+          Todavía no hay nada apuntado. Añade arriba lo que tengas en casa y la lista de la compra
+          dejará de pedirlo.
         </p>
       ) : (
         <ul className="space-y-2">

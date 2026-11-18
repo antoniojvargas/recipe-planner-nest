@@ -6,10 +6,13 @@ export class InMemoryShoppingListsRepository {
   readonly lists: ShoppingList[] = [];
 
   async findByWeek(householdId: string, weekStart: Date): Promise<ShoppingList | null> {
-    return this.lists.find(
-      (list) =>
-        list.householdId.toString() === householdId && list.weekStart.toISOString() === weekStart.toISOString(),
-    ) ?? null;
+    return (
+      this.lists.find(
+        (list) =>
+          list.householdId.toString() === householdId &&
+          list.weekStart.toISOString() === weekStart.toISOString(),
+      ) ?? null
+    );
   }
 
   async replaceItems(
@@ -22,7 +25,9 @@ export class InMemoryShoppingListsRepository {
 
     // Buscar si ya existe la lista
     const list = this.lists.find(
-      (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === date.toISOString(),
+      (l) =>
+        l.householdId.toString() === householdId &&
+        l.weekStart.toISOString() === date.toISOString(),
     );
 
     if (list) {
@@ -55,7 +60,9 @@ export class InMemoryShoppingListsRepository {
 
     // Encontrar la lista
     const list = this.lists.find(
-      (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === date.toISOString(),
+      (l) =>
+        l.householdId.toString() === householdId &&
+        l.weekStart.toISOString() === date.toISOString(),
     );
 
     if (!list) {
@@ -63,9 +70,7 @@ export class InMemoryShoppingListsRepository {
     }
 
     // Encontrar y actualizar el ítem
-    const itemIndex = list.items.findIndex(
-      (item) => item._id.toString() === itemId.toString(),
-    );
+    const itemIndex = list.items.findIndex((item) => item._id.toString() === itemId.toString());
 
     if (itemIndex === -1) {
       return null;
@@ -95,7 +100,9 @@ export class InMemoryShoppingListsRepository {
 
     // Buscar si ya existe la lista
     let list = this.lists.find(
-      (l) => l.householdId.toString() === householdId && l.weekStart.toISOString() === date.toISOString(),
+      (l) =>
+        l.householdId.toString() === householdId &&
+        l.weekStart.toISOString() === date.toISOString(),
     );
 
     if (!list) {
