@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Unit } from '@recipe-planner/contracts';
 import type { Model, Types } from 'mongoose';
@@ -72,30 +72,44 @@ export class ShoppingListsRepository {
     itemId: Types.ObjectId,
     updates: Partial<ShoppingItemInput>,
   ): Promise<ShoppingList | null> {
-    // Construir las operaciones $set solo con los campos definidos
+    // Construir las operaciones $set solo con los campos definidos. Van sobre `items.$`:
+    // el filtro `items._id` selecciona el elemento del array y el operador posicional lo
+    // modifica en su sitio, sin reescribir el resto de la lista.
     const $set: Record<string, unknown> = {};
+    const $unset: Record<string, ''> = {};
 
     if (updates.quantity !== undefined) {
-      $set.quantity = updates.quantity;
+      $set['items.$.quantity'] = updates.quantity;
     }
     if (updates.checked !== undefined) {
-      $set.checked = updates.checked;
+      $set['items.$.checked'] = updates.checked;
     }
     if (updates.checkedBy !== undefined) {
-      $set.checkedBy = updates.checkedBy;
+      $set['items.$.checkedBy'] = updates.checkedBy;
+    } else if (updates.checked === false) {
+      // Desmarcar borra quién lo había marcado: el dato deja de ser cierto.
+      $unset['items.$.checkedBy'] = '';
+    }
+
+    const update: Record<string, unknown> = {};
+
+    if (Object.keys($set).length > 0) {
+      update.$set = $set;
+    }
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
     }
 
     // Si no hay nada que actualizar, devolvemos null
-    if (Object.keys($set).length === 0) {
+    if (Object.keys(update).length === 0) {
       return null;
     }
 
     return this.shoppingListModel
-      .findOneAndUpdate(
-        { householdId, weekStart, 'items._id': itemId },
-        { $set },
-        { new: true, runValidators: true },
-      )
+      .findOneAndUpdate({ householdId, weekStart, 'items._id': itemId }, update, {
+        returnDocument: 'after',
+        runValidators: true,
+      })
       .lean<ShoppingList>()
       .exec();
   }
@@ -120,7 +134,7 @@ export class ShoppingListsRepository {
       .findOneAndUpdate(
         { householdId, weekStart },
         { $push: { items: item } },
-        { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
+        { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true, runValidators: true },
       )
       .lean<ShoppingList>()
       .exec();

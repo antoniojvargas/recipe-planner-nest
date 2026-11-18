@@ -1,10 +1,21 @@
-export default function Error({ error }: { error: unknown }) {
+'use client';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <p className="text-red-600">Error: {String(error)}</p>
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-4">
+      <p className="text-center text-tomato-600">
+        No se pudo cargar la lista de la compra: {error.message}
+      </p>
       <button
-        onClick={() => { window.location.reload(); }}
-        className="mt-4 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        type="button"
+        onClick={reset}
+        className="rounded-md bg-basil-600 px-4 py-2 font-medium text-white hover:bg-basil-700"
       >
         Reintentar
       </button>
