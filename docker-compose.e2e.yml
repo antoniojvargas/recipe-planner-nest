@@ -84,7 +84,7 @@ services:
     restart: unless-stopped
 
   minio-init:
-    image: amazon/aws-cli:latest
+    image: alpine:3.20
     depends_on:
       minio:
         condition: service_healthy
@@ -96,11 +96,12 @@ services:
       S3_BUCKET: recipes
     volumes:
       - ./infra/minio/cors.json:/config/cors.json:ro
-    entrypoint:
+    command:
       - /bin/sh
       - -c
       - |
         set -e
+        apk add --no-cache aws-cli >/dev/null
         aws --endpoint-url http://minio:9000 s3api create-bucket --bucket "$${S3_BUCKET}" >/dev/null 2>&1 || true
         aws --endpoint-url http://minio:9000 s3api put-bucket-cors --bucket "$${S3_BUCKET}" --cors-configuration file:///config/cors.json
     restart: 'no'
