@@ -57,7 +57,14 @@ function createInfraFakes() {
 }
 
 function withFakeInfra(builder, fakes, tokens) {
-  const { getConnectionToken, REDIS_CLIENT, S3_CLIENT, getQueueToken, MEDIA_QUEUE_NAME, IMPORTS_QUEUE_NAME } = tokens;
+  const {
+    getConnectionToken,
+    REDIS_CLIENT,
+    S3_CLIENT,
+    getQueueToken,
+    MEDIA_QUEUE_NAME,
+    IMPORTS_QUEUE_NAME,
+  } = tokens;
   return builder
     .overrideProvider(getConnectionToken())
     .useValue(fakes.mongo)
@@ -72,13 +79,14 @@ function withFakeInfra(builder, fakes, tokens) {
 }
 
 async function main() {
-  const [{ Test }, { FastifyAdapter }, { DocumentBuilder, SwaggerModule }, mongoose, bullmq] = await Promise.all([
-    import('@nestjs/testing'),
-    import('@nestjs/platform-fastify'),
-    import('@nestjs/swagger'),
-    import('@nestjs/mongoose'),
-    import('@nestjs/bullmq'),
-  ]);
+  const [{ Test }, { FastifyAdapter }, { DocumentBuilder, SwaggerModule }, mongoose, bullmq] =
+    await Promise.all([
+      import('@nestjs/testing'),
+      import('@nestjs/platform-fastify'),
+      import('@nestjs/swagger'),
+      import('@nestjs/mongoose'),
+      import('@nestjs/bullmq'),
+    ]);
 
   const [
     { AppModule },
