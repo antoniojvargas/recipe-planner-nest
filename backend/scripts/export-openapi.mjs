@@ -2,12 +2,12 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const testEnvironment = {
-  MONGO_URL: 'mongodb://localhost:27017/recipes-test?replicaSet=rs0',
+const exportEnvironment = {
+  MONGO_URL: 'mongodb://localhost:27017/recipes-export?replicaSet=rs0',
   REDIS_URL: 'redis://localhost:6379',
   S3_ENDPOINT: 'http://localhost:9000',
   S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
-  S3_BUCKET: 'recipes-test',
+  S3_BUCKET: 'recipes-export',
   S3_ACCESS_KEY: 'minioadmin',
   S3_SECRET_KEY: 'minioadmin',
   JWT_ACCESS_SECRET: 'test-access-secret-with-32-characters-minimum',
@@ -15,20 +15,20 @@ const testEnvironment = {
   SMTP_HOST: 'localhost',
   SMTP_PORT: '1025',
   MAIL_FROM: 'Recipe Planner <no-reply@recipe-planner.test>',
-  APP_ENV: 'test',
+  APP_ENV: 'development',
   LOG_LEVEL: 'error',
   FRONTEND_URL: 'http://localhost:3001',
   API_INTERNAL_URL: 'http://localhost:3000',
 };
 
-for (const [name, value] of Object.entries(testEnvironment)) {
+for (const [name, value] of Object.entries(exportEnvironment)) {
   if (process.env[name] === undefined || process.env[name] === '') {
     process.env[name] = value;
   }
 }
 
-process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
-process.env.APP_ENV = process.env.APP_ENV ?? 'test';
+process.env.NODE_ENV = process.env.NODE_ENV ?? 'production';
+process.env.APP_ENV = process.env.APP_ENV ?? 'development';
 
 function createInfraFakes() {
   const models = {};

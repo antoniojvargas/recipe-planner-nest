@@ -981,20 +981,6 @@
           "Pantry"
         ]
       }
-    },
-    "/api/testing/reset": {
-      "post": {
-        "operationId": "TestingController_reset",
-        "parameters": [],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Testing"
-        ]
-      }
     }
   },
   "info": {

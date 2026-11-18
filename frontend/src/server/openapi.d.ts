@@ -404,103 +404,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/testing/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TestingController_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        AuthUser: {
-            id: string;
-            /** Format: email */
-            email: string;
-            displayName: string;
-        };
-        AuthResponse: {
-            user: components["schemas"]["AuthUser"];
-        };
-        RegisterDto: {
-            /** Format: email */
-            email: string;
-            password: string;
-            displayName: string;
-        };
-        LoginDto: {
-            /** Format: email */
-            email: string;
-            password: string;
-        };
-        CreateHouseholdDto: {
-            name: string;
-        };
-        JoinHouseholdDto: {
-            code: string;
-        };
-        RecipeIngredientDto: {
-            name: string;
-            quantity: number;
-            /** @enum {string} */
-            unit: "g" | "kg" | "ml" | "l" | "tsp" | "tbsp" | "cup" | "unit" | "pinch";
-            note?: string;
-        };
-        RecipeStepDto: {
-            text: string;
-        };
-        CreateRecipeDto: {
-            title: string;
-            description?: string;
-            servings: number;
-            prepMinutes?: number;
-            cookMinutes?: number;
-            tags?: string[];
-            ingredients?: components["schemas"]["RecipeIngredientDto"][];
-            steps?: components["schemas"]["RecipeStepDto"][];
-        };
-        UpdateRecipeDto: {
-            title?: string;
-            description?: string;
-            servings?: number;
-            prepMinutes?: number;
-            cookMinutes?: number;
-            tags?: string[];
-            ingredients?: components["schemas"]["RecipeIngredientDto"][];
-            steps?: components["schemas"]["RecipeStepDto"][];
-        };
-        ConfirmImageDto: {
-            key: string;
-        };
-        CreateUploadUrlDto: {
-            /** @enum {string} */
-            contentType: "image/jpeg" | "image/png" | "image/webp";
-            size: number;
-        };
-        CreateImportDto: {
-            /** Format: uri */
-            url: string;
-        };
-        UpdateShoppingItemBody: {
-            quantity?: number;
-            checked?: boolean;
-        };
-        AddShoppingItemBody: {
-            name: string;
-            quantity: number;
-            /** @enum {string} */
-            unit: "g" | "kg" | "ml" | "l" | "tsp" | "tbsp" | "cup" | "unit" | "pinch";
-            checked?: boolean;
-            checkedBy?: string;
-        };
-        UpdateMealPlanSlotBody: {
-            day: number;
-            /** @enum {string} */
-            meal: "breakfast" | "lunch" | "dinner";
-            recipeId?: string;
-            servings?: number;
-        };
-        PantryItemBody: {
-            name: string;
-            quantity: number;
-            /** @enum {string} */
-            unit: "g" | "kg" | "ml" | "l" | "tsp" | "tbsp" | "cup" | "unit" | "pinch";
-        };
+        RegisterDto: Record<string, never>;
+        LoginDto: Record<string, never>;
+        CreateHouseholdDto: Record<string, never>;
+        JoinHouseholdDto: Record<string, never>;
+        CreateRecipeDto: Record<string, never>;
+        ConfirmImageDto: Record<string, never>;
+        UpdateRecipeDto: Record<string, never>;
+        CreateUploadUrlDto: Record<string, never>;
+        CreateImportDto: Record<string, never>;
     };
     responses: never;
     parameters: never;
@@ -692,9 +624,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
+                content?: never;
             };
         };
     };
@@ -715,9 +645,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
+                content?: never;
             };
         };
     };
@@ -785,9 +713,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
+                content?: never;
             };
         };
     };
@@ -909,12 +835,7 @@ export interface operations {
     };
     RecipesController_list: {
         parameters: {
-            query?: {
-                q?: string;
-                tags?: string[];
-                cursor?: string;
-                limit?: number;
-            };
+            query?: never;
             header?: never;
             path: {
                 householdId: string;
@@ -1118,11 +1039,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMealPlanSlotBody"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
@@ -1163,11 +1080,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateShoppingItemBody"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
@@ -1187,11 +1100,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddShoppingItemBody"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
@@ -1229,11 +1138,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PantryItemBody"];
-            };
-        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
@@ -1256,6 +1161,23 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TestingController_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
