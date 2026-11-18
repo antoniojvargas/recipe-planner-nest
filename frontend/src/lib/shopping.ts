@@ -195,7 +195,7 @@ export const AISLES: readonly Aisle[] = [
   },
 ];
 
-const UNIT_LABELS: Record<Unit, string> = {
+export const UNIT_LABELS: Record<Unit, string> = {
   g: 'g',
   kg: 'kg',
   ml: 'ml',

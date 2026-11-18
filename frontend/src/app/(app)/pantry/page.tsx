@@ -1,8 +1,20 @@
-export default function PantryPage() {
+import { requireHousehold } from '@/server/households';
+import { loadPantry } from '@/server/pantry-data';
+import { PantryBoard } from './pantry-board';
+
+/**
+ * Despensa del hogar.
+ *
+ * La lista se carga en el servidor para que la primera pintura ya tenga contenido; el Client
+ * Component se queda con el alta rápida, la edición en línea y la caché de TanStack Query.
+ */
+export default async function PantryPage() {
+  const household = await requireHousehold();
+  const items = await loadPantry(household.id);
+
   return (
-    <section className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Despensa</h1>
-      <p className="text-gray-600">Artículos de la despensa del hogar.</p>
+    <section className="mx-auto max-w-3xl p-4 sm:p-6">
+      <PantryBoard householdId={household.id} initialItems={items} />
     </section>
   );
 }
