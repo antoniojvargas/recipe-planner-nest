@@ -94,12 +94,14 @@ async function main() {
     { S3_CLIENT },
     { IMPORTS_QUEUE_NAME },
     { MEDIA_QUEUE_NAME },
+    { configureApp },
   ] = await Promise.all([
     import('../dist/app.module.js'),
     import('../dist/redis/redis.module.js'),
     import('../dist/storage/storage.module.js'),
     import('../dist/imports/imports.queue.js'),
     import('../dist/media/media.queue.js'),
+    import('../dist/app.setup.js'),
   ]);
 
   const fakes = createInfraFakes();
@@ -120,7 +122,9 @@ async function main() {
     logger: false,
   });
 
-  // Solo se necesita la app inicializada para que Swagger pueda inspeccionar los metadatos.
+  // Aplica el prefijo global `/api` y la configuración HTTP compartida para que el documento
+  // OpenAPI refleje las rutas reales expuestas por la API.
+  await configureApp(app);
   await app.init();
 
   const documentBuilder = new DocumentBuilder()
