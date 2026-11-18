@@ -57,8 +57,16 @@ services:
     restart: unless-stopped
 
   minio:
-    image: quay.io/minio/minio
-    command: ['server', '/data', '--console-address', ':9001']
+    image: alpine:3.20
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache curl ca-certificates >/dev/null
+        curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /usr/local/bin/minio
+        chmod +x /usr/local/bin/minio
+        exec minio server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
@@ -70,12 +78,13 @@ services:
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     restart: unless-stopped
 
   minio-init:
-    image: quay.io/minio/mc
+    image: alpine:3.20
     depends_on:
       minio:
         condition: service_healthy
@@ -90,6 +99,9 @@ services:
       - -c
       - |
         set -e
+        apk add --no-cache curl ca-certificates >/dev/null
+        curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc
+        chmod +x /usr/local/bin/mc
         mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}"
         mc mb --ignore-existing "local/$${S3_BUCKET}"
         # El bucket queda privado: el navegador sube y lee con URLs prefirmadas.
