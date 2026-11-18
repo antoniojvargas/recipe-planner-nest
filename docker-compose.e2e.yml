@@ -142,7 +142,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: ['node', 'dist/worker.js']
+    command: ['node', 'backend/dist/worker.js']
     environment:
       <<: *backend-environment
     depends_on:

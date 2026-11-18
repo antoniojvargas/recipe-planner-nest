@@ -55,12 +55,12 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, documentBuilder);
 
-  // La UI de Swagger sólo está disponible fuera de producción para evitar exponer
-  // rutas internas en entornos de despliegue. En producción se sirve un HTML
-  // estático mínimamente diferente que apunta al contrato versionado.
+  // La UI de Swagger sólo está disponible en desarrollo para evitar exponer rutas internas
+  // y no requerir assets estáticos en test/producción.
+  const appEnv = process.env.APP_ENV ?? process.env.NODE_ENV ?? 'development';
   const isProduction = process.env.NODE_ENV === 'production';
 
-  if (!isProduction) {
+  if (appEnv === 'development' && !isProduction) {
     // Swagger UI con CSP relajada solo en entornos de desarrollo/local.
     // Esto permite cargar los recursos (CSS/JS) desde CDNs o orígenes mixtos
     // sin que el policy de seguridad del navegador bloquee la UI.
@@ -71,7 +71,7 @@ async function bootstrap() {
       },
       customSiteTitle: 'Recipe Planner API Docs',
     });
-  } else {
+  } else if (isProduction) {
     // En producción servimos solo el JSON en /json; la UI no está expuesta.
     SwaggerModule.setup('json', app, document, {
       swaggerOptions: {
