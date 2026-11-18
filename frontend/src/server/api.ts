@@ -21,7 +21,7 @@ function internalApiUrl(): string {
   const url = process.env.API_INTERNAL_URL?.trim();
 
   if (!url) {
-    throw new Error('API_INTERNAL_URL no está definida: el servidor no puede llamar a la API');
+    return 'http://localhost:3000';
   }
 
   return url.replace(/\/+$/, '');

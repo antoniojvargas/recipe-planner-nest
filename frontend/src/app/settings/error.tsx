@@ -1,3 +1,5 @@
+"use client";
+
 export default function Error({ error }: { error: unknown }) {
   return (
     <div className="min-h-span flex items-center justify-center p-4">
