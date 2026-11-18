@@ -1,16 +1,34 @@
-import { Test } from '@nestjs/testing';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { getConnectionToken } from '@nestjs/mongoose';
-import { getQueueToken } from '@nestjs/bullmq';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AppModule } from '../dist/app.module.js';
-import { IMPORTS_QUEUE_NAME } from '../dist/imports/imports.queue.js';
-import { MEDIA_QUEUE_NAME } from '../dist/media/media.queue.js';
-import { REDIS_CLIENT } from '../dist/redis/redis.module.js';
-import { S3_CLIENT } from '../dist/storage/storage.module.js';
+
+const testEnvironment = {
+  MONGO_URL: 'mongodb://localhost:27017/recipes-test?replicaSet=rs0',
+  REDIS_URL: 'redis://localhost:6379',
+  S3_ENDPOINT: 'http://localhost:9000',
+  S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
+  S3_BUCKET: 'recipes-test',
+  S3_ACCESS_KEY: 'minioadmin',
+  S3_SECRET_KEY: 'minioadmin',
+  JWT_ACCESS_SECRET: 'test-access-secret-with-32-characters-minimum',
+  JWT_REFRESH_SECRET: 'test-refresh-secret-with-32-characters-minimum',
+  SMTP_HOST: 'localhost',
+  SMTP_PORT: '1025',
+  MAIL_FROM: 'Recipe Planner <no-reply@recipe-planner.test>',
+  APP_ENV: 'test',
+  LOG_LEVEL: 'error',
+  FRONTEND_URL: 'http://localhost:3001',
+  API_INTERNAL_URL: 'http://localhost:3000',
+};
+
+for (const [name, value] of Object.entries(testEnvironment)) {
+  if (process.env[name] === undefined || process.env[name] === '') {
+    process.env[name] = value;
+  }
+}
+
+process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
+process.env.APP_ENV = process.env.APP_ENV ?? 'test';
 
 function createInfraFakes() {
   const models = {};
@@ -38,7 +56,8 @@ function createInfraFakes() {
   };
 }
 
-function withFakeInfra(builder, fakes) {
+function withFakeInfra(builder, fakes, tokens) {
+  const { getConnectionToken, REDIS_CLIENT, S3_CLIENT, getQueueToken, MEDIA_QUEUE_NAME, IMPORTS_QUEUE_NAME } = tokens;
   return builder
     .overrideProvider(getConnectionToken())
     .useValue(fakes.mongo)
@@ -52,39 +71,41 @@ function withFakeInfra(builder, fakes) {
     .useValue(fakes.importsQueue);
 }
 
-const testEnvironment = {
-  MONGO_URL: 'mongodb://localhost:27017/recipes-test?replicaSet=rs0',
-  REDIS_URL: 'redis://localhost:6379',
-  S3_ENDPOINT: 'http://localhost:9000',
-  S3_PUBLIC_ENDPOINT: 'http://localhost:9000',
-  S3_BUCKET: 'recipes-test',
-  S3_ACCESS_KEY: 'minioadmin',
-  S3_SECRET_KEY: 'minioadmin',
-  JWT_ACCESS_SECRET: 'test-access-secret-with-32-characters-minimum',
-  JWT_REFRESH_SECRET: 'test-refresh-secret-with-32-characters-minimum',
-  SMTP_HOST: 'localhost',
-  SMTP_PORT: '1025',
-  MAIL_FROM: 'Recipe Planner <no-reply@recipe-planner.test>',
-  APP_ENV: 'test',
-  LOG_LEVEL: 'error',
-  FRONTEND_URL: 'http://localhost:3001',
-  API_INTERNAL_URL: 'http://localhost:3000',
-};
-
-for (const [name, value] of Object.entries(testEnvironment)) {
-  if (process.env[name] === undefined || process.env[name] === '') {
-    process.env[name] = value;
-  }
-}
-
 async function main() {
-  process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
-  process.env.APP_ENV = process.env.APP_ENV ?? 'test';
+  const [{ Test }, { FastifyAdapter }, { DocumentBuilder, SwaggerModule }, mongoose, bullmq] = await Promise.all([
+    import('@nestjs/testing'),
+    import('@nestjs/platform-fastify'),
+    import('@nestjs/swagger'),
+    import('@nestjs/mongoose'),
+    import('@nestjs/bullmq'),
+  ]);
+
+  const [
+    { AppModule },
+    { REDIS_CLIENT },
+    { S3_CLIENT },
+    { IMPORTS_QUEUE_NAME },
+    { MEDIA_QUEUE_NAME },
+  ] = await Promise.all([
+    import('../dist/app.module.js'),
+    import('../dist/redis/redis.module.js'),
+    import('../dist/storage/storage.module.js'),
+    import('../dist/imports/imports.queue.js'),
+    import('../dist/media/media.queue.js'),
+  ]);
 
   const fakes = createInfraFakes();
   const moduleFixture = await withFakeInfra(
     Test.createTestingModule({ imports: [AppModule] }),
     fakes,
+    {
+      getConnectionToken: mongoose.getConnectionToken,
+      REDIS_CLIENT,
+      S3_CLIENT,
+      getQueueToken: bullmq.getQueueToken,
+      MEDIA_QUEUE_NAME,
+      IMPORTS_QUEUE_NAME,
+    },
   ).compile();
 
   const app = moduleFixture.createNestApplication(new FastifyAdapter(), {
