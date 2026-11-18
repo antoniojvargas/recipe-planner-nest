@@ -159,7 +159,7 @@ test('flujo crítico: registro, receta con foto, plan de dos días y lista agreg
 
   // Añade la receta al plan en dos días distintos (lunes y martes, comida).
   await page.goto(`/plan/${weekStart}`);
-  await expect(page.getByRole('heading', { name: /Plan semanal|/ })).toBeVisible();
+  await expect(page.getByText('Plan semanal')).toBeVisible();
   await addRecipeToSlot(page, 'Lunes', 'comida', title);
   await expect(page.getByRole('link', { name: title }).first()).toBeVisible();
 

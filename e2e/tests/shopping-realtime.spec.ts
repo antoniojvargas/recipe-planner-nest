@@ -101,6 +101,12 @@ async function seedShoppingList(
   expect(create.status(), await create.text()).toBe(201);
   const recipe = (await create.json()) as { id: string };
 
+  const plan = await request.get(
+    `${apiURL}/api/households/${householdId}/meal-plans/${weekStart}`,
+    { headers: await authedHeaders(request) },
+  );
+  expect(plan.ok(), await plan.text()).toBeTruthy();
+
   const slot = await request.put(
     `${apiURL}/api/households/${householdId}/meal-plans/${weekStart}/slots`,
     {
