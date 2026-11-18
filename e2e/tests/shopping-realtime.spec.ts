@@ -11,11 +11,22 @@ function currentWeekStart(now = new Date()): string {
   return monday.toISOString().slice(0, 10);
 }
 
-function csrfHeaders(): Record<string, string> {
+async function cookieHeader(request: APIRequestContext): Promise<string> {
+  const cookies = (await request.storageState()).cookies;
+  const jar = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
+  jar.set('csrf_token', csrfToken);
+  return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+async function authedHeaders(
+  request: APIRequestContext,
+  extra: Record<string, string> = {},
+): Promise<Record<string, string>> {
   return {
     Origin: origin,
     'X-CSRF-Token': csrfToken,
-    Cookie: `csrf_token=${csrfToken}`,
+    Cookie: await cookieHeader(request),
+    ...extra,
   };
 }
 
@@ -25,10 +36,7 @@ async function registerUser(
   displayName: string,
 ): Promise<{ userId: string }> {
   const response = await request.post(`${apiURL}/api/auth/register`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: {
       email,
       password: 'Recetas123!',
@@ -45,7 +53,7 @@ async function getHouseholds(
   request: APIRequestContext,
 ): Promise<Array<{ id: string; name: string }>> {
   const response = await request.get(`${apiURL}/api/households`, {
-    headers: { Cookie: `csrf_token=${csrfToken}` },
+    headers: await authedHeaders(request),
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   return (await response.json()) as Array<{ id: string; name: string }>;
@@ -53,10 +61,7 @@ async function getHouseholds(
 
 async function createInvite(request: APIRequestContext, householdId: string): Promise<string> {
   const response = await request.post(`${apiURL}/api/households/${householdId}/invite`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
   });
   expect(response.status(), await response.text()).toBe(201);
   const body = (await response.json()) as { code: string };
@@ -65,10 +70,7 @@ async function createInvite(request: APIRequestContext, householdId: string): Pr
 
 async function joinHousehold(request: APIRequestContext, code: string): Promise<string> {
   const response = await request.post(`${apiURL}/api/households/join`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: { code },
   });
   expect(response.status(), await response.text()).toBe(200);
@@ -78,10 +80,7 @@ async function joinHousehold(request: APIRequestContext, code: string): Promise<
 
 async function leaveHousehold(request: APIRequestContext, householdId: string): Promise<void> {
   const response = await request.post(`${apiURL}/api/households/${householdId}/leave`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
   });
   expect(response.status(), await response.text()).toBe(204);
 }
@@ -92,10 +91,7 @@ async function seedShoppingList(
   weekStart: string,
 ): Promise<string> {
   const create = await request.post(`${apiURL}/api/households/${householdId}/recipes`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: {
       title: 'Ensalada compartida',
       servings: 2,
@@ -108,10 +104,7 @@ async function seedShoppingList(
   const slot = await request.put(
     `${apiURL}/api/households/${householdId}/meal-plans/${weekStart}/slots`,
     {
-      headers: {
-        ...csrfHeaders(),
-        'Content-Type': 'application/json',
-      },
+      headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
       data: { day: 0, meal: 'lunch', recipeId: recipe.id, servings: 2 },
     },
   );
@@ -120,10 +113,7 @@ async function seedShoppingList(
   const generated = await request.post(
     `${apiURL}/api/households/${householdId}/shopping-lists/${weekStart}/generate`,
     {
-      headers: {
-        ...csrfHeaders(),
-        'Content-Type': 'application/json',
-      },
+      headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     },
   );
   expect(generated.ok(), await generated.text()).toBeTruthy();
