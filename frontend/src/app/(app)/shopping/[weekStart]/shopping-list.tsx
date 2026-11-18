@@ -4,18 +4,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import {
+  checkerName,
   formatQuantity,
   groupByAisle,
+  type MemberNames,
   type ShoppingItem,
   type ShoppingListResponse,
 } from '@/lib/shopping';
+import { shoppingListQueryKey } from '@/lib/shopping-cache';
 import { generateShoppingList, setShoppingItemChecked } from '@/lib/shopping-api';
+import { useShoppingListRealtime } from '@/realtime/use-shopping-list';
 import { currentWeekStart, formatWeekRange, shiftWeek, type WeekStart } from '@/lib/week';
 
 interface ShoppingListProps {
   householdId: string;
   weekStart: WeekStart;
   initialList: ShoppingListResponse;
+  /** Usuario de la sesión, para marcar sus propios cambios como «tú». */
+  currentUserId: string;
+  /** Id de miembro → nombre visible, para resolver la autoría de la lista cargada. */
+  memberNames: MemberNames;
 }
 
 interface ToggleVariables {
@@ -27,21 +35,28 @@ interface ToggleContext {
   previous: ShoppingListResponse | undefined;
 }
 
-function listQueryKey(householdId: string, weekStart: WeekStart) {
-  return ['shopping-list', householdId, weekStart] as const;
-}
-
 /**
  * Lista de la compra de la semana, agrupada por pasillo.
  *
  * Marcar es optimista: el ítem cambia en la caché antes de que responda la API y, si la
  * petición falla, `onError` restaura la lista anterior. La respuesta trae la lista completa,
  * así que al confirmar se sustituye la caché por la versión del servidor.
+ *
+ * Además escucha los eventos del hogar: los cambios de los demás se aplican a la misma caché
+ * y una regeneración o una reconexión fuerzan volver a pedir la lista.
  */
-export function ShoppingList({ householdId, weekStart, initialList }: ShoppingListProps) {
+export function ShoppingList({
+  householdId,
+  weekStart,
+  initialList,
+  currentUserId,
+  memberNames,
+}: ShoppingListProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const queryKey = listQueryKey(householdId, weekStart);
+  const queryKey = shoppingListQueryKey(householdId, weekStart);
+
+  useShoppingListRealtime(householdId, weekStart);
 
   const listQuery = useQuery({
     queryKey,
@@ -67,7 +82,16 @@ export function ShoppingList({ householdId, weekStart, initialList }: ShoppingLi
           : {
               ...list,
               items: list.items.map((item) =>
-                item._id === variables.itemId ? { ...item, checked: variables.checked } : item,
+                item._id === variables.itemId
+                  ? {
+                      ...item,
+                      checked: variables.checked,
+                      checkedBy: variables.checked ? currentUserId : null,
+                      checkedByName: variables.checked
+                        ? (memberNames[currentUserId] ?? null)
+                        : null,
+                    }
+                  : item,
               ),
             },
       );
@@ -203,6 +227,8 @@ export function ShoppingList({ householdId, weekStart, initialList }: ShoppingLi
                     <ItemButton
                       item={item}
                       pending={pendingItemId === item._id}
+                      currentUserId={currentUserId}
+                      memberNames={memberNames}
                       onToggle={() => {
                         toggleMutation.mutate({ itemId: item._id, checked: !item.checked });
                       }}
@@ -221,6 +247,8 @@ export function ShoppingList({ householdId, weekStart, initialList }: ShoppingLi
 interface ItemButtonProps {
   item: ShoppingItem;
   pending: boolean;
+  currentUserId: string;
+  memberNames: MemberNames;
   onToggle: () => void;
 }
 
@@ -228,7 +256,10 @@ interface ItemButtonProps {
  * El ítem entero es el botón de marcar: 48 px de alto y toda la fila como área táctil, que es
  * lo que se usa con el móvil en la mano dentro del supermercado.
  */
-function ItemButton({ item, pending, onToggle }: ItemButtonProps) {
+function ItemButton({ item, pending, currentUserId, memberNames, onToggle }: ItemButtonProps) {
+  const marker = checkerName(item, memberNames);
+  const markedBySelf = marker !== null && item.checkedBy === currentUserId;
+
   return (
     <button
       type="button"
@@ -251,8 +282,15 @@ function ItemButton({ item, pending, onToggle }: ItemButtonProps) {
         ✓
       </span>
 
-      <span className={`min-w-0 flex-1 text-sm font-medium ${item.checked ? 'line-through' : ''}`}>
-        {item.name}
+      <span className="min-w-0 flex-1">
+        <span className={`block text-sm font-medium ${item.checked ? 'line-through' : ''}`}>
+          {item.name}
+        </span>
+        {marker !== null && (
+          <span className="block text-xs text-pepper-400">
+            {markedBySelf ? 'Lo marcaste tú' : `Marcado por ${marker}`}
+          </span>
+        )}
       </span>
 
       <span className="shrink-0 text-xs tabular-nums text-pepper-500">

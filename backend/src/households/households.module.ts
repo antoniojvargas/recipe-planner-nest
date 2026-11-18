@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AUTH_CLOCK, systemAuthClock } from '../auth/auth.clock.js';
 import { RealtimeRoomsModule } from '../realtime/realtime-rooms.module.js';
+import { UsersModule } from '../users/users.module.js';
 import { Household, HouseholdSchema } from './household.schema.js';
 import { HouseholdsController } from './households.controller.js';
 import { HouseholdsRepository } from './households.repository.js';
@@ -19,6 +20,7 @@ import { HouseholdsService } from './households.service.js';
   imports: [
     MongooseModule.forFeature([{ name: Household.name, schema: HouseholdSchema }]),
     RealtimeRoomsModule,
+    UsersModule,
   ],
   controllers: [HouseholdsController],
   providers: [

@@ -5,6 +5,7 @@ import type { Model, Types } from 'mongoose';
 import { ShoppingList, type ShoppingItemSource } from './shopping-list.schema.js';
 
 export interface ShoppingItemInput {
+  _id?: Types.ObjectId;
   name: string;
   quantity: number;
   unit: Unit;

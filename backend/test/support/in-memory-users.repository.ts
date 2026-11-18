@@ -30,6 +30,12 @@ export class InMemoryUsersRepository {
     return Promise.resolve(user ?? null);
   }
 
+  findByIds(userIds: readonly string[]): Promise<User[]> {
+    const ids = new Set(userIds);
+
+    return Promise.resolve(this.users.filter((user) => ids.has(user._id.toString())));
+  }
+
   findByEmail(email: string): Promise<User | null> {
     const user = this.users.find((item) => item.email === normalizeEmail(email));
 

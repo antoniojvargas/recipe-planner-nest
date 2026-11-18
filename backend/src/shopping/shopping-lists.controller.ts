@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { HouseholdMemberGuard } from '../households/guards/household-member.guard.js';
 import { ShoppingListsService, type UpdateShoppingItemInput } from './shopping-lists.service.js';
@@ -38,6 +39,9 @@ export class ShoppingListsController {
   /**
    * Actualiza un ítem con `$set` sobre la posición que coincide con `items._id`: dos personas
    * marcando ítems distintos a la vez no reescriben el documento entero ni se pisan.
+   *
+   * La autoría no viene del cliente: al marcar se guarda el usuario de la sesión, que es el
+   * que después se publica en `shopping.item.updated` y se ve en la lista de los demás.
    */
   @Patch(':weekStart/items/:itemId')
   @HttpCode(HttpStatus.OK)
@@ -49,8 +53,8 @@ export class ShoppingListsController {
     updates: {
       quantity?: number;
       checked?: boolean;
-      checkedBy?: string;
     },
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ShoppingList> {
     const partialUpdates: UpdateShoppingItemInput = {};
 
@@ -60,8 +64,8 @@ export class ShoppingListsController {
     if (updates.checked !== undefined) {
       partialUpdates.checked = updates.checked;
     }
-    if (updates.checkedBy !== undefined) {
-      partialUpdates.checkedBy = new Types.ObjectId(updates.checkedBy);
+    if (updates.checked === true) {
+      partialUpdates.checkedBy = new Types.ObjectId(user.id);
     }
 
     return this.shoppingListsService.updateItem(

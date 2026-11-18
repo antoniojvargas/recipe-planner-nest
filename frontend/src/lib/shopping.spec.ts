@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { aisleForItem, formatQuantity, groupByAisle, type ShoppingItem } from './shopping';
+import {
+  aisleForItem,
+  checkerName,
+  formatQuantity,
+  groupByAisle,
+  type ShoppingItem,
+} from './shopping';
 
 function item(name: string, overrides: Partial<ShoppingItem> = {}): ShoppingItem {
   return {
@@ -75,5 +81,27 @@ describe('formatQuantity', () => {
     expect(formatQuantity(3, 'unit')).toBe('3 ud');
     expect(formatQuantity(2, 'tbsp')).toBe('2 cda');
     expect(formatQuantity(0.5, 'tsp')).toBe('0,5 cdta');
+  });
+});
+
+describe('checkerName', () => {
+  const names = { 'user-1': 'Ana', 'user-2': 'Bea' };
+
+  it('resuelve el nombre por id con el mapa de miembros', () => {
+    expect(checkerName(item('Arroz', { checked: true, checkedBy: 'user-2' }), names)).toBe('Bea');
+  });
+
+  it('prefiere el nombre del evento si el miembro ya no está en el hogar', () => {
+    expect(
+      checkerName(
+        item('Arroz', { checked: true, checkedBy: 'user-9', checkedByName: 'Carla' }),
+        names,
+      ),
+    ).toBe('Carla');
+  });
+
+  it('devuelve null si no hay autoría conocida o el ítem está desmarcado', () => {
+    expect(checkerName(item('Arroz', { checked: true, checkedBy: 'user-9' }), names)).toBeNull();
+    expect(checkerName(item('Arroz', { checked: false, checkedBy: 'user-2' }), names)).toBeNull();
   });
 });

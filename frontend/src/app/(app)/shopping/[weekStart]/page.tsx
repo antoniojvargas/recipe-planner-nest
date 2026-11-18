@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { currentWeekStart, isWeekStartString } from '@/lib/week';
+import { requireCurrentUser } from '@/server/auth';
 import { requireHousehold } from '@/server/households';
 import { loadShoppingList } from '@/server/shopping-data';
 import { ShoppingList } from './shopping-list';
@@ -8,7 +9,8 @@ import { ShoppingList } from './shopping-list';
  * Lista de la compra del hogar para una semana.
  *
  * La lista se carga en el servidor (el endpoint de lectura regenera los ítems del plan) y el
- * Client Component se queda con el marcado optimista y la caché de TanStack Query.
+ * Client Component se queda con el marcado optimista, la caché de TanStack Query y los
+ * eventos en vivo del hogar.
  */
 export default async function ShoppingListPage({
   params,
@@ -22,12 +24,21 @@ export default async function ShoppingListPage({
     redirect(`/shopping/${weekStart}`);
   }
 
-  const household = await requireHousehold();
+  const [household, currentUser] = await Promise.all([requireHousehold(), requireCurrentUser()]);
   const list = await loadShoppingList(household.id, weekStart);
+  const memberNames = Object.fromEntries(
+    household.members.map((member) => [member.userId, member.displayName]),
+  );
 
   return (
     <section className="mx-auto max-w-3xl p-4 sm:p-6">
-      <ShoppingList householdId={household.id} weekStart={weekStart} initialList={list} />
+      <ShoppingList
+        householdId={household.id}
+        weekStart={weekStart}
+        initialList={list}
+        currentUserId={currentUser.id}
+        memberNames={memberNames}
+      />
     </section>
   );
 }

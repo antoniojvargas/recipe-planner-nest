@@ -33,6 +33,23 @@ export class UsersRepository {
     return this.userModel.findById(userId).lean<User>().exec();
   }
 
+  /**
+   * Perfiles de varios usuarios en una sola consulta.
+   *
+   * Los hogares resuelven el nombre de todos sus miembros para pintar la autoría de la lista
+   * de la compra; hacerlo uno a uno convertiría una respuesta en N consultas.
+   */
+  async findByIds(userIds: readonly string[]): Promise<User[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    return this.userModel
+      .find({ _id: { $in: userIds } })
+      .lean<User[]>()
+      .exec();
+  }
+
   /** Perfil público: no incluye el hash de la contraseña. */
   async findByEmail(email: string): Promise<User | null> {
     return this.userModel

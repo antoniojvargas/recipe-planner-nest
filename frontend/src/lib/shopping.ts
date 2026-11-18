@@ -18,6 +18,8 @@ export interface ShoppingItem {
   checked: boolean;
   /** Usuario que marcó el ítem; la API lo devuelve como id. */
   checkedBy?: string | null;
+  /** Nombre de quien marcó, tal como venía en el evento en vivo. */
+  checkedByName?: string | null;
   source: ShoppingItemSource;
 }
 
@@ -275,4 +277,29 @@ export function formatQuantity(quantity: number, unit: Unit): string {
   const amount = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(quantity);
 
   return `${amount} ${UNIT_LABELS[unit]}`;
+}
+
+export type MemberNames = Readonly<Record<string, string>>;
+
+/**
+ * Nombre visible de quien marcó el ítem.
+ *
+ * Los ítems cargados de la API solo traen el id; el nombre sale del mapa de miembros. Los
+ * eventos en vivo traen el nombre en la carga útil, que sirve de respaldo si el miembro ya no
+ * está en el hogar. Devuelve `null` cuando no hay forma de saberlo y la interfaz lo omite.
+ */
+export function checkerName(item: ShoppingItem, memberNames: MemberNames): string | null {
+  if (!item.checked) {
+    return null;
+  }
+
+  const userId = item.checkedBy ?? undefined;
+  const knownName = userId === undefined ? undefined : memberNames[userId];
+  const eventName = item.checkedByName ?? undefined;
+
+  if (knownName !== undefined && knownName !== '') {
+    return knownName;
+  }
+
+  return eventName !== undefined && eventName !== '' ? eventName : null;
 }

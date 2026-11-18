@@ -1263,9 +1263,6 @@
           },
           "checked": {
             "type": "boolean"
-          },
-          "checkedBy": {
-            "type": "string"
           }
         }
       },

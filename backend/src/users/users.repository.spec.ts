@@ -5,7 +5,7 @@ import type { User } from './user.schema.js';
 import { UsersRepository } from './users.repository.js';
 
 function createModelMock() {
-  const mocks = { create: vi.fn(), findById: vi.fn(), findOne: vi.fn() };
+  const mocks = { create: vi.fn(), find: vi.fn(), findById: vi.fn(), findOne: vi.fn() };
 
   return { model: mocks as unknown as Model<User>, mocks };
 }
@@ -33,6 +33,25 @@ describe('UsersRepository', () => {
     await expect(repository.findById(userId)).resolves.toBe(user);
     expect(mocks.findById).toHaveBeenCalledWith(userId);
     expect(query.lean).toHaveBeenCalledOnce();
+  });
+
+  it('busca varios ids en una sola consulta', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new UsersRepository(model);
+    const query = mockMongooseQuery([user]);
+    mocks.find.mockReturnValue(query);
+
+    await expect(repository.findByIds([userId])).resolves.toEqual([user]);
+    expect(mocks.find).toHaveBeenCalledWith({ _id: { $in: [userId] } });
+    expect(query.lean).toHaveBeenCalledOnce();
+  });
+
+  it('no consulta la base si no hay ids', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new UsersRepository(model);
+
+    await expect(repository.findByIds([])).resolves.toEqual([]);
+    expect(mocks.find).not.toHaveBeenCalled();
   });
 
   it('busca por email normalizado y sin el hash', async () => {

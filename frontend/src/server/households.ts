@@ -4,10 +4,17 @@ import { redirect } from 'next/navigation';
 import { unwrapApiResult } from '@/lib/api-result';
 import { apiFetch } from './api';
 
+/** Miembro del hogar tal como lo necesita la app para mostrar la autoría. */
+export interface HouseholdMemberSummary {
+  userId: string;
+  displayName: string;
+}
+
 /** Hogar tal como lo necesita la app para elegir el contexto activo. */
 export interface HouseholdSummary {
   id: string;
   name: string;
+  members: HouseholdMemberSummary[];
 }
 
 /**

@@ -479,7 +479,6 @@ export interface components {
         UpdateShoppingItemBody: {
             quantity?: number;
             checked?: boolean;
-            checkedBy?: string;
         };
         AddShoppingItemBody: {
             name: string;

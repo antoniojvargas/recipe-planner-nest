@@ -4,6 +4,7 @@ import { Types } from 'mongoose';
 import { AppException } from '../common/exceptions/app.exception.js';
 import { AUTH_CLOCK, type AuthClock } from '../auth/auth.clock.js';
 import { RealtimeRoomsService } from '../realtime/realtime-rooms.service.js';
+import { UsersRepository } from '../users/users.repository.js';
 import type { Household } from './household.schema.js';
 import { HouseholdsRepository } from './households.repository.js';
 import {
@@ -14,20 +15,6 @@ import {
 } from './invite-code.js';
 import type { HouseholdInviteResponse, HouseholdResponse } from './households.types.js';
 
-function toResponse(household: Household): HouseholdResponse {
-  return {
-    id: household._id.toString(),
-    name: household.name,
-    members: household.members.map((member) => ({
-      userId: member.userId.toString(),
-      role: member.role,
-      joinedAt: member.joinedAt,
-    })),
-    createdAt: household.createdAt,
-    updatedAt: household.updatedAt,
-  };
-}
-
 /**
  * Casos de uso de hogares. No conoce HTTP: devuelve datos de dominio o lanza `AppException`.
  */
@@ -35,6 +22,7 @@ function toResponse(household: Household): HouseholdResponse {
 export class HouseholdsService {
   constructor(
     private readonly households: HouseholdsRepository,
+    private readonly users: UsersRepository,
     private readonly rooms: RealtimeRoomsService,
     @Inject(AUTH_CLOCK) private readonly clock: AuthClock,
   ) {}
@@ -54,13 +42,13 @@ export class HouseholdsService {
     // Crear también es entrar: los sockets abiertos del usuario pasan a escuchar el hogar.
     this.rooms.onJoined(userId, household._id.toString());
 
-    return toResponse(household);
+    return this.toResponse(household);
   }
 
   async findMine(userId: string): Promise<HouseholdResponse[]> {
     const households = await this.households.findByMember(userId);
 
-    return households.map((household) => toResponse(household));
+    return Promise.all(households.map((household) => this.toResponse(household)));
   }
 
   /** Ids de los hogares del usuario; las salas de Socket.IO se construyen con ellos. */
@@ -79,7 +67,7 @@ export class HouseholdsService {
       });
     }
 
-    return toResponse(household);
+    return this.toResponse(household);
   }
 
   async createInvite(householdId: string, userId: string): Promise<HouseholdInviteResponse> {
@@ -153,7 +141,7 @@ export class HouseholdsService {
 
     this.rooms.onJoined(userId, updated._id.toString());
 
-    return toResponse(updated);
+    return this.toResponse(updated);
   }
 
   /**
@@ -200,5 +188,35 @@ export class HouseholdsService {
     }
 
     this.rooms.onLeft(userId, householdId);
+  }
+
+  /**
+   * Respuesta pública del hogar con el nombre de cada miembro.
+   *
+   * Los nombres se resuelven en una sola consulta: la lista de la compra muestra quién marcó
+   * cada ítem y necesita el nombre sin pedir el perfil de cada miembro por separado.
+   */
+  private async toResponse(household: Household): Promise<HouseholdResponse> {
+    const users = await this.users.findByIds(
+      household.members.map((member) => member.userId.toString()),
+    );
+    const displayNames = new Map(users.map((user) => [user._id.toString(), user.displayName]));
+
+    return {
+      id: household._id.toString(),
+      name: household.name,
+      members: household.members.map((member) => {
+        const userId = member.userId.toString();
+
+        return {
+          userId,
+          displayName: displayNames.get(userId) ?? '',
+          role: member.role,
+          joinedAt: member.joinedAt,
+        };
+      }),
+      createdAt: household.createdAt,
+      updatedAt: household.updatedAt,
+    };
   }
 }
