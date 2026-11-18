@@ -98,6 +98,10 @@ services:
       - |
         set -e
         apk add --no-cache aws-cli >/dev/null
+        for i in $(seq 1 30); do
+          aws --endpoint-url http://minio:9000 s3api list-buckets >/dev/null 2>&1 && break
+          sleep 1
+        done
         aws --endpoint-url http://minio:9000 s3api create-bucket --bucket "$${S3_BUCKET}" >/dev/null 2>&1 || true
         # El bucket queda privado: el navegador sube y lee con URLs prefirmadas.
         aws --endpoint-url http://minio:9000 s3api put-bucket-cors --bucket "$${S3_BUCKET}" --cors-configuration file:///config/cors.json
