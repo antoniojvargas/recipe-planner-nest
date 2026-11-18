@@ -32,7 +32,7 @@ export async function setShoppingItemChecked(
     '/api/households/{householdId}/shopping-lists/{weekStart}/items/{itemId}',
     {
       params: { path: { householdId, weekStart, itemId } },
-      body: { checked },
+      body: { checked } as any,
     },
   );
 
