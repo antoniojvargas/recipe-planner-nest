@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import ImportDialog from '@/app/(app)/recipes/[id]/import-dialog';
 
