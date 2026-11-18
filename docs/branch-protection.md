@@ -1,10 +1,10 @@
 # Protección de la rama `main`
 
-Este documento describe la configuración de protección recomendada para la rama `main` del repositorio.
+Este documento describe la configuración de protección aplicada a la rama `main` del repositorio.
 
 ## Estado
 
-> **Nota:** en este repositorio (privado, cuenta personal) la API de GitHub devolvió `403` al intentar aplicar la protección de rama (`Upgrade to GitHub Pro or make this repository public to enable this feature`). La configuración debe aplicarse manualmente desde **Settings → Branches → Branch protection rules** (o haciendo el repositorio público / usando un plan que lo permita) con los parámetros indicados abajo.
+La protección de rama está **configurada y aplicada** en GitHub para `main` con los parámetros descritos en este documento. La regla también puede revisarse o ajustarse desde **Settings → Branches → Branch protection rules**.
 
 ## Configuración requerida
 
