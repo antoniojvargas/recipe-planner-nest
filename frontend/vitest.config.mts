@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // `tsconfig.json` usa `jsx: preserve` (lo necesita Next), así que Vitest tiene que
+  // transformar el JSX por su cuenta para las pruebas de componentes.
+  oxc: { jsx: { runtime: 'automatic' } },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -12,7 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.spec.ts', 'test/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts', 'test/**/*.spec.ts', 'test/**/*.spec.tsx'],
     env: {
       API_INTERNAL_URL: 'http://api.internal:3000',
       FRONTEND_URL: 'http://localhost:3001',

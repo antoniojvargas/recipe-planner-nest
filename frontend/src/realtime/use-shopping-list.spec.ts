@@ -188,6 +188,28 @@ describe('subscribeToShoppingList', () => {
     expect(invalidate).toHaveBeenCalledTimes(1);
   });
 
+  it('no crea una lista si la caché todavía está vacía', () => {
+    queryClient.removeQueries({ queryKey: shoppingListQueryKey(householdId, weekStart) });
+    subscribe();
+
+    fake.fire(SOCKET_EVENTS.shoppingItemUpdated, itemUpdated());
+
+    expect(queryClient.getQueryData(shoppingListQueryKey(householdId, weekStart))).toBeUndefined();
+  });
+
+  it('deja intactos los ítems cuando el evento es de un artículo que ya no está', () => {
+    subscribe();
+
+    fake.fire(SOCKET_EVENTS.shoppingItemUpdated, itemUpdated({ itemId: 'item-borrado' }));
+
+    const list = queryClient.getQueryData<ShoppingListResponse>(
+      shoppingListQueryKey(householdId, weekStart),
+    );
+
+    expect(list?.items).toEqual(initialList().items);
+    expect(list?.version).toBe(4);
+  });
+
   it('quita los listeners al desuscribirse', () => {
     const unsubscribe = subscribe();
 
