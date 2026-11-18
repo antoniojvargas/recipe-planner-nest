@@ -122,6 +122,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    command: ['npm', 'run', 'start:prod', '-w', 'backend']
     environment:
       <<: *backend-environment
     ports:
@@ -160,7 +161,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     environment:
-      NODE_ENV: test
+      NODE_ENV: development
       API_INTERNAL_URL: http://backend:3000
       FRONTEND_URL: http://localhost:3001
       NEXT_PUBLIC_API_URL: http://localhost:3000

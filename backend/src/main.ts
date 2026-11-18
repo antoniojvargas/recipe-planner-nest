@@ -80,6 +80,9 @@ async function bootstrap() {
     });
   }
 
+  // Prefijo /api, CORS, cookies y cabeceras de seguridad compartidos con los tests.
+  await configureApp(app);
+
   // Configuración de @nestjs/throttler
   // Se usa el almacenamiento por defecto (en memoria para desarrollo).
   // Los límites específicos se aplicarán mediante el decorador @Throttle() en los

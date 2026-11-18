@@ -24,6 +24,10 @@ COPY backend/nest-cli.json backend/tsconfig.json backend/tsconfig.build.json ./b
 COPY backend/src ./backend/src
 COPY backend/test ./backend/test
 
+# Compila la API y el worker para que la misma imagen pueda ejecutar
+# `dist/main.js` (API) o `dist/worker.js` (colas) sin depender de watch mode.
+RUN npm run build -w backend
+
 EXPOSE 3000
 
 CMD ["npm", "run", "start:dev", "-w", "backend"]
