@@ -27,9 +27,13 @@ import { bullMqConnection } from './queues/bullmq.connection.js';
 import { ShoppingModule } from './shopping/shopping.module.js';
 import { ShutdownModule } from './shutdown/shutdown.module.js';
 import { StorageModule } from './storage/storage.module.js';
+import { TestingModule } from './testing/testing.module.js';
 import { UsersModule } from './users/users.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
+
+// Endpoints de mantenimiento (p. ej. reinicio de datos) disponibles solo en e2e.
+const testingImports = process.env.APP_ENV === 'test' ? [TestingModule] : [];
 
 @Module({
   imports: [
@@ -70,6 +74,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ShoppingModule,
     PantryModule,
     RealtimeModule,
+    ...testingImports,
   ],
   controllers: [AppController],
   providers: [
