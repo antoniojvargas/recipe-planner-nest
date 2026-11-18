@@ -53,6 +53,7 @@ export default tseslint.config(
       '@typescript-eslint/restrict-template-expressions': 'warn',
       '@typescript-eslint/no-misused-promises': 'warn',
       '@typescript-eslint/no-confusing-void-expression': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

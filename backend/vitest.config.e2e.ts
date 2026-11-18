@@ -22,7 +22,7 @@ export default defineConfig({
       // Información adicional que se mostrará en la consola
       reporter: ['text', 'json', 'html'],
       // Directorio donde se guardará el reporte de cobertura
-      directory: 'coverage',
+      reportsDirectory: 'coverage',
       // Archivos que se excluirán del cálculo de cobertura
       exclude: [
         'node_modules',

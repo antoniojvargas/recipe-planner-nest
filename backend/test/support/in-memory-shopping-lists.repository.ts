@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-import type { ShoppingList, ShoppingItemSource } from '../src/shopping/shopping-list.schema.js';
+import type { ShoppingList, ShoppingItemSource } from '../../src/shopping/shopping-list.schema.js';
 
 /** Repositorio de listas de la compra en memoria para pruebas de integración. */
 export class InMemoryShoppingListsRepository {

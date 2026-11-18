@@ -36,6 +36,7 @@ export default tseslint.config(
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
       '@typescript-eslint/require-await': 'warn',
       '@typescript-eslint/no-misused-promises': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

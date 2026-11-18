@@ -21,6 +21,7 @@ export default function RecipesPage() {
   >([]);
   const [hasMore, setHasMore] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(cursor || null);
 
   // Cargar recetas iniciales
   useEffect(() => {
@@ -70,7 +71,7 @@ export default function RecipesPage() {
 
       setRecipes((prev) => [...prev, ...newRecipes]);
       setHasMore(newHasMore);
-      setCursor(newCursor);
+      setNextCursor(newCursor);
     } catch (error) {
       console.error('Error cargando recetas:', error);
     } finally {

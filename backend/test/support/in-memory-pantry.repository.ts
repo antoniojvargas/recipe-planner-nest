@@ -1,8 +1,8 @@
-import type { PantryItemInput } from '../src/pantry/pantry.repository.js';
+import type { PantryItemInput } from '../../src/pantry/pantry.repository.js';
 
 /** Repositorio de despensa en memoria para pruebas de integración. */
 export class InMemoryPantryRepository {
-  readonly items: { name: string; quantity: number; unit: string; householdId: string }[] = [];
+  items: { name: string; quantity: number; unit: string; householdId: string }[] = [];
 
   async findByHousehold(
     householdId: string,

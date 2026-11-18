@@ -16,7 +16,7 @@ const apiInternalUrl =
 const nextConfig: NextConfig = {
   // El paquete de contratos se compila en el monorepo; Next lo transpila como código propio.
   transpilePackages: ['@recipe-planner/contracts'],
-  rewrites() {
+  async rewrites() {
     return [
       {
         source: '/api/:path*',

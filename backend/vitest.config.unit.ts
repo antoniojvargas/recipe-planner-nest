@@ -27,7 +27,7 @@ export default defineConfig({
         statements: 80,
       },
       reporter: ['text', 'json'],
-      directory: 'coverage/unit',
+      reportsDirectory: 'coverage/unit',
       exclude: ['node_modules', '.git', 'dist', 'coverage', 'coverage/unit'],
     },
   },

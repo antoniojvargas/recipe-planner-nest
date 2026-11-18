@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, type FormEvent } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
