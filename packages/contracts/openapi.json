@@ -10,9 +10,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "App"
-        ]
+        "tags": ["App"]
       }
     },
     "/api/health": {
@@ -29,10 +27,7 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "ok",
-                        "degraded"
-                      ],
+                      "enum": ["ok", "degraded"],
                       "example": "ok"
                     },
                     "info": {
@@ -45,17 +40,11 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
+                            "enum": ["up", "degraded", "down"]
                           },
                           "responseTime": {
                             "type": "number",
@@ -71,17 +60,11 @@
                       "example": {},
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
+                            "enum": ["up", "degraded", "down"]
                           },
                           "responseTime": {
                             "type": "number",
@@ -102,17 +85,11 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
+                            "enum": ["up", "degraded", "down"]
                           },
                           "responseTime": {
                             "type": "number",
@@ -136,10 +113,7 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "error",
-                        "shutting_down"
-                      ],
+                      "enum": ["error", "shutting_down"],
                       "example": "error"
                     },
                     "info": {
@@ -152,17 +126,11 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
+                            "enum": ["up", "degraded", "down"]
                           },
                           "responseTime": {
                             "type": "number",
@@ -184,17 +152,11 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
+                            "enum": ["up", "degraded", "down"]
                           },
                           "responseTime": {
                             "type": "number",
@@ -220,17 +182,11 @@
                       },
                       "additionalProperties": {
                         "type": "object",
-                        "required": [
-                          "status"
-                        ],
+                        "required": ["status"],
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
+                            "enum": ["up", "degraded", "down"]
                           },
                           "responseTime": {
                             "type": "number",
@@ -246,9 +202,7 @@
             }
           }
         },
-        "tags": [
-          "Health"
-        ]
+        "tags": ["Health"]
       }
     },
     "/api/auth/register": {
@@ -270,9 +224,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/login": {
@@ -294,9 +246,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/refresh": {
@@ -308,9 +258,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/logout": {
@@ -322,9 +270,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/logout-all": {
@@ -336,9 +282,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/auth/me": {
@@ -350,9 +294,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ]
+        "tags": ["Auth"]
       }
     },
     "/api/households": {
@@ -374,9 +316,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Households"
-        ]
+        "tags": ["Households"]
       },
       "get": {
         "operationId": "HouseholdsController_findMine",
@@ -386,9 +326,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Households"
-        ]
+        "tags": ["Households"]
       }
     },
     "/api/households/{id}/invite": {
@@ -409,9 +347,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Households"
-        ]
+        "tags": ["Households"]
       }
     },
     "/api/households/join": {
@@ -433,9 +369,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Households"
-        ]
+        "tags": ["Households"]
       }
     },
     "/api/households/{id}/leave": {
@@ -456,9 +390,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Households"
-        ]
+        "tags": ["Households"]
       }
     },
     "/api/households/{id}": {
@@ -479,9 +411,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Households"
-        ]
+        "tags": ["Households"]
       }
     },
     "/api/households/{householdId}/recipes": {
@@ -512,9 +442,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Recipes"
-        ]
+        "tags": ["Recipes"]
       },
       "get": {
         "operationId": "RecipesController_list",
@@ -533,9 +461,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Recipes"
-        ]
+        "tags": ["Recipes"]
       }
     },
     "/api/households/{householdId}/recipes/{recipeId}": {
@@ -564,9 +490,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Recipes"
-        ]
+        "tags": ["Recipes"]
       },
       "patch": {
         "operationId": "RecipesController_update",
@@ -603,9 +527,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Recipes"
-        ]
+        "tags": ["Recipes"]
       },
       "delete": {
         "operationId": "RecipesController_remove",
@@ -632,9 +554,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Recipes"
-        ]
+        "tags": ["Recipes"]
       }
     },
     "/api/households/{householdId}/recipes/{recipeId}/image": {
@@ -673,9 +593,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Recipes"
-        ]
+        "tags": ["Recipes"]
       }
     },
     "/api/households/{householdId}/media/upload-url": {
@@ -706,9 +624,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Media"
-        ]
+        "tags": ["Media"]
       }
     },
     "/api/households/{householdId}/imports": {
@@ -739,9 +655,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Imports"
-        ]
+        "tags": ["Imports"]
       }
     },
     "/api/households/{householdId}/meal-plans/{weekStart}": {
@@ -770,9 +684,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "MealPlans"
-        ]
+        "tags": ["MealPlans"]
       }
     },
     "/api/households/{householdId}/meal-plans/{weekStart}/slots": {
@@ -801,9 +713,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "MealPlans"
-        ]
+        "tags": ["MealPlans"]
       }
     },
     "/api/households/{householdId}/shopping-lists/{weekStart}/generate": {
@@ -832,9 +742,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "ShoppingLists"
-        ]
+        "tags": ["ShoppingLists"]
       }
     },
     "/api/households/{householdId}/shopping-lists/{weekStart}/items/{itemId}": {
@@ -871,9 +779,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "ShoppingLists"
-        ]
+        "tags": ["ShoppingLists"]
       }
     },
     "/api/households/{householdId}/shopping-lists/{weekStart}/items": {
@@ -902,9 +808,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "ShoppingLists"
-        ]
+        "tags": ["ShoppingLists"]
       }
     },
     "/api/households/{householdId}/pantry": {
@@ -925,9 +829,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Pantry"
-        ]
+        "tags": ["Pantry"]
       },
       "post": {
         "operationId": "PantryController_upsertPantryItem",
@@ -946,9 +848,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Pantry"
-        ]
+        "tags": ["Pantry"]
       }
     },
     "/api/households/{householdId}/pantry/{name}": {
@@ -977,9 +877,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "Pantry"
-        ]
+        "tags": ["Pantry"]
       }
     }
   },

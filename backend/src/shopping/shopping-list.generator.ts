@@ -106,7 +106,10 @@ export class ShoppingListGenerator {
       const key = normalizeName(item.name);
       const dimension = dimensionOf(item.unit);
       const byDimension = pantryByName.get(key) ?? new Map<UnitDimension, number>();
-      byDimension.set(dimension, (byDimension.get(dimension) ?? 0) + toBase(item.quantity, item.unit));
+      byDimension.set(
+        dimension,
+        (byDimension.get(dimension) ?? 0) + toBase(item.quantity, item.unit),
+      );
       pantryByName.set(key, byDimension);
     }
 
