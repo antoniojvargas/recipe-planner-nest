@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -157,6 +158,17 @@ async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const outputPath = path.resolve(scriptDir, '../../packages/contracts/openapi.json');
   writeFileSync(outputPath, JSON.stringify(document, null, 2) + '\n');
+
+  const prettierBin = path.resolve(scriptDir, '../../node_modules/.bin/prettier');
+  if (existsSync(prettierBin)) {
+    execFileSync(prettierBin, ['--write', outputPath], { stdio: 'inherit' });
+  } else {
+    execFileSync('npx', ['--no-install', 'prettier', '--write', outputPath], {
+      cwd: path.resolve(scriptDir, '../..'),
+      stdio: 'inherit',
+    });
+  }
+
   console.log(`OpenAPI document exported to ${outputPath}`);
 
   await app.close();
