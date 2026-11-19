@@ -16,3 +16,6 @@ MEJORAS.md
 
 # OpenAPI types generated from packages/contracts/openapi.json
 frontend/src/server/openapi.d.ts
+
+# MinIO bucket CORS config stored with .json extension for compose mounts but XML content
+infra/minio/cors.json

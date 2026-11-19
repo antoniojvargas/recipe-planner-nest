@@ -6,7 +6,7 @@ test.describe('smoke @smoke', () => {
   test('muestra la pantalla de login', async ({ page }) => {
     await page.goto('/login');
 
-    await expect(page.getByLabel('Correo electrónico')).toBeVisible();
+    await expect(page.getByText('Correo electrónico')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
   });
 

@@ -6,10 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
  */
 class SameOriginRequest extends Request {
   constructor(input: RequestInfo | URL, init?: RequestInit) {
-    super(
-      typeof input === 'string' ? new URL(input, 'http://localhost:3001') : input,
-      init,
-    );
+    super(typeof input === 'string' ? new URL(input, 'http://localhost:3001') : input, init);
   }
 }
 
@@ -50,7 +47,9 @@ describe('apiClient', () => {
       vi.fn(async (request: Request) => {
         seen.push(request);
 
-        return request.method === 'GET' ? json({ status: 'ok' }) : new Response(null, { status: 204 });
+        return request.method === 'GET'
+          ? json({ status: 'ok' })
+          : new Response(null, { status: 204 });
       }),
     );
 
@@ -59,7 +58,7 @@ describe('apiClient', () => {
 
     expect(seen[0]?.headers.get('x-csrf-token')).toBeNull();
     expect(seen[1]?.headers.get('x-csrf-token')).toBe('csrf-value');
-    expect(urlOf(seen[1]!).pathname).toBe('/api/auth/logout');
+    expect(urlOf(seen[1]).pathname).toBe('/api/auth/logout');
   });
 
   it('refresca una sola vez y reintenta todas las peticiones en vuelo', async () => {

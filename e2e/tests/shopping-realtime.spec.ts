@@ -1,8 +1,29 @@
-import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test';
 
 const apiURL = process.env.E2E_API_URL ?? 'http://localhost:3000';
 const origin = 'http://localhost:3001';
 const csrfToken = 'e2e-csrf-token';
+
+async function ensureCsrfCookie(context: BrowserContext): Promise<void> {
+  await context.addCookies([
+    {
+      name: 'csrf_token',
+      value: csrfToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
+}
 
 function currentWeekStart(now = new Date()): string {
   const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -11,11 +32,22 @@ function currentWeekStart(now = new Date()): string {
   return monday.toISOString().slice(0, 10);
 }
 
-function csrfHeaders(): Record<string, string> {
+async function cookieHeader(request: APIRequestContext): Promise<string> {
+  const cookies = (await request.storageState()).cookies;
+  const jar = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
+  jar.set('csrf_token', csrfToken);
+  return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+async function authedHeaders(
+  request: APIRequestContext,
+  extra: Record<string, string> = {},
+): Promise<Record<string, string>> {
   return {
     Origin: origin,
     'X-CSRF-Token': csrfToken,
-    Cookie: `csrf_token=${csrfToken}`,
+    Cookie: await cookieHeader(request),
+    ...extra,
   };
 }
 
@@ -25,10 +57,7 @@ async function registerUser(
   displayName: string,
 ): Promise<{ userId: string }> {
   const response = await request.post(`${apiURL}/api/auth/register`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: {
       email,
       password: 'Recetas123!',
@@ -45,7 +74,7 @@ async function getHouseholds(
   request: APIRequestContext,
 ): Promise<Array<{ id: string; name: string }>> {
   const response = await request.get(`${apiURL}/api/households`, {
-    headers: { Cookie: `csrf_token=${csrfToken}` },
+    headers: await authedHeaders(request),
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   return (await response.json()) as Array<{ id: string; name: string }>;
@@ -53,10 +82,8 @@ async function getHouseholds(
 
 async function createInvite(request: APIRequestContext, householdId: string): Promise<string> {
   const response = await request.post(`${apiURL}/api/households/${householdId}/invite`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
+    data: {},
   });
   expect(response.status(), await response.text()).toBe(201);
   const body = (await response.json()) as { code: string };
@@ -65,10 +92,7 @@ async function createInvite(request: APIRequestContext, householdId: string): Pr
 
 async function joinHousehold(request: APIRequestContext, code: string): Promise<string> {
   const response = await request.post(`${apiURL}/api/households/join`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: { code },
   });
   expect(response.status(), await response.text()).toBe(200);
@@ -78,10 +102,8 @@ async function joinHousehold(request: APIRequestContext, code: string): Promise<
 
 async function leaveHousehold(request: APIRequestContext, householdId: string): Promise<void> {
   const response = await request.post(`${apiURL}/api/households/${householdId}/leave`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
+    data: {},
   });
   expect(response.status(), await response.text()).toBe(204);
 }
@@ -92,10 +114,7 @@ async function seedShoppingList(
   weekStart: string,
 ): Promise<string> {
   const create = await request.post(`${apiURL}/api/households/${householdId}/recipes`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: {
       title: 'Ensalada compartida',
       servings: 2,
@@ -105,13 +124,16 @@ async function seedShoppingList(
   expect(create.status(), await create.text()).toBe(201);
   const recipe = (await create.json()) as { id: string };
 
+  const plan = await request.get(
+    `${apiURL}/api/households/${householdId}/meal-plans/${weekStart}`,
+    { headers: await authedHeaders(request) },
+  );
+  expect(plan.ok(), await plan.text()).toBeTruthy();
+
   const slot = await request.put(
     `${apiURL}/api/households/${householdId}/meal-plans/${weekStart}/slots`,
     {
-      headers: {
-        ...csrfHeaders(),
-        'Content-Type': 'application/json',
-      },
+      headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
       data: { day: 0, meal: 'lunch', recipeId: recipe.id, servings: 2 },
     },
   );
@@ -120,10 +142,8 @@ async function seedShoppingList(
   const generated = await request.post(
     `${apiURL}/api/households/${householdId}/shopping-lists/${weekStart}/generate`,
     {
-      headers: {
-        ...csrfHeaders(),
-        'Content-Type': 'application/json',
-      },
+      headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
+      data: {},
     },
   );
   expect(generated.ok(), await generated.text()).toBeTruthy();
@@ -149,6 +169,7 @@ test('dos miembros del mismo hogar ven el marcado en tiempo real sin recargar', 
 
   try {
     await registerUser(inviter, `invitador+${runId}@example.com`, 'Ana');
+    await ensureCsrfCookie(inviterPage.context());
     const inviterHouseholds = await getHouseholds(inviter);
     const sharedHouseholdId = inviterHouseholds[0]?.id;
     expect(sharedHouseholdId).toBeTruthy();
@@ -157,6 +178,7 @@ test('dos miembros del mismo hogar ven el marcado en tiempo real sin recargar', 
     const inviteCode = await createInvite(inviter, sharedHouseholdId!);
 
     await registerUser(joiner, `invitado+${runId}@example.com`, 'Luis');
+    await ensureCsrfCookie(joinerPage.context());
     const joinerInitialHouseholds = await getHouseholds(joiner);
     const ownHouseholdId = joinerInitialHouseholds[0]?.id;
     expect(ownHouseholdId).toBeTruthy();

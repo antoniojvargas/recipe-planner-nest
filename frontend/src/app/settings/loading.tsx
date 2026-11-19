@@ -1,3 +1,5 @@
 export default function Loading() {
-  return <div className="min-h-span flex items-center justify-center">Cargando configuración...</div>;
+  return (
+    <div className="min-h-span flex items-center justify-center">Cargando configuración...</div>
+  );
 }

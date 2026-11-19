@@ -221,14 +221,7 @@
         },
         "responses": {
           "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": ["Auth"]
@@ -250,14 +243,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": ["Auth"]
@@ -305,14 +291,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": ["Auth"]
@@ -470,49 +449,10 @@
         "parameters": [
           {
             "name": "householdId",
-            "in": "path",
             "required": true,
+            "in": "path",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 120
-            }
-          },
-          {
-            "name": "tags",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 300
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 50
             }
           }
         ],
@@ -773,17 +713,7 @@
             "description": ""
           }
         },
-        "tags": ["MealPlans"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMealPlanSlotBody"
-              }
-            }
-          }
-        }
+        "tags": ["MealPlans"]
       }
     },
     "/api/households/{householdId}/shopping-lists/{weekStart}/generate": {
@@ -849,17 +779,7 @@
             "description": ""
           }
         },
-        "tags": ["ShoppingLists"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateShoppingItemBody"
-              }
-            }
-          }
-        }
+        "tags": ["ShoppingLists"]
       }
     },
     "/api/households/{householdId}/shopping-lists/{weekStart}/items": {
@@ -888,17 +808,7 @@
             "description": ""
           }
         },
-        "tags": ["ShoppingLists"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddShoppingItemBody"
-              }
-            }
-          }
-        }
+        "tags": ["ShoppingLists"]
       }
     },
     "/api/households/{householdId}/pantry": {
@@ -938,17 +848,7 @@
             "description": ""
           }
         },
-        "tags": ["Pantry"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PantryItemBody"
-              }
-            }
-          }
-        }
+        "tags": ["Pantry"]
       }
     },
     "/api/households/{householdId}/pantry/{name}": {
@@ -987,7 +887,36 @@
     "version": "1.0",
     "contact": {}
   },
-  "tags": [],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Autenticación y sesiones"
+    },
+    {
+      "name": "households",
+      "description": "Gestión de hogares"
+    },
+    {
+      "name": "recipes",
+      "description": "Recetas y planes"
+    },
+    {
+      "name": "shopping",
+      "description": "Listas de la compra"
+    },
+    {
+      "name": "imports",
+      "description": "Importaciones"
+    },
+    {
+      "name": "media",
+      "description": "Media y thumbnails"
+    },
+    {
+      "name": "health",
+      "description": "Health checks"
+    }
+  ],
   "servers": [
     {
       "url": "http://localhost:3000",
@@ -1008,327 +937,41 @@
       }
     },
     "schemas": {
-      "AuthUser": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string",
-            "format": "email"
-          },
-          "displayName": {
-            "type": "string"
-          }
-        },
-        "required": ["id", "email", "displayName"]
-      },
-      "AuthResponse": {
-        "type": "object",
-        "properties": {
-          "user": {
-            "$ref": "#/components/schemas/AuthUser"
-          }
-        },
-        "required": ["user"]
-      },
       "RegisterDto": {
         "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "maxLength": 254
-          },
-          "password": {
-            "type": "string",
-            "minLength": 8,
-            "maxLength": 128
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80
-          }
-        },
-        "required": ["email", "password", "displayName"]
+        "properties": {}
       },
       "LoginDto": {
         "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "maxLength": 254
-          },
-          "password": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          }
-        },
-        "required": ["email", "password"]
+        "properties": {}
       },
       "CreateHouseholdDto": {
         "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80
-          }
-        },
-        "required": ["name"]
+        "properties": {}
       },
       "JoinHouseholdDto": {
         "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "minLength": 8,
-            "maxLength": 8
-          }
-        },
-        "required": ["code"]
-      },
-      "RecipeIngredientDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "quantity": {
-            "type": "number",
-            "minimum": 0
-          },
-          "unit": {
-            "type": "string",
-            "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "unit", "pinch"]
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 200
-          }
-        },
-        "required": ["name", "quantity", "unit"]
-      },
-      "RecipeStepDto": {
-        "type": "object",
-        "properties": {
-          "text": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1000
-          }
-        },
-        "required": ["text"]
+        "properties": {}
       },
       "CreateRecipeDto": {
         "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 2000
-          },
-          "servings": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "prepMinutes": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "cookMinutes": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 40
-            }
-          },
-          "ingredients": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecipeIngredientDto"
-            }
-          },
-          "steps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecipeStepDto"
-            }
-          }
-        },
-        "required": ["title", "servings"]
-      },
-      "UpdateRecipeDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "description": {
-            "type": "string",
-            "maxLength": 2000
-          },
-          "servings": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "prepMinutes": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "cookMinutes": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 40
-            }
-          },
-          "ingredients": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecipeIngredientDto"
-            }
-          },
-          "steps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecipeStepDto"
-            }
-          }
-        }
+        "properties": {}
       },
       "ConfirmImageDto": {
         "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 300
-          }
-        },
-        "required": ["key"]
+        "properties": {}
+      },
+      "UpdateRecipeDto": {
+        "type": "object",
+        "properties": {}
       },
       "CreateUploadUrlDto": {
         "type": "object",
-        "properties": {
-          "contentType": {
-            "type": "string",
-            "enum": ["image/jpeg", "image/png", "image/webp"]
-          },
-          "size": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 5242880
-          }
-        },
-        "required": ["contentType", "size"]
+        "properties": {}
       },
       "CreateImportDto": {
         "type": "object",
-        "properties": {
-          "url": {
-            "type": "string",
-            "format": "uri",
-            "maxLength": 2048
-          }
-        },
-        "required": ["url"]
-      },
-      "UpdateShoppingItemBody": {
-        "type": "object",
-        "properties": {
-          "quantity": {
-            "type": "number",
-            "minimum": 0
-          },
-          "checked": {
-            "type": "boolean"
-          }
-        }
-      },
-      "AddShoppingItemBody": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "quantity": {
-            "type": "number",
-            "minimum": 0
-          },
-          "unit": {
-            "type": "string",
-            "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "unit", "pinch"]
-          },
-          "checked": {
-            "type": "boolean"
-          },
-          "checkedBy": {
-            "type": "string"
-          }
-        },
-        "required": ["name", "quantity", "unit"]
-      },
-      "UpdateMealPlanSlotBody": {
-        "type": "object",
-        "properties": {
-          "day": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 6
-          },
-          "meal": {
-            "type": "string",
-            "enum": ["breakfast", "lunch", "dinner"]
-          },
-          "recipeId": {
-            "type": "string"
-          },
-          "servings": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": ["day", "meal"]
-      },
-      "PantryItemBody": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "quantity": {
-            "type": "number",
-            "minimum": 0
-          },
-          "unit": {
-            "type": "string",
-            "enum": ["g", "kg", "ml", "l", "tsp", "tbsp", "cup", "unit", "pinch"]
-          }
-        },
-        "required": ["name", "quantity", "unit"]
+        "properties": {}
       }
     }
   },

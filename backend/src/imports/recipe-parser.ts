@@ -12,16 +12,16 @@ const FRACTION_VALUES: Record<string, number> = {
 
 /** Mapa de referencias simbólicas a unidades del catálogo. */
 const SYMBOLIC_UNITS: Record<string, Unit> = {
-  'pizca': 'pinch',
-  'dash': 'pinch',
-  'cd': 'tbsp',
-  'cda': 'tbsp',
-  'cucharadita': 'tsp',
-  'cucharada': 'tbsp',
-  'taza': 'cup',
-  'tazas': 'cup',
-  'vaso': 'cup',
-  'vasos': 'cup',
+  pizca: 'pinch',
+  dash: 'pinch',
+  cd: 'tbsp',
+  cda: 'tbsp',
+  cucharadita: 'tsp',
+  cucharada: 'tbsp',
+  taza: 'cup',
+  tazas: 'cup',
+  vaso: 'cup',
+  vasos: 'cup',
 };
 
 /** Convierte un string a número, manejando fracciones y decimales. */
@@ -63,16 +63,16 @@ function normalizeUnit(raw: string): { unit: Unit; original: string; note?: stri
 
   // 2. Símbolos alternativos o abreviaturas
   const symbolMap: Record<string, Unit> = {
-    'g': 'g',
-    'kg': 'kg',
-    'ml': 'ml',
-    'l': 'l',
-    'tsp': 'tsp',
-    'tbsp': 'tbsp',
-    'cup': 'cup',
-    'units': 'unit',
-    'pin': 'pinch',
-    'pinch': 'pinch',
+    g: 'g',
+    kg: 'kg',
+    ml: 'ml',
+    l: 'l',
+    tsp: 'tsp',
+    tbsp: 'tbsp',
+    cup: 'cup',
+    units: 'unit',
+    pin: 'pinch',
+    pinch: 'pinch',
   };
   if (trimmed in symbolMap) {
     return { unit: symbolMap[trimmed], original: raw };
@@ -151,9 +151,9 @@ export function parseIngredient(text: string): ParsedIngredient {
     const caseAMatch = caseAPattern.exec(remaining);
 
     if (caseAMatch) {
-      const unitCandidate = caseAMatch[1].trim();   // la posible unidad
+      const unitCandidate = caseAMatch[1].trim(); // la posible unidad
       const hasDe = caseAMatch[2] !== undefined;
-      const name = caseAMatch[3].trim();          // el nombre después de "de" o directo
+      const name = caseAMatch[3].trim(); // el nombre después de "de" o directo
 
       // Parsear la cantidad (puede ser "1", "1/2", "1 1/2")
       const quantity = parseNumber(rawQuantity);
@@ -184,7 +184,9 @@ export function parseIngredient(text: string): ParsedIngredient {
       // intentar quitando el texto del note del candidate y volver a intentar
       if (unit === 'unit' && unitNote) {
         const unitText = unitNote.replace('Unidad no reconocida: "', '').replace('"', '');
-        const cleanedCandidate = unitCandidate.replace(new RegExp(escapeRegExp(unitText), 'i'), '').trim();
+        const cleanedCandidate = unitCandidate
+          .replace(new RegExp(escapeRegExp(unitText), 'i'), '')
+          .trim();
         if (cleanedCandidate) {
           const normalized2 = normalizeUnit(cleanedCandidate.toLowerCase());
           unit = normalized2.unit;
@@ -375,7 +377,8 @@ export function extractRecipeFromMicrodata(html: string): {
 } {
   try {
     // Buscar container con itemtype Recipe (http o https)
-    const containerRegex = /<div\s+[^>]*itemtype="https?:\/\/schema\.org\/Recipe"[^>]*>([\s\S]*?)<\/div>/i;
+    const containerRegex =
+      /<div\s+[^>]*itemtype="https?:\/\/schema\.org\/Recipe"[^>]*>([\s\S]*?)<\/div>/i;
     const containerMatch = containerRegex.exec(html);
 
     if (!containerMatch) {
@@ -388,7 +391,7 @@ export function extractRecipeFromMicrodata(html: string): {
     // Los tags <meta> son auto-cerrados, por lo que hay que capturarlos distinto
     const metaMatch = /<meta[^>]*itemprop="name"[^>]*content="([^"]*)"/i.exec(containerContent);
     const spanMatch = /<span[^>]*itemprop="name"[^>]*>([^<]*)<\/span>/i.exec(containerContent);
-    const title = metaMatch ? metaMatch[1] : (spanMatch ? spanMatch[1] : 'Receta de microdata');
+    const title = metaMatch ? metaMatch[1] : spanMatch ? spanMatch[1] : 'Receta de microdata';
 
     // Extraer ingredientes (pueden estar en spans, divs o text nodes)
     const ingredientRegex = /<span\s+[^>]*itemprop="recipeIngredient"[^>]*>([^<]*)<\/span>/gi;
@@ -400,9 +403,15 @@ export function extractRecipeFromMicrodata(html: string): {
 
     // Si no se encontraron ingredientes en spans, buscar en text nodes con "g", "kg", etc.
     if (rawIngredients.length === 0) {
-      const textIngredients = containerContent.match(/((?:\d+(?:\s+)?(?:\d+\/\d+)?\s+(?:g|kg|ml|l|tsp|tbsp|cup|unit|pinch|pizca|taza|tazas|vaso|sal|harina|arroz|pollo|verdura)))/gi);
+      const textIngredients = containerContent.match(
+        /((?:\d+(?:\s+)?(?:\d+\/\d+)?\s+(?:g|kg|ml|l|tsp|tbsp|cup|unit|pinch|pizca|taza|tazas|vaso|sal|harina|arroz|pollo|verdura)))/gi,
+      );
       if (textIngredients) {
-        rawIngredients.push(...textIngredients.filter((t: string) => t.trim().length > 0).map((t: string) => t.trim()));
+        rawIngredients.push(
+          ...textIngredients
+            .filter((t: string) => t.trim().length > 0)
+            .map((t: string) => t.trim()),
+        );
       }
     }
 
@@ -418,7 +427,11 @@ export function extractRecipeFromMicrodata(html: string): {
     if (rawSteps.length === 0) {
       const paraMatches = containerContent.match(/<p[^>]*>([\s\S]*?)<\/p>/gi);
       if (paraMatches) {
-        rawSteps.push(...paraMatches.map((p: string) => p.replace(/<[^>]+>/g, '').trim()).filter((s: string) => s.length > 5));
+        rawSteps.push(
+          ...paraMatches
+            .map((p: string) => p.replace(/<[^>]+>/g, '').trim())
+            .filter((s: string) => s.length > 5),
+        );
       }
     }
 

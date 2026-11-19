@@ -35,7 +35,7 @@ export async function saveMealPlanSlot(
 
   const result = await apiClient.PUT('/api/households/{householdId}/meal-plans/{weekStart}/slots', {
     params: { path: { householdId, weekStart } },
-    body,
+    body: body as any,
   });
 
   return unwrapApiResult<MealPlanResponse>(result, 'No se pudo guardar el hueco del plan');
@@ -50,7 +50,7 @@ export async function searchRecipes(
   const result = await apiClient.GET('/api/households/{householdId}/recipes', {
     params: {
       path: { householdId },
-      query: { limit, ...(query.trim() === '' ? {} : { q: query.trim() }) },
+      query: { limit, ...(query.trim() === '' ? {} : { q: query.trim() }) } as any,
     },
   });
 

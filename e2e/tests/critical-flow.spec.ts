@@ -13,11 +13,22 @@ function currentWeekStart(now = new Date()): string {
   return monday.toISOString().slice(0, 10);
 }
 
-function csrfHeaders(): Record<string, string> {
+async function cookieHeader(request: APIRequestContext): Promise<string> {
+  const cookies = (await request.storageState()).cookies;
+  const jar = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
+  jar.set('csrf_token', csrfToken);
+  return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+async function authedHeaders(
+  request: APIRequestContext,
+  extra: Record<string, string> = {},
+): Promise<Record<string, string>> {
   return {
     Origin: origin,
     'X-CSRF-Token': csrfToken,
-    Cookie: `csrf_token=${csrfToken}`,
+    Cookie: await cookieHeader(request),
+    ...extra,
   };
 }
 
@@ -26,10 +37,7 @@ async function registerUser(
   email: string,
 ): Promise<{ userId: string }> {
   const response = await request.post(`${apiURL}/api/auth/register`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: {
       email,
       password: 'Recetas123!',
@@ -44,7 +52,7 @@ async function registerUser(
 
 async function getHouseholdId(request: APIRequestContext): Promise<string> {
   const response = await request.get(`${apiURL}/api/households`, {
-    headers: { Cookie: `csrf_token=${csrfToken}` },
+    headers: await authedHeaders(request),
   });
   expect(response.ok(), await response.text()).toBeTruthy();
   const households = (await response.json()) as Array<{ id: string }>;
@@ -59,10 +67,7 @@ async function createRecipeWithPhoto(
   const title = 'Tortilla de patatas';
 
   const create = await request.post(`${apiURL}/api/households/${householdId}/recipes`, {
-    headers: {
-      ...csrfHeaders(),
-      'Content-Type': 'application/json',
-    },
+    headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
     data: {
       title,
       description: 'Clásica tortilla con patatas',
@@ -87,10 +92,7 @@ async function createRecipeWithPhoto(
   const uploadUrlResponse = await request.post(
     `${apiURL}/api/households/${householdId}/media/upload-url`,
     {
-      headers: {
-        ...csrfHeaders(),
-        'Content-Type': 'application/json',
-      },
+      headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
       data: { contentType: 'image/jpeg', size: photo.length },
     },
   );
@@ -116,10 +118,7 @@ async function createRecipeWithPhoto(
   const confirm = await request.put(
     `${apiURL}/api/households/${householdId}/recipes/${recipeId}/image`,
     {
-      headers: {
-        ...csrfHeaders(),
-        'Content-Type': 'application/json',
-      },
+      headers: await authedHeaders(request, { 'Content-Type': 'application/json' }),
       data: { key: upload.key },
     },
   );
@@ -155,17 +154,30 @@ test('flujo crítico: registro, receta con foto, plan de dos días y lista agreg
   const request = page.context().request;
 
   await registerUser(request, uniqueEmail);
+  await page.context().addCookies([
+    {
+      name: 'csrf_token',
+      value: csrfToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
   const householdId = await getHouseholdId(request);
   const { recipeId, title } = await createRecipeWithPhoto(request, householdId);
 
   // Añade la receta al plan en dos días distintos (lunes y martes, comida).
   await page.goto(`/plan/${weekStart}`);
-  await expect(page.getByRole('heading', { name: /Plan semanal|/ })).toBeVisible();
+  await expect(page.getByText('Plan semanal')).toBeVisible();
   await addRecipeToSlot(page, 'Lunes', 'comida', title);
   await expect(page.getByRole('link', { name: title }).first()).toBeVisible();
 
   await addRecipeToSlot(page, 'Martes', 'comida', title);
-  await expect(page.getByRole('link', { name: title })).toHaveCount(2, { timeout: 15_000 });
+  await expect(page.getByRole('table').getByRole('link', { name: title })).toHaveCount(2, {
+    timeout: 15_000,
+  });
 
   // Genera/carga la lista de la semana y comprueba las cantidades agregadas
   // (200 g de patata x 2 días = 400 g, 2 ud de huevo x 2 días = 4 ud).

@@ -5,10 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: [
-      '**/*.e2e-spec.ts',
-      '**/*.integration-spec.ts',
-    ],
+    include: ['**/*.e2e-spec.ts', '**/*.integration-spec.ts'],
     exclude: ['node_modules', '.git'],
     setupFiles: ['./test/setup-env.ts'],
     coverage: {
@@ -25,7 +22,7 @@ export default defineConfig({
       // Información adicional que se mostrará en la consola
       reporter: ['text', 'json', 'html'],
       // Directorio donde se guardará el reporte de cobertura
-      directory: 'coverage',
+      reportsDirectory: 'coverage',
       // Archivos que se excluirán del cálculo de cobertura
       exclude: [
         'node_modules',

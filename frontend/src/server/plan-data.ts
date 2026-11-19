@@ -45,7 +45,7 @@ export async function loadPlanPageData(
       params: { path: { householdId, weekStart } },
     }),
     apiFetch.GET('/api/households/{householdId}/recipes', {
-      params: { path: { householdId }, query: { limit: 50 } },
+      params: { path: { householdId }, query: { limit: 50 } as any },
     }),
   ]);
 

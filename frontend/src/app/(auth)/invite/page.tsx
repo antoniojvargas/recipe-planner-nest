@@ -18,9 +18,7 @@ export default function InvitePage({
           </p>
 
           <div className="border rounded p-3 mb-3 select-none">
-            <code className="font-mono text-sm block word-break">
-              {inviteCode}
-            </code>
+            <code className="font-mono text-sm block word-break">{inviteCode}</code>
           </div>
 
           <button
@@ -37,7 +35,9 @@ export default function InvitePage({
           </p>
 
           <button
-            onClick={() => window.history.back()}
+            onClick={() => {
+              window.history.back();
+            }}
             className="w-full py-2 text-sm text-gray-500 hover:text-gray-700"
           >
             Volver atrás

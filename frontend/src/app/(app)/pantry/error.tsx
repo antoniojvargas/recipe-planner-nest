@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 export default function Error({
   error,
   reset,
@@ -9,9 +11,7 @@ export default function Error({
 }) {
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-4">
-      <p className="text-center text-tomato-600">
-        No se pudo cargar la despensa: {error.message}
-      </p>
+      <p className="text-center text-tomato-600">No se pudo cargar la despensa: {error.message}</p>
       <button
         type="button"
         onClick={reset}

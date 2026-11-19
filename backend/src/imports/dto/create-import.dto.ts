@@ -15,7 +15,7 @@ export class CreateImportDto {
     message: `La URL no puede superar los ${String(MAX_URL_LENGTH)} caracteres`,
   })
   @IsUrl(
-    { protocols: ['http', 'https'], require_protocol: true },
+    { protocols: ['http', 'https'], require_protocol: true, require_tld: false },
     { message: 'La URL debe ser una dirección http o https válida' },
   )
   url!: string;

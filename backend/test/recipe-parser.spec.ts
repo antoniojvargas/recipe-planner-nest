@@ -1,4 +1,8 @@
-import { parseIngredient, extractRecipe, type ParsedIngredient } from '../src/imports/recipe-parser';
+import {
+  parseIngredient,
+  extractRecipe,
+  type ParsedIngredient,
+} from '../src/imports/recipe-parser.js';
 
 describe('Recipe parser - parseIngredient', () => {
   it('parse "400 g de arroz" → {quantity: 400, unit: "g", name: "arroz"}', () => {

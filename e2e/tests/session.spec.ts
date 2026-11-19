@@ -8,9 +8,7 @@ const accessSecret =
   process.env.E2E_JWT_ACCESS_SECRET ?? 'e2e-access-secret-with-32-characters-min';
 
 function currentWeekStart(now = new Date()): string {
-  const monday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
+  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const weekday = monday.getUTCDay();
   monday.setUTCDate(monday.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
   return monday.toISOString().slice(0, 10);
@@ -35,10 +33,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   if (payload === undefined) {
     throw new Error('JWT sin payload');
   }
-  return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<
-    string,
-    unknown
-  >;
+  return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
 }
 
 async function getCookie(context: BrowserContext, name: string): Promise<string> {
@@ -50,11 +45,7 @@ async function getCookie(context: BrowserContext, name: string): Promise<string>
   return cookie.value;
 }
 
-async function setCookie(
-  context: BrowserContext,
-  name: string,
-  value: string,
-): Promise<void> {
+async function setCookie(context: BrowserContext, name: string, value: string): Promise<void> {
   await context.addCookies([
     {
       name,
@@ -76,10 +67,7 @@ async function setExpiredAccessToken(context: BrowserContext): Promise<void> {
     throw new Error('El access token no contiene sub/fid válidos');
   }
   const now = Math.floor(Date.now() / 1000);
-  const expired = signHs256Jwt(
-    { sub, fid, iat: now - 3600, exp: now - 60 },
-    accessSecret,
-  );
+  const expired = signHs256Jwt({ sub, fid, iat: now - 3600, exp: now - 60 }, accessSecret);
   await setCookie(context, 'access_token', expired);
 }
 
@@ -107,6 +95,17 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
   const context = page.context();
 
   await register(page);
+  await page.context().addCookies([
+    {
+      name: 'csrf_token',
+      value: csrfToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
   await page.goto(`/plan/${weekStart}`);
   await expect(page.getByText('Plan semanal')).toBeVisible({ timeout: 15_000 });
 
@@ -124,7 +123,7 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
   await expect(page.getByRole('heading', { name: 'Lo que hay en casa' })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByLabel('Correo electrónico')).toHaveCount(0);
+  await expect(page.getByText('Correo electrónico')).toHaveCount(0);
 
   // Reutiliza a mano el refresh token anterior (ya rotado): el backend detecta la
   // reutilización y revoca la familia completa.
@@ -144,6 +143,6 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
 
   await page.goto(`/plan/${weekStart}`);
   await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
-  await expect(page.getByLabel('Correo electrónico')).toBeVisible();
+  await expect(page.getByText('Correo electrónico')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
 });

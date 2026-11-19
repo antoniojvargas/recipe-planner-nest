@@ -1,3 +1,5 @@
+'use client';
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -65,7 +67,8 @@ describe('ImportDialog', () => {
   it('navigates on import success', async () => {
     const navigate = vi.fn();
     // Mock useNavigate to return our mock
-    ;(vi.mock('react-router-dom') as any).mockImplementation(() => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mock('react-router-dom') as any).mockImplementation(() => ({
       useNavigate: () => navigate,
     }));
 

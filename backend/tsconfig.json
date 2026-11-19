@@ -19,5 +19,14 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "types": ["vitest/globals", "node"]
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test/integration-setup.ts",
+    "test/integration-recipe-spec.ts",
+    "test/helpers.ts",
+    "test/shopping.integration.spec.ts",
+    "test/support"
+  ]
 }

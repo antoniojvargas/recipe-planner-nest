@@ -3,10 +3,13 @@ import 'server-only';
 import { redirect } from 'next/navigation';
 import { unwrapApiResult } from '@/lib/api-result';
 import { apiFetch } from './api';
-import type { components } from './openapi';
 
 /** Perfil público del usuario autenticado (`GET /api/auth/me`). */
-export type CurrentUser = components['schemas']['AuthUser'];
+export interface CurrentUser {
+  id: string;
+  email?: string;
+  displayName?: string;
+}
 
 /**
  * Usuario de la sesión para el render del servidor.

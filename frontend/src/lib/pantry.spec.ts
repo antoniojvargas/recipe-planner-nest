@@ -41,12 +41,7 @@ describe('sortPantryItems', () => {
       'leche',
       'zanahoria',
     ]);
-    expect(input.map((entry) => entry.name)).toEqual([
-      'zanahoria',
-      'Ázúcar',
-      'arroz',
-      'leche',
-    ]);
+    expect(input.map((entry) => entry.name)).toEqual(['zanahoria', 'Ázúcar', 'arroz', 'leche']);
   });
 });
 
@@ -57,10 +52,7 @@ describe('mergePantryItem', () => {
       item(' Arroz ', 500, 'g'),
     );
 
-    expect(merged).toEqual([
-      { name: ' Arroz ', quantity: 500, unit: 'g' },
-      item('leche', 2, 'l'),
-    ]);
+    expect(merged).toEqual([{ name: ' Arroz ', quantity: 500, unit: 'g' }, item('leche', 2, 'l')]);
   });
 
   it('añade el artículo nuevo en orden', () => {

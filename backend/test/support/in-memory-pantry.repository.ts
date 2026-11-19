@@ -1,28 +1,38 @@
-import type { PantryItemInput } from '../src/pantry/pantry.repository.js';
+import type { PantryItemInput } from '../../src/pantry/pantry.repository.js';
 
 /** Repositorio de despensa en memoria para pruebas de integración. */
 export class InMemoryPantryRepository {
-  readonly items: { name: string; quantity: number; unit: string; householdId: string }[] = [];
+  items: { name: string; quantity: number; unit: string; householdId: string }[] = [];
 
-  async findByHousehold(householdId: string): Promise<{ name: string; quantity: number; unit: string }[]> {
+  async findByHousehold(
+    householdId: string,
+  ): Promise<{ name: string; quantity: number; unit: string }[]> {
     return this.items
       .filter((item) => item.householdId === householdId)
       .map(({ name, quantity, unit }) => ({ name, quantity, unit }));
   }
 
-  async upsert(householdId: string, item: PantryItemInput): Promise<{ name: string; quantity: number; unit: string } | null> {
+  async upsert(
+    householdId: string,
+    item: PantryItemInput,
+  ): Promise<{ name: string; quantity: number; unit: string } | null> {
     const normalizedName = item.name.trim().toLowerCase();
 
     // Buscar si ya existe con ese nombre normalizado
     const existingIndex = this.items.findIndex(
-      (item) => item.householdId === householdId && item.name.trim().toLowerCase() === normalizedName,
+      (item) =>
+        item.householdId === householdId && item.name.trim().toLowerCase() === normalizedName,
     );
 
     if (existingIndex >= 0) {
       // Actualizar cantidad y unidad
       this.items[existingIndex].quantity = item.quantity;
       this.items[existingIndex].unit = item.unit;
-      return { name: this.items[existingIndex].name, quantity: this.items[existingIndex].quantity, unit: this.items[existingIndex].unit };
+      return {
+        name: this.items[existingIndex].name,
+        quantity: this.items[existingIndex].quantity,
+        unit: this.items[existingIndex].unit,
+      };
     } else {
       // Crear nuevo artículo
       const newItem = {
@@ -41,7 +51,8 @@ export class InMemoryPantryRepository {
     const initialLength = this.items.length;
 
     this.items = this.items.filter(
-      (item) => item.householdId !== householdId || item.name.trim().toLowerCase() !== normalizedName,
+      (item) =>
+        item.householdId !== householdId || item.name.trim().toLowerCase() !== normalizedName,
     );
 
     return this.items.length < initialLength;

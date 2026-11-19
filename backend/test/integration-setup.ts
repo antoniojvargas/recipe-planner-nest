@@ -20,40 +20,38 @@ async function getMongoUrl(): Promise<string> {
   if (process.env.TESTCONTAINERS_MONGO) {
     // Usar Testcontainers con MongoDB
     if (!redisContainer) {
-      redisContainer = await new 
-        new startedTestContainer('mongo:7').start();
+      redisContainer = await new new startedTestContainer('mongo:7').start();
     }
     // Note: Esto es un ejemplo; en la práctica se usaría el contenedor de mongo-test
     // desde docker-compose.test.yml
     return `mongodb://localhost:27017/recipes-test?replicaSet=rs0`;
   }
-  
+
   // Usar MongoMemoryServer para tests rápidos sin Docker
   if (!mongoContainer) {
     mongoContainer = new MongoMemoryServer();
     await mongoContainer.start();
   }
-  
+
   return mongoContainer.getUri();
 }
 
 /**
  * Obtiene la URL de Redis basándose en la variable de entorno.
- * Si TESTCONTAINERS_REDIS está definido, usa Testcontainers/docker-compose; 
+ * Si TESTCONTAINERS_REDIS está definido, usa Testcontainers/docker-compose;
  * si no, usa redis://localhost:6379.
  */
 async function getRedisUrl(): Promise<string> {
   if (process.env.TESTCONTAINERS_REDIS) {
     // Usar Testcontainers con Redis
     if (!redisContainer) {
-      redisContainer = await new 
-        new startedTestContainer('redis:7-alpine').start();
+      redisContainer = await new new startedTestContainer('redis:7-alpine').start();
     }
     const host = redisContainer.getHost();
     const port = redisContainer.getMappedPort(6379);
     return `redis://${host}:${port}`;
   }
-  
+
   // Usar Redis local para tests rápidos
   return 'redis://localhost:6379';
 }
@@ -67,10 +65,7 @@ export async function setupIntegrationApp(): Promise<{
   mongoUrl: string;
   redisUrl: string;
 }> {
-  const [mongoUrl, redisUrl] = await Promise.all([
-    getMongoUrl(),
-    getRedisUrl(),
-  ]);
+  const [mongoUrl, redisUrl] = await Promise.all([getMongoUrl(), getRedisUrl()]);
 
   // Establecer variables de entorno para que la app las lea
   process.env.MONGO_URL = mongoUrl;
@@ -82,7 +77,7 @@ export async function setupIntegrationApp(): Promise<{
 
   const fastifyAdapter = new FastifyAdapter();
   app = moduleRef.createNestApplication<NestFastifyApplication>(fastifyAdapter);
-  
+
   await configureApp(app);
   await app.init();
 
@@ -97,12 +92,12 @@ export async function teardownIntegrationApp(): Promise<void> {
     await mongoContainer.stop();
     mongoContainer = null;
   }
-  
+
   if (redisContainer) {
     await redisContainer.stop();
     redisContainer = null;
   }
-  
+
   if (app) {
     await app.close();
     app = null;

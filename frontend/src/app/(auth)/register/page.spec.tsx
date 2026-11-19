@@ -1,3 +1,5 @@
+'use client';
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -7,7 +9,7 @@ vi.mock('@/app/(auth)/actions', () => ({
   logoutAction: async () => {
     // Mock logout action
   },
-  loginAction: async (prevState, formData) => {
+  loginAction: async (_prevState: unknown, formData: FormData) => {
     const email = formData.get('email') as string;
     return {
       status: 'success' as const,
@@ -15,7 +17,7 @@ vi.mock('@/app/(auth)/actions', () => ({
       fieldErrors: {},
     };
   },
-  registerAction: async (prevState, formData) => {
+  registerAction: async (_prevState: unknown, formData: FormData) => {
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     return {
@@ -38,7 +40,7 @@ vi.mock('next/headers', () => ({
     set: vi.fn(),
     delete: vi.fn(),
   }),
-})));
+}));
 
 vi.mock('@/server/api', () => ({
   apiFetch: {
@@ -51,10 +53,10 @@ describe('RegisterPage', () => {
   it('renders the registration form', () => {
     render(<RegisterPage />);
 
-    expect(screen.getByRole('form')).toBeInTheDocument();
-    expect(screen.getByLabelText('Nombre')).toBeInTheDocument();
-    expect(screen.getByLabelText('Correo electrónico')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument();
+    expect(screen.getByRole('form')).toBeTruthy();
+    expect(screen.getByLabelText('Nombre')).toBeTruthy();
+    expect(screen.getByLabelText('Correo electrónico')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeTruthy();
   });
 
   it('shows name and email fields and submit button', async () => {
@@ -62,11 +64,11 @@ describe('RegisterPage', () => {
 
     const nameInput = screen.getByLabelText('Nombre');
     const emailInput = screen.getByLabelText('Correo electrónico');
-    expect(nameInput).toBeInTheDocument();
-    expect(emailInput).toBeInTheDocument();
+    expect(nameInput).toBeTruthy();
+    expect(emailInput).toBeTruthy();
 
     const submitButton = screen.getByRole('button', { name: /crear cuenta/i });
-    expect(submitButton).toBeInTheDocument();
+    expect(submitButton).toBeTruthy();
   });
 
   it('calls registerAction on submit with valid data', async () => {
