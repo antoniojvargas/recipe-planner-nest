@@ -123,7 +123,7 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
   await expect(page.getByRole('heading', { name: 'Lo que hay en casa' })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByLabel('Correo electrónico')).toHaveCount(0);
+  await expect(page.getByText('Correo electrónico')).toHaveCount(0);
 
   // Reutiliza a mano el refresh token anterior (ya rotado): el backend detecta la
   // reutilización y revoca la familia completa.
@@ -143,6 +143,6 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
 
   await page.goto(`/plan/${weekStart}`);
   await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
-  await expect(page.getByLabel('Correo electrónico')).toBeVisible();
+  await expect(page.getByText('Correo electrónico')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Entrar' })).toBeVisible();
 });

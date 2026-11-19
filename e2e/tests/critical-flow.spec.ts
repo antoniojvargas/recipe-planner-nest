@@ -175,7 +175,7 @@ test('flujo crítico: registro, receta con foto, plan de dos días y lista agreg
   await expect(page.getByRole('link', { name: title }).first()).toBeVisible();
 
   await addRecipeToSlot(page, 'Martes', 'comida', title);
-  await expect(page.getByRole('link', { name: title })).toHaveCount(2, { timeout: 15_000 });
+  await expect(page.getByRole('table').getByRole('link', { name: title })).toHaveCount(2, { timeout: 15_000 });
 
   // Genera/carga la lista de la semana y comprueba las cantidades agregadas
   // (200 g de patata x 2 días = 400 g, 2 ud de huevo x 2 días = 4 ud).
