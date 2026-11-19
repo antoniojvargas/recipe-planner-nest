@@ -95,6 +95,17 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
   const context = page.context();
 
   await register(page);
+  await page.context().addCookies([
+    {
+      name: 'csrf_token',
+      value: csrfToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
   await page.goto(`/plan/${weekStart}`);
   await expect(page.getByText('Plan semanal')).toBeVisible({ timeout: 15_000 });
 

@@ -56,6 +56,17 @@ test('importa una receta desde un fixture JSON-LD servido en la red E2E', async 
   const uniqueEmail = `import+${Date.now()}@example.com`;
 
   await registerUser(request, uniqueEmail);
+  await page.context().addCookies([
+    {
+      name: 'csrf_token',
+      value: csrfToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
   const householdId = await getHouseholdId(request);
 
   const importResponse = await request.post(`${apiURL}/api/households/${householdId}/imports`, {

@@ -154,6 +154,17 @@ test('flujo crítico: registro, receta con foto, plan de dos días y lista agreg
   const request = page.context().request;
 
   await registerUser(request, uniqueEmail);
+  await page.context().addCookies([
+    {
+      name: 'csrf_token',
+      value: csrfToken,
+      domain: 'localhost',
+      path: '/',
+      httpOnly: false,
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
   const householdId = await getHouseholdId(request);
   const { recipeId, title } = await createRecipeWithPhoto(request, householdId);
 
