@@ -177,15 +177,15 @@ describe('subscribeToShoppingList', () => {
     });
   });
 
-  it('no invalida en la conexión inicial y sí al reconectar', () => {
+  it('invalida al conectar para sincronizar el estado', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
     subscribe();
 
     fake.fire('connect');
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledTimes(1);
 
     fake.fire('connect');
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledTimes(2);
   });
 
   it('no crea una lista si la caché todavía está vacía', () => {

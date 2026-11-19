@@ -1,49 +1,45 @@
 import { Injectable } from '@nestjs/common';
+import { UNITS, type Unit, type UnitDimension } from '@recipe-planner/contracts';
 import { RecipesRepository } from '../recipes/recipes.repository.js';
 import type { MealPlan } from '../meal-plans/meal-plan.schema.js';
 import type { PantryItem } from '../pantry/pantry-item.schema.js';
-import { Unit } from '@recipe-planner/contracts';
 import type { ShoppingListItem } from '../shopping/shopping-list.schema.js';
 
 function normalizeName(name: string): string {
   return name.toLowerCase().trim();
 }
 
-const UNIT_FACTORS: Record<Unit, number> = {
-  g: 1,
-  kg: 1_000,
-  ml: 1,
-  l: 1_000,
-  tsp: 5,
-  tbsp: 15,
-  cup: 240,
-  unit: 1,
-  pinch: 1,
-};
-
-function toBase(qty: number, unit: Unit): number {
-  const factor = UNIT_FACTORS[unit] ?? 1;
-  return qty * factor;
+function dimensionOf(unit: Unit): UnitDimension {
+  return UNITS[unit].dimension;
 }
 
-function fromBase(qtyBase: number): { qty: number; unit: Unit } {
-  let bestUnit: Unit = 'g';
-  let bestFactor = 1;
-  let bestQty = qtyBase;
+function toBase(qty: number, unit: Unit): number {
+  return qty * UNITS[unit].factor;
+}
 
-  for (const [u, f] of Object.entries(UNIT_FACTORS) as [Unit, number][]) {
-    const q = qtyBase / f;
+function unitsInDimension(dimension: UnitDimension): Unit[] {
+  return (Object.keys(UNITS) as Unit[]).filter((unit) => UNITS[unit].dimension === dimension);
+}
+
+function fromBase(qtyBase: number, dimension: UnitDimension): { qty: number; unit: Unit } {
+  const candidates = unitsInDimension(dimension);
+  let bestUnit = candidates[0];
+  let bestFactor = UNITS[bestUnit].factor;
+  let bestQty = qtyBase / bestFactor;
+
+  for (const unit of candidates) {
+    const factor = UNITS[unit].factor;
+    const q = qtyBase / factor;
     if (q >= 1 && q <= 1000) {
-      if (q > bestQty || (q === bestQty && f > bestFactor)) {
-        bestUnit = u;
-        bestFactor = f;
+      if (q > bestQty || (q === bestQty && factor > bestFactor)) {
+        bestUnit = unit;
+        bestFactor = factor;
         bestQty = q;
       }
-    }
-    if (q < 1 && bestQty < 1) {
+    } else if (q < 1 && bestQty < 1) {
       if (q > bestQty) {
-        bestUnit = u;
-        bestFactor = f;
+        bestUnit = unit;
+        bestFactor = factor;
         bestQty = q;
       }
     }
@@ -58,9 +54,16 @@ function addScaled(
   bQty: number,
   bUnit: Unit,
 ): { qty: number; unit: Unit } | null {
+  if (dimensionOf(aUnit) !== dimensionOf(bUnit)) {
+    return null;
+  }
+
   const baseTotal = toBase(aQty, aUnit) + toBase(bQty, bUnit);
-  if (Number.isNaN(baseTotal) || baseTotal <= 0) return null;
-  return fromBase(baseTotal);
+  if (Number.isNaN(baseTotal) || baseTotal <= 0) {
+    return null;
+  }
+
+  return fromBase(baseTotal, dimensionOf(aUnit));
 }
 
 @Injectable()
@@ -98,12 +101,13 @@ export class ShoppingListGenerator {
       }
     }
 
-    const pantryMap = new Map<string, number>();
+    const pantryByName = new Map<string, Map<UnitDimension, number>>();
     for (const item of pantryItems) {
-      const base = toBase(item.quantity, item.unit);
       const key = normalizeName(item.name);
-      const existing = pantryMap.get(key) ?? 0;
-      pantryMap.set(key, existing + base);
+      const dimension = dimensionOf(item.unit);
+      const byDimension = pantryByName.get(key) ?? new Map<UnitDimension, number>();
+      byDimension.set(dimension, (byDimension.get(dimension) ?? 0) + toBase(item.quantity, item.unit));
+      pantryByName.set(key, byDimension);
     }
 
     const result: { name: string; quantity: number; unit: Unit }[] = [];
@@ -113,11 +117,12 @@ export class ShoppingListGenerator {
       if (seen.has(normName)) continue;
       seen.add(normName);
 
-      const pantryBase = pantryMap.get(normName) ?? 0;
+      const dimension = dimensionOf(unit);
+      const pantryBase = pantryByName.get(normName)?.get(dimension) ?? 0;
       const remainingBase = toBase(qty, unit) - pantryBase;
 
       if (remainingBase > 0) {
-        const converted = fromBase(remainingBase);
+        const converted = fromBase(remainingBase, dimension);
         const originalName =
           [...ingredientCounts.keys()].find((k) => normalizeName(k) === normName) || normName;
 

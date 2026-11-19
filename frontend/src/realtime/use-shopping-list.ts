@@ -40,7 +40,6 @@ export function subscribeToShoppingList({
   weekStart,
 }: ShoppingListSubscription): () => void {
   const queryKey = shoppingListQueryKey(householdId, weekStart);
-  let connectedBefore = socket.connected;
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey });
@@ -66,11 +65,9 @@ export function subscribeToShoppingList({
   };
 
   const onConnect = (): void => {
-    if (connectedBefore) {
-      invalidate();
-    }
-
-    connectedBefore = true;
+    // Sincroniza tras (re)conectar: entre la carga inicial y la conexión, o durante una caída,
+    // pudieron ocurrir eventos que este socket no recibió.
+    invalidate();
   };
 
   socket.on(SOCKET_EVENTS.shoppingItemUpdated, onItemUpdated);
