@@ -1,0 +1,324 @@
+# Pila de producción: Caddy termina TLS y reparte por ruta; Mongo con autenticación y
+# replica set, Redis con contraseña y MinIO sin consola pública.
+#
+#   cp .env.production.example .env
+#   # crea los ficheros de secrets/*.txt que se indican en secrets/README.md
+#   docker compose -f docker-compose.prod.yml up -d --build --wait
+#
+# No hay secretos en `.env`: contraseñas y tokens llegan como Docker secrets montados en
+# /run/secrets, y la API los lee con sus variantes `*_FILE`. Solo Caddy publica puertos
+# (80/443). El resto de servicios viven en la red interna.
+name: recipes-prod
+
+# Variables comunes de la API y el worker. Las URLs de Mongo y Redis se entregan completas
+# en secretos: contienen la contraseña y no pueden construirse interpolando el `.env`.
+x-backend-environment: &backend-environment
+  APP_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Heap de la API: el 75 % del límite de 512m del contenedor. El worker usa otro valor
+  # (768m sobre 1g) porque descarga y redimensiona imágenes con sharp fuera del heap.
+  NODE_OPTIONS: --max-old-space-size=384
+  # Solo Caddy (en la red de Docker) puede fijar la IP del cliente con X-Forwarded-For.
+  # El throttler cuenta por request.ip, así que esto evita que se pueda falsificar.
+  TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
+  MONGO_URL_FILE: /run/secrets/mongo_url
+  REDIS_URL_FILE: /run/secrets/redis_url
+  # S3_ENDPOINT: tráfico interno (subir, HeadObject, borrar) por la red de Docker.
+  S3_ENDPOINT: http://minio:9000
+  # S3_PUBLIC_ENDPOINT es solo el host público, sin prefijo: con `forcePathStyle` el SDK
+  # genera /<bucket>/<key>. El bucket se llama `media` para que esa ruta encaje con el
+  # /media de Caddy sin reescribirla (reescribirla rompería la firma SigV4).
+  S3_PUBLIC_ENDPOINT: https://${APP_DOMAIN:-recipes.local}
+  S3_BUCKET: media
+  # Mismo par de credenciales que MinIO: la API firma y el servidor S3 valida con ellos.
+  S3_ACCESS_KEY_FILE: /run/secrets/minio_root_user
+  S3_SECRET_KEY_FILE: /run/secrets/minio_root_password
+  JWT_ACCESS_SECRET_FILE: /run/secrets/jwt_access_secret
+  JWT_REFRESH_SECRET_FILE: /run/secrets/jwt_refresh_secret
+  SMTP_HOST: ${SMTP_HOST:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  MAIL_FROM: ${MAIL_FROM:-Recipe Planner <no-reply@recipes.local>}
+  FRONTEND_URL: https://${APP_DOMAIN:-recipes.local}
+  API_INTERNAL_URL: http://backend:3000
+  PUBLIC_URL: https://${APP_DOMAIN:-recipes.local}
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-recipes.local}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # La CA interna y los certificados emitidos viven aquí: si se pierde el volumen,
+      # el navegador vuelve a ver un certificado distinto.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo-keyfile:
+    image: mongo:7
+    # Mongo exige un keyfile para la autenticación interna del replica set. Tiene que ser
+    # del usuario de mongod y con permisos 0400, así que se crea una sola vez aquí.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -s /keyfile/keyfile ]; then
+          openssl rand -base64 48 > /keyfile/keyfile
+          chown 999:999 /keyfile/keyfile
+          chmod 400 /keyfile/keyfile
+        fi
+    volumes:
+      - mongo-keyfile:/keyfile
+    restart: 'no'
+
+  mongo:
+    image: mongo:7
+    # `--auth` activa usuario y contraseña; en un replica set el keyfile cubre además la
+    # autenticación entre miembros (aunque aquí solo haya uno).
+    command:
+      ['--replSet', 'rs0', '--bind_ip_all', '--auth', '--keyFile', '/run/mongo-keyfile/keyfile']
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-recipes}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_root_password
+    secrets:
+      - mongo_root_password
+    volumes:
+      - mongo-data:/data/db
+      - mongo-keyfile:/run/mongo-keyfile:ro
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    healthcheck:
+      # Con `--auth`, `rs.initiate` necesita credenciales. Es idempotente: en el primer
+      # arranque inicializa y después lanza AlreadyInitialized, que se ignora.
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME"
+          -p "$$(cat /run/secrets/mongo_root_password)" --authenticationDatabase admin --eval '
+          try { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] }); } catch (e) {}
+          db.hello().isWritablePrimary' | grep -q true
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # La imagen oficial no tiene `REDIS_PASSWORD_FILE`: se lee el secreto en el arranque.
+    command:
+      - sh
+      - -c
+      - exec redis-server --requirepass "$$(cat /run/secrets/redis_password)" --appendonly yes
+    secrets:
+      - redis_password
+    volumes:
+      # BullMQ guarda aquí las colas: sin persistencia, un reinicio pierde los trabajos.
+      - redis-data:/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'redis-cli --no-auth-warning -a "$$(cat /run/secrets/redis_password)" ping | grep -q PONG',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: bitnamilegacy/minio:latest
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_DEFAULT_BUCKETS: ''
+      # Sin consola web: el único acceso desde fuera es /media a través de Caddy.
+      MINIO_BROWSER: 'off'
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    volumes:
+      - minio-data:/bitnami/minio/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9000/minio/health/live >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  minio-init:
+    image: bitnamilegacy/minio:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    environment:
+      S3_BUCKET: media
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 \
+          "$$(cat /run/secrets/minio_root_user)" "$$(cat /run/secrets/minio_root_password)"
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        # El bucket queda privado: se lee y se escribe solo con URLs prefirmadas.
+        mc anonymous set none "local/$${S3_BUCKET}"
+    restart: 'no'
+
+  mailpit:
+    image: axllent/mailpit
+    # Sin puertos publicados: en un despliegue real SMTP_HOST apunta al proveedor de correo.
+    # Aquí los mensajes se quedan dentro de la red y se pueden leer con
+    # `docker compose -f docker-compose.prod.yml exec mailpit mailpit ...`.
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    image: recipes-backend:prod
+    secrets:
+      - mongo_url
+      - redis_url
+      - minio_root_user
+      - minio_root_password
+      - jwt_access_secret
+      - jwt_refresh_secret
+    environment:
+      <<: *backend-environment
+    expose:
+      - '3000'
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://127.0.0.1:3000/api/health").then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+    # Nest cierra sockets, colas, Redis y Mongo con calma cuando recibe el SIGTERM.
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  worker:
+    # Misma imagen que la API: el comando cambia, no el build.
+    image: recipes-backend:prod
+    command: ['node', 'backend/dist/worker.js']
+    secrets:
+      - mongo_url
+      - redis_url
+      - minio_root_user
+      - minio_root_password
+      - jwt_access_secret
+      - jwt_refresh_secret
+    environment:
+      <<: *backend-environment
+      # Más heap que la API: sharp trabaja con buffers fuera de V8 al generar miniaturas.
+      NODE_OPTIONS: --max-old-space-size=768
+    depends_on:
+      backend:
+        condition: service_started
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    mem_limit: 1g
+    # `worker.close()` espera a los trabajos en curso antes de cortar Redis y Mongo.
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+    image: recipes-frontend:prod
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://backend:3000
+      FRONTEND_URL: https://${APP_DOMAIN:-recipes.local}
+      NODE_OPTIONS: --max-old-space-size=384
+      # `NEXT_PUBLIC_API_URL` no se define: Caddy sirve Next y `/socket.io` en el mismo
+      # origen, que es lo que usa el cliente cuando la variable está vacía.
+    expose:
+      - '3001'
+    mem_limit: 512m
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://127.0.0.1:3001/").then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+# Un fichero por secreto en `secrets/*.txt`, con una sola línea y sin comillas. Montados
+# como Docker secrets, el proceso los ve en /run/secrets/<nombre>.
+# `mongo_url` y `redis_url` llevan la URL completa con la contraseña: si se rota, hay que
+# actualizar también el fichero de la contraseña que usan los servicios de Mongo y Redis.
+secrets:
+  mongo_root_password:
+    file: ./secrets/mongo_root_password.txt
+  mongo_url:
+    file: ./secrets/mongo_url.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  redis_url:
+    file: ./secrets/redis_url.txt
+  minio_root_user:
+    file: ./secrets/minio_root_user.txt
+  minio_root_password:
+    file: ./secrets/minio_root_password.txt
+  jwt_access_secret:
+    file: ./secrets/jwt_access_secret.txt
+  jwt_refresh_secret:
+    file: ./secrets/jwt_refresh_secret.txt
+
+volumes:
+  caddy-data:
+  caddy-config:
+  mongo-data:
+  mongo-keyfile:
+  redis-data:
+  minio-data:

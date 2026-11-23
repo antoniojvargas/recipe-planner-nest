@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1
+
+# Imagen de producción de la web. El contexto de build es la raíz del repositorio, porque
+# el lockfile y los manifiestos viven en el workspace:
+#   docker build -f frontend/Dockerfile.prod -t recipes-frontend:prod .
+
+ARG NODE_IMAGE=node:22-alpine
+
+# --- build -------------------------------------------------------------------
+FROM ${NODE_IMAGE} AS build
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Manifiestos de todos los workspaces: esta capa solo se invalida si cambian las dependencias.
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
+COPY packages/contracts/package.json ./packages/contracts/
+
+# Solo las dependencias que necesita este build (web + contratos): la API tiene su imagen.
+RUN npm ci --workspace frontend --workspace @recipe-planner/contracts
+
+# El paquete compartido se compila antes: la web importa sus tipos y constantes.
+COPY packages/contracts/tsconfig.json ./packages/contracts/
+COPY packages/contracts/src ./packages/contracts/src
+RUN npm run build -w @recipe-planner/contracts
+
+# Solo el código: `node_modules` y `.next` del host no entran en la imagen.
+COPY frontend/next.config.ts frontend/tsconfig.json frontend/postcss.config.mjs frontend/eslint.config.mjs ./frontend/
+COPY frontend/src ./frontend/src
+COPY frontend/public ./frontend/public
+
+# `output: 'standalone'` deja en `.next/standalone` el servidor y solo los módulos que
+# usa, con la raíz del workspace como `outputFileTracingRoot`.
+RUN npm run build -w frontend
+
+# --- runtime -----------------------------------------------------------------
+FROM ${NODE_IMAGE} AS runtime
+
+# tini reapea procesos huérfanos y reenvía SIGTERM/SIGINT al servidor de Next.
+RUN apk add --no-cache tini
+
+WORKDIR /app
+
+# Next sólo escucha en 0.0.0.0 si se le pide explícitamente por variable de entorno.
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3001 \
+    HOSTNAME=0.0.0.0
+
+# `.next/standalone` reproduce la raíz del workspace, así que el servidor queda en
+# `/app/frontend/server.js` y el resto se copia en las rutas que espera.
+COPY --from=build --chown=node:node /app/frontend/.next/standalone ./
+COPY --from=build --chown=node:node /app/frontend/.next/static ./frontend/.next/static
+COPY --from=build --chown=node:node /app/frontend/public ./frontend/public
+
+USER node
+
+EXPOSE 3001
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "frontend/server.js"]

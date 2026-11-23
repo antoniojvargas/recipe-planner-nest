@@ -11,4 +11,6 @@ import { WorkerModule } from './worker.module.js';
 const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: true });
 
 app.useLogger(app.get(Logger));
-app.enableShutdownHooks();
+// Igual que la API: `useProcessExit` deja que pino vacíe sus buffers antes de terminar.
+// Sin él Nest se reenvía la señal y se pierden los logs del apagado ordenado.
+app.enableShutdownHooks([], { useProcessExit: true });

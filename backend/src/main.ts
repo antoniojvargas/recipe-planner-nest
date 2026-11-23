@@ -7,12 +7,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AppModule, ObserveInstrument } from './app.module.js';
 import { configureApp } from './app.setup.js';
 import { exposeRequestId, requestIdAdapterOptions } from './config/request-id.js';
+import { trustProxyOptions } from './config/trust-proxy.js';
 import { registerRealtimeAdapter } from './realtime/redis-io.adapter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
+      ...trustProxyOptions(),
       // Limit body size to 1 MiB para evitar ataques de subida de archivos
       // y consumos excesivos de memoria.
       bodyLimit: 1_048_576,
@@ -72,8 +74,12 @@ async function bootstrap() {
       customSiteTitle: 'Recipe Planner API Docs',
     });
   } else if (isProduction) {
-    // En producción servimos solo el JSON en /json; la UI no está expuesta.
+    // En producción servimos solo el JSON en /json; la UI no está expuesta. `ui: false`
+    // evita registrar la UI y sus assets estáticos, y `jsonDocumentUrl` mantiene el
+    // documento en /json en lugar del `/json-json` por defecto.
     SwaggerModule.setup('json', app, document, {
+      ui: false,
+      jsonDocumentUrl: 'json',
       swaggerOptions: {
         persistAuthorization: true,
       },

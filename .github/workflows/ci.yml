@@ -194,3 +194,87 @@ jobs:
       - name: Stop E2E stack
         if: always()
         run: docker compose -f docker-compose.e2e.yml down -v --remove-orphans
+
+  build-prod-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build production images
+        run: docker compose -f docker-compose.prod.yml build
+
+      - name: Verify the images run as a non-root user
+        run: |
+          for image in recipes-backend:prod recipes-frontend:prod; do
+            user=$(docker inspect -f '{{.Config.User}}' "$image")
+            uid=$(docker run --rm --entrypoint sh "$image" -c 'id -u')
+            echo "$image -> User=$user uid=$uid"
+            test "$user" = "node"
+            test "$uid" != "0"
+          done
+
+      # El compose lee ocho secretos desde secrets/*.txt. Se generan aquí, nunca se versionan.
+      - name: Create throwaway secrets for the prod stack
+        run: |
+          gen() { openssl rand -base64 48 | tr -d '/+=' | head -c 40; }
+          mongo_password=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          redis_password=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          printf '%s' "$mongo_password" > secrets/mongo_root_password.txt
+          printf 'mongodb://recipes:%s@mongo:27017/recipes?authSource=admin&replicaSet=rs0' "$mongo_password" > secrets/mongo_url.txt
+          printf '%s' "$redis_password" > secrets/redis_password.txt
+          printf 'redis://:%s@redis:6379' "$redis_password" > secrets/redis_url.txt
+          printf 'recipesadmin' > secrets/minio_root_user.txt
+          gen > secrets/minio_root_password.txt
+          gen > secrets/jwt_access_secret.txt
+          gen > secrets/jwt_refresh_secret.txt
+
+      - name: Start prod stack
+        run: docker compose -f docker-compose.prod.yml up -d
+
+      # `up --wait` devuelve 1 en algunas versiones de Compose cuando un servicio de una
+      # sola vez termina (mongo-keyfile, minio-init), aunque todo esté healthy. Se espera
+      # explícitamente a los healthchecks que importan: backend y frontend.
+      - name: Wait for healthchecks and verify endpoints
+        run: |
+          for attempt in $(seq 1 60); do
+            all_healthy=true
+            for service in backend frontend; do
+              container=$(docker compose -f docker-compose.prod.yml ps -q "$service")
+              health_status=$(docker inspect -f '{{.State.Health.Status}}' "$container")
+              [ "$health_status" = healthy ] || all_healthy=false
+            done
+            [ "$all_healthy" = true ] && break
+            sleep 2
+          done
+
+          for service in backend frontend; do
+            container=$(docker compose -f docker-compose.prod.yml ps -q "$service")
+            health_status=$(docker inspect -f '{{.State.Health.Status}}' "$container")
+            echo "$service healthcheck: $health_status"
+            test "$health_status" = "healthy"
+          done
+
+          # Caddy termina TLS con su CA interna: `-k` y `--resolve` bastan para no
+          # depender de DNS ni de confiar en la CA dentro del runner.
+          for attempt in 1 2 3 4 5; do
+            if curl -ksS --resolve recipes.local:443:127.0.0.1 \
+              https://recipes.local/api/health | grep -q '"status":"ok"'; then
+              break
+            fi
+            sleep 2
+          done
+          curl -ksS --resolve recipes.local:443:127.0.0.1 \
+            https://recipes.local/api/health | grep -q '"status":"ok"'
+          test "$(curl -ksS --resolve recipes.local:443:127.0.0.1 \
+            -o /dev/null -w '%{http_code}' https://recipes.local/)" = "200"
+
+      - name: Show prod stack logs
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml logs
+
+      - name: Stop prod stack
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down -v --remove-orphans
