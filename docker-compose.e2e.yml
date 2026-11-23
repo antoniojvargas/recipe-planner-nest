@@ -171,8 +171,20 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    # `next dev` recompila bajo demanda y deja conexiones colgadas cuando
+    # Playwright encadena navegaciones. Compilamos en el arranque y servimos el
+    # standalone (output: standalone) para que el E2E sea determinista.
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        npm run build -w frontend
+        cp -R frontend/.next/static frontend/.next/standalone/frontend/.next/static
+        cp -R frontend/public frontend/.next/standalone/frontend/public
+        exec env PORT=3001 HOSTNAME=:: node frontend/.next/standalone/frontend/server.js
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       API_INTERNAL_URL: http://backend:3000
       FRONTEND_URL: http://localhost:3001
       NEXT_PUBLIC_API_URL: http://localhost:3000
@@ -181,4 +193,14 @@ services:
     depends_on:
       backend:
         condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://localhost:3001/login >/dev/null 2>&1 || exit 1',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     restart: unless-stopped
