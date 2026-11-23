@@ -165,7 +165,7 @@ export function PantryBoard({ householdId, initialItems }: PantryBoardProps) {
   return (
     <div>
       <header className="mb-6">
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-400">Despensa</p>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-500">Despensa</p>
         <h1 className="font-serif text-2xl text-pepper-900 sm:text-3xl">Lo que hay en casa</h1>
         <p className="mt-1 max-w-prose text-sm text-pepper-500">
           Lo que apuntes aquí no se compra: la lista de la semana descuenta estas cantidades.
@@ -235,7 +235,7 @@ export function PantryBoard({ householdId, initialItems }: PantryBoardProps) {
         </div>
 
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-pepper-400">
+          <p className="text-xs text-pepper-500">
             Si el producto ya existe, se le actualiza la cantidad.
           </p>
           <button
@@ -276,7 +276,7 @@ export function PantryBoard({ householdId, initialItems }: PantryBoardProps) {
 
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="font-serif text-lg text-pepper-800">En la despensa</h2>
-        <span className="text-xs text-pepper-400">
+        <span className="text-xs text-pepper-500">
           {items.length} {items.length === 1 ? 'producto' : 'productos'}
         </span>
       </div>
@@ -470,7 +470,7 @@ function PantryRow({
             }}
             disabled={busy}
             aria-label={`Quitar ${label} de la despensa`}
-            className="h-11 rounded-lg px-3 text-xs text-pepper-400 hover:bg-flour-100 hover:text-tomato-600 focus:outline-none focus:ring-2 focus:ring-flour-400"
+            className="h-11 rounded-lg px-3 text-xs text-pepper-500 hover:bg-flour-100 hover:text-tomato-600 focus:outline-none focus:ring-2 focus:ring-flour-400"
           >
             Quitar
           </button>

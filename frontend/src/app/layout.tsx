@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { apiFetch } from '@/server/api';
+import './globals.css';
 
 // Un título por defecto para todas las rutas: sin él, los lectores de pantalla y el
 // historial del navegador no pueden distinguir unas páginas de otras (axe: document-title).

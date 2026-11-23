@@ -125,7 +125,7 @@ export function PlanBoard({
     <div>
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-400">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-500">
             Plan semanal
           </p>
           <h1 className="font-serif text-2xl text-pepper-900 sm:text-3xl">
@@ -137,21 +137,21 @@ export function PlanBoard({
           <Link
             href={`/plan/${shiftWeek(weekStart, -1)}`}
             aria-label="Semana anterior"
-            className="rounded-lg border border-flour-400 px-3 py-2 text-sm text-pepper-600 hover:bg-flour-100"
+            className="inline-flex min-h-11 items-center rounded-lg border border-flour-400 px-3 text-sm text-pepper-600 hover:bg-flour-100"
           >
             ←
           </Link>
           <Link
             href={`/plan/${thisWeek}`}
             aria-current={weekStart === thisWeek ? 'page' : undefined}
-            className="rounded-lg border border-flour-400 px-3 py-2 text-sm font-medium text-pepper-600 hover:bg-flour-100 aria-[current=page]:border-basil-500 aria-[current=page]:bg-basil-50 aria-[current=page]:text-basil-700"
+            className="inline-flex min-h-11 items-center rounded-lg border border-flour-400 px-3 text-sm font-medium text-pepper-600 hover:bg-flour-100 aria-[current=page]:border-basil-500 aria-[current=page]:bg-basil-50 aria-[current=page]:text-basil-700"
           >
             Esta semana
           </Link>
           <Link
             href={`/plan/${shiftWeek(weekStart, 1)}`}
             aria-label="Semana siguiente"
-            className="rounded-lg border border-flour-400 px-3 py-2 text-sm text-pepper-600 hover:bg-flour-100"
+            className="inline-flex min-h-11 items-center rounded-lg border border-flour-400 px-3 text-sm text-pepper-600 hover:bg-flour-100"
           >
             →
           </Link>
@@ -177,7 +177,7 @@ export function PlanBoard({
       )}
 
       {planQuery.isFetching && (
-        <p className="mb-3 text-xs text-pepper-400" aria-live="polite">
+        <p className="mb-3 text-xs text-pepper-500" aria-live="polite">
           Actualizando el plan…
         </p>
       )}
@@ -193,7 +193,7 @@ export function PlanBoard({
               </th>
               {days.map((day) => (
                 <th key={day.index} scope="col" className="pb-1 text-center">
-                  <span className="block text-xs uppercase tracking-wide text-pepper-400">
+                  <span className="block text-xs uppercase tracking-wide text-pepper-500">
                     {day.weekday}
                   </span>
                   <span
@@ -274,7 +274,7 @@ export function PlanBoard({
               {DAY_NAMES[day.index]}
               <span
                 className={`text-sm ${
-                  day.date === today ? 'font-medium text-basil-600' : 'text-pepper-400'
+                  day.date === today ? 'font-medium text-basil-600' : 'text-pepper-500'
                 }`}
               >
                 {day.dayOfMonth} {day.month}
@@ -287,7 +287,7 @@ export function PlanBoard({
 
                 return (
                   <div key={meal} className="flex items-start gap-3">
-                    <span className="w-20 shrink-0 pt-2 text-xs font-medium uppercase tracking-wide text-pepper-400">
+                    <span className="w-20 shrink-0 pt-2 text-xs font-medium uppercase tracking-wide text-pepper-500">
                       {MEAL_LABELS[meal]}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -375,7 +375,7 @@ function SlotCell({
         type="button"
         onClick={onPick}
         aria-label={`Añadir receta al ${context}`}
-        className={`flex h-full w-full ${minHeight} flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-flour-400 bg-flour-50/60 px-3 py-4 text-sm text-pepper-400 transition-colors hover:border-basil-300 hover:bg-basil-50 hover:text-basil-700`}
+        className={`flex h-full w-full ${minHeight} flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-flour-400 bg-flour-50/60 px-3 py-4 text-sm text-pepper-500 transition-colors hover:border-basil-300 hover:bg-basil-50 hover:text-basil-700`}
       >
         <span aria-hidden className="text-lg leading-none">
           +
@@ -394,7 +394,7 @@ function SlotCell({
       <div className="min-w-0">
         <Link
           href={`/recipes/${slot.recipeId}`}
-          className="line-clamp-3 text-sm font-medium text-pepper-800 hover:text-basil-700 hover:underline"
+          className="inline-flex min-h-11 items-center line-clamp-3 text-sm font-medium text-pepper-800 hover:text-basil-700 hover:underline"
         >
           {recipe?.title ?? 'Receta no disponible'}
         </Link>
@@ -413,7 +413,7 @@ function SlotCell({
             type="button"
             onClick={onPick}
             aria-label={`Cambiar la receta del ${context}`}
-            className="rounded-md px-2 py-1 text-xs font-medium text-pepper-500 hover:bg-flour-100 hover:text-pepper-800"
+            className="inline-flex min-h-11 items-center rounded-md px-2 text-xs font-medium text-pepper-500 hover:bg-flour-100 hover:text-pepper-800"
           >
             Cambiar
           </button>
@@ -421,7 +421,7 @@ function SlotCell({
             type="button"
             onClick={onRemove}
             aria-label={`Quitar la receta del ${context}`}
-            className="rounded-md p-1 text-pepper-400 hover:bg-tomato-50 hover:text-tomato-600"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-base text-pepper-500 hover:bg-tomato-50 hover:text-tomato-600"
           >
             ✕
           </button>
@@ -475,7 +475,7 @@ function ServingsStepper({ value, context, onChange }: ServingsStepperProps) {
         }}
         disabled={value <= MIN_SERVINGS}
         aria-label={`Reducir raciones del ${context}`}
-        className="rounded-md border border-flour-300 px-1.5 py-0.5 text-sm text-pepper-500 hover:bg-flour-100 disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-flour-300 text-base text-pepper-500 hover:bg-flour-100 disabled:cursor-not-allowed disabled:opacity-40"
       >
         −
       </button>
@@ -495,7 +495,7 @@ function ServingsStepper({ value, context, onChange }: ServingsStepperProps) {
           }
         }}
         aria-label={`Raciones del ${context}`}
-        className="w-9 rounded-md border border-flour-300 py-0.5 text-center text-sm text-pepper-800 focus:border-basil-500 focus:outline-none focus:ring-1 focus:ring-basil-500"
+        className="h-11 w-11 rounded-md border border-flour-300 text-center text-sm text-pepper-800 focus:border-basil-500 focus:outline-none focus:ring-1 focus:ring-basil-500"
       />
       <button
         type="button"
@@ -504,11 +504,11 @@ function ServingsStepper({ value, context, onChange }: ServingsStepperProps) {
         }}
         disabled={value >= MAX_SERVINGS}
         aria-label={`Aumentar raciones del ${context}`}
-        className="rounded-md border border-flour-300 px-1.5 py-0.5 text-sm text-pepper-500 hover:bg-flour-100 disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-flour-300 text-base text-pepper-500 hover:bg-flour-100 disabled:cursor-not-allowed disabled:opacity-40"
       >
         +
       </button>
-      <span className="text-xs text-pepper-400">rac.</span>
+      <span className="text-xs text-pepper-500">rac.</span>
     </div>
   );
 }

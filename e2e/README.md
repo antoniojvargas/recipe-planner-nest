@@ -53,6 +53,17 @@ si Axe encuentra violaciones de WCAG 2.1 A/AA o de buenas prácticas (`document-
 `landmark-one-main`, `region`, `page-has-heading-one`, …). Imprime el detalle de cada nodo
 incumplido para poder corregirlo. Forma parte de la suite completa, así que también corre en CI.
 
+Revisión a 360 px (ancho de móvil pequeño):
+
+```bash
+npm run test:mobile -w e2e
+```
+
+Comprueba que las vistas principales no tienen scroll horizontal, que la lista de la compra
+tiene filas y controles de al menos 44 px con la acción «siguiente pendiente» fija abajo, y que
+el modo cocina muestra pasos de al menos 24 px con botones de 64 px, pide y libera el Wake Lock
+y se maneja con flechas y Escape. También forma parte de la suite de CI.
+
 Otros scripts disponibles:
 
 ```bash

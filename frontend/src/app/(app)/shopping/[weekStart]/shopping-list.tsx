@@ -121,12 +121,13 @@ export function ShoppingList({
   const percent = total === 0 ? 0 : Math.round((done / total) * 100);
   const thisWeek = currentWeekStart();
   const pendingItemId = toggleMutation.isPending ? toggleMutation.variables.itemId : undefined;
+  const nextPending = list.items.find((item) => !item.checked);
 
   return (
     <div>
       <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-400">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-500">
             Lista de la compra
           </p>
           <h1 className="font-serif text-2xl text-pepper-900 sm:text-3xl">
@@ -138,21 +139,21 @@ export function ShoppingList({
           <Link
             href={`/shopping/${shiftWeek(weekStart, -1)}`}
             aria-label="Semana anterior"
-            className="rounded-lg border border-flour-400 px-3 py-2 text-sm text-pepper-600 hover:bg-flour-100"
+            className="inline-flex min-h-11 items-center rounded-lg border border-flour-400 px-3 text-sm text-pepper-600 hover:bg-flour-100"
           >
             ←
           </Link>
           <Link
             href={`/shopping/${thisWeek}`}
             aria-current={weekStart === thisWeek ? 'page' : undefined}
-            className="rounded-lg border border-flour-400 px-3 py-2 text-sm font-medium text-pepper-600 hover:bg-flour-100 aria-[current=page]:border-basil-500 aria-[current=page]:bg-basil-50 aria-[current=page]:text-basil-700"
+            className="inline-flex min-h-11 items-center rounded-lg border border-flour-400 px-3 text-sm font-medium text-pepper-600 hover:bg-flour-100 aria-[current=page]:border-basil-500 aria-[current=page]:bg-basil-50 aria-[current=page]:text-basil-700"
           >
             Esta semana
           </Link>
           <Link
             href={`/shopping/${shiftWeek(weekStart, 1)}`}
             aria-label="Semana siguiente"
-            className="rounded-lg border border-flour-400 px-3 py-2 text-sm text-pepper-600 hover:bg-flour-100"
+            className="inline-flex min-h-11 items-center rounded-lg border border-flour-400 px-3 text-sm text-pepper-600 hover:bg-flour-100"
           >
             →
           </Link>
@@ -177,28 +178,6 @@ export function ShoppingList({
         </div>
       )}
 
-      <div className="mb-6">
-        <div className="mb-1 flex items-center justify-between text-sm text-pepper-500">
-          <span>
-            {done} de {total} {total === 1 ? 'producto' : 'productos'}
-          </span>
-          <span>{percent}%</span>
-        </div>
-        <div
-          className="h-2 overflow-hidden rounded-full bg-flour-300"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={done}
-          aria-label="Productos marcados"
-        >
-          <div
-            className="h-full rounded-full bg-basil-500 transition-[width]"
-            style={{ width: `${String(percent)}%` }}
-          />
-        </div>
-      </div>
-
       {total === 0 ? (
         <p className="rounded-2xl border border-dashed border-flour-400 bg-white p-6 text-sm text-pepper-500">
           La lista está vacía. Añade recetas al{' '}
@@ -216,14 +195,14 @@ export function ShoppingList({
                 className="mb-2 flex items-baseline gap-2 font-serif text-lg text-pepper-800"
               >
                 {group.label}
-                <span className="text-xs font-sans font-normal text-pepper-400">
+                <span className="text-xs font-sans font-normal text-pepper-500">
                   {group.items.length}
                 </span>
               </h2>
 
               <ul className="space-y-2">
                 {group.items.map((item) => (
-                  <li key={item._id}>
+                  <li key={item._id} id={`shopping-item-${item._id}`}>
                     <ItemButton
                       item={item}
                       pending={pendingItemId === item._id}
@@ -240,6 +219,46 @@ export function ShoppingList({
           ))}
         </div>
       )}
+
+      {/* Progreso y salto al siguiente pendiente en la zona del pulgar, visibles al scrollear. */}
+      <div className="sticky bottom-2 z-10 mt-6 rounded-2xl border border-flour-300 bg-white/95 p-3 shadow-lg backdrop-blur">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-baseline justify-between gap-2 text-xs text-pepper-500">
+              <span>
+                {done} de {total} {total === 1 ? 'producto' : 'productos'}
+              </span>
+              <span className="tabular-nums">{percent}%</span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-flour-300"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={total}
+              aria-valuenow={done}
+              aria-label="Productos marcados"
+            >
+              <div
+                className="h-full rounded-full bg-basil-500 transition-[width]"
+                style={{ width: `${String(percent)}%` }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={nextPending === undefined}
+            onClick={() => {
+              const element = document.getElementById(`shopping-item-${nextPending?._id ?? ''}`);
+              element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              element?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+            }}
+            aria-label="Ir al siguiente producto pendiente"
+            className="inline-flex min-h-14 shrink-0 items-center rounded-xl bg-basil-600 px-4 text-sm font-medium text-white hover:bg-basil-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-basil-300 focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            {nextPending === undefined ? 'Todo listo ✓' : 'Siguiente →'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -253,7 +272,7 @@ interface ItemButtonProps {
 }
 
 /**
- * El ítem entero es el botón de marcar: 48 px de alto y toda la fila como área táctil, que es
+ * El ítem entero es el botón de marcar: 56 px de alto y toda la fila como área táctil, que es
  * lo que se usa con el móvil en la mano dentro del supermercado.
  */
 function ItemButton({ item, pending, currentUserId, memberNames, onToggle }: ItemButtonProps) {
@@ -265,9 +284,9 @@ function ItemButton({ item, pending, currentUserId, memberNames, onToggle }: Ite
       type="button"
       onClick={onToggle}
       aria-pressed={item.checked}
-      className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors ${
+      className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors ${
         item.checked
-          ? 'border-basil-100 bg-basil-50/70 text-pepper-400'
+          ? 'border-basil-100 bg-basil-50/70 text-pepper-500'
           : 'border-flour-300 bg-white text-pepper-800 hover:border-basil-300 hover:bg-basil-50/40'
       } ${pending ? 'opacity-60' : ''}`}
     >
@@ -287,7 +306,7 @@ function ItemButton({ item, pending, currentUserId, memberNames, onToggle }: Ite
           {item.name}
         </span>
         {marker !== null && (
-          <span className="block text-xs text-pepper-400">
+          <span className="block text-xs text-pepper-500">
             {markedBySelf ? 'Lo marcaste tú' : `Marcado por ${marker}`}
           </span>
         )}
