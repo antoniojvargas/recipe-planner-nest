@@ -76,6 +76,9 @@ Prettier, y `make help` para ver todos los atajos. Para trabajar sin contenedore
 start:dev -w backend` y `npm run dev -w frontend` (este último necesita `--port 3001` si la API ya
 ocupa el 3000).
 
+Para levantar y verificar la pila de producción en local —Caddy con TLS interno, secretos,
+healthchecks, URLs prefirmadas y apagado ordenado— sigue [`docs/production.md`](docs/production.md).
+
 ## Datos de ejemplo
 
 `npm run seed` (o `make seed` con la pila levantada) rellena la base de datos con un hogar de
