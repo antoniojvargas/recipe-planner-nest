@@ -7,6 +7,7 @@
     "test:smoke": "playwright test --grep @smoke",
     "test:a11y": "playwright test accessibility.spec.ts",
     "test:mobile": "playwright test mobile.spec.ts",
+    "measure:lighthouse": "lighthouse",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "report": "playwright show-report"
@@ -15,6 +16,7 @@
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.52.0",
     "@types/node": "^22.15.0",
+    "lighthouse": "^13.6.0",
     "typescript": "^5.8.0"
   }
 }

@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import withBundleAnalyzer from '@next/bundle-analyzer';
 import type { NextConfig } from 'next';
 
 /**
@@ -34,4 +35,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/** `ANALYZE=true npm run build -w frontend` abre el informe de tamaño por ruta. */
+export default withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false,
+})(nextConfig);

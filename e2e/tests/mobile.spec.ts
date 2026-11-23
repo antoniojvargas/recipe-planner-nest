@@ -97,12 +97,13 @@ test.describe('a 360 px', () => {
     const trigger = page.getByRole('button', { name: 'Modo cocina' });
     await trigger.click();
 
-    const dialog = page.getByRole('dialog', { name: /Receta de ejemplo/ });
+    // La receta la siembra `prepareData`: el detalle ya no usa datos simulados.
+    const dialog = page.getByRole('dialog', { name: /Tortilla de patatas/ });
     await expect(dialog).toBeVisible({ timeout: 10_000 });
     await expectNoHorizontalOverflow(page, 'modo cocina');
 
     const step = dialog.locator('p[aria-live="polite"]');
-    await expect(step).toHaveText('Cortar las verduras');
+    await expect(step).toHaveText('Freír las patatas.');
     const fontSize = await step.evaluate((element) =>
       Number.parseFloat(getComputedStyle(element).fontSize),
     );
@@ -144,9 +145,9 @@ test.describe('a 360 px', () => {
     expect(violations.violations.map((violation) => violation.id)).toEqual([]);
 
     await dialog.getByRole('button', { name: 'Siguiente →' }).click();
-    await expect(step).toHaveText('Cocinar el pollo');
+    await expect(step).toHaveText('Batir los huevos.');
     await page.keyboard.press('ArrowLeft');
-    await expect(step).toHaveText('Cortar las verduras');
+    await expect(step).toHaveText('Freír las patatas.');
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
