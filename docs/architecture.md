@@ -86,9 +86,9 @@ quien lo traduce al sobre HTTP; ningún servicio escribe una respuesta.
 
 **Los repositorios son los únicos que tocan Mongoose.** Solo ellos importan `@nestjs/mongoose`,
 los modelos y los `FilterQuery`. Encapsulan las consultas, los índices, `lean()` en las
-lecturas, `arrayFilters` en las actualizaciones atómicas y **siempre** filtran por
-`householdId` para que el aislamiento entre hogares no dependa del llamador. No contienen reglas
-de negocio: si hay que decidir algo, se decide en el servicio.
+lecturas, las actualizaciones de un solo documento con operadores posicionales y **siempre**
+filtran por `householdId` para que el aislamiento entre hogares no dependa del llamador. No
+contienen reglas de negocio: si hay que decidir algo, se decide en el servicio.
 
 Otras consecuencias de la organización:
 
@@ -114,7 +114,7 @@ documento padre o en su propia colección. La regla es una sola:
 | --------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `recipes`       | `ingredients: [{ name, quantity, unit, note }]` y `steps: [{ text }]` | Se editan en la misma pantalla que la receta y se leen siempre con ella. Una receta tiene del orden de 10–20 ingredientes y 10–15 pasos: el array está acotado y cabe holgado en el límite de 16 MiB por documento. |
 | `meal-plans`    | `slots: [{ day, meal, recipeId, servings }]`                          | El plan se lee y se guarda entero al abrir la semana; los slots son como máximo 7 días × 3 comidas = 21, un tamaño fijo por definición.                                                                             |
-| `shopping-list` | `items: [{ _id, name, quantity, unit, checked, checkedBy, source }]`  | Marcar un ítem es actualizar un elemento del array (`arrayFilters`), sin tocar el resto de la lista. La lista es de una semana, así que su tamaño está acotado por el plan.                                         |
+| `shopping-list` | `items: [{ _id, name, quantity, unit, checked, checkedBy, source }]`  | Marcar un ítem es actualizar un elemento del array con el operador posicional `$`, sin tocar el resto de la lista. La lista es de una semana, así que su tamaño está acotado por el plan.                           |
 
 Embeber da escrituras atómicas por documento: renombrar un ingrediente, marcar una comida o
 tachar un ítem es un único `updateOne` que no puede dejar el agregado a medias. También da una
@@ -127,13 +127,13 @@ parciales.
 
 ### Qué se referencia
 
-| Campo                                                  | Apunta a     | Por qué                                                                                                                                                                                                                       |
-| ------------------------------------------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `households.members[].userId`                          | `users`      | Un usuario pertenece a varios hogares y un hogar tiene varios miembros: es una relación N:M que no cabe en un documento sin duplicar al usuario.                                                                              |
-| `recipes.householdId`                                  | `households` | La receta es un agregado propio: se busca, se pagina y se comparte entre miembros del hogar. Duplicarla dentro del hogar la haría crecer sin límite.                                                                          |
-| `meal-plans.householdId`, `shopping-list.householdId`  | `households` | Igual que la receta: el hogar es el límite de aislamiento y cada agregado se consulta por separado.                                                                                                                           |
-| `meal-plans.slots[].recipeId`                          | `recipes`    | El plan guarda **qué** receta se cocina, no una copia de sus ingredientes y pasos. Si la receta cambia, el plan muestra la versión nueva. Al leer el plan, el servicio resuelve título e imagen de las recetas referenciadas. |
-| `shopping-list.items[].checkedBy`, `recipes.createdBy` | `users`      | Se guarda quién hizo la acción, no una copia del perfil.                                                                                                                                                                      |
+| Campo                                                  | Apunta a     | Por qué                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `households.members[].userId`                          | `users`      | Un usuario pertenece a varios hogares y un hogar tiene varios miembros: es una relación N:M que no cabe en un documento sin duplicar al usuario.                                                                                                                              |
+| `recipes.householdId`                                  | `households` | La receta es un agregado propio: se busca, se pagina y se comparte entre miembros del hogar. Duplicarla dentro del hogar la haría crecer sin límite.                                                                                                                          |
+| `meal-plans.householdId`, `shopping-list.householdId`  | `households` | Igual que la receta: el hogar es el límite de aislamiento y cada agregado se consulta por separado.                                                                                                                                                                           |
+| `meal-plans.slots[].recipeId`                          | `recipes`    | El plan guarda **qué** receta se cocina, no una copia de sus ingredientes y pasos. Si la receta cambia, el plan muestra la versión nueva. La API devuelve los `recipeId`; título e imagen los resuelve el frontend en `src/server/plan-data.ts`, que tolera recetas borradas. |
+| `shopping-list.items[].checkedBy`, `recipes.createdBy` | `users`      | Se guarda quién hizo la acción, no una copia del perfil.                                                                                                                                                                                                                      |
 
 Se referencia lo que crece sin límite, lo que se edita por su cuenta, lo que se consulta con sus
 propios filtros e índices y lo que se comparte entre agregados. Las recetas no se copian dentro
@@ -149,13 +149,57 @@ que un cambio posterior en la receta no debe alterar una lista que el usuario ya
 - Las operaciones que cruzan documentos necesitan transacción (el `docker-compose.yml` levanta
   Mongo como replica set de un nodo precisamente por esto). Por ejemplo, borrar una receta debe
   decidir qué pasa con los slots del plan que la referencian dentro de la misma transacción.
-- Referenciar obliga a resolver las referencias al leer (una consulta extra o un `$lookup`
-  acotado por `householdId`); el coste se paga en lectura y se ahorra en escritura y
-  consistencia.
+- Referenciar obliga a resolver las referencias al leer. Hoy no hay `$lookup`: la generación de
+  la lista hace un `findById` por slot (`shopping-list.generator.ts`) y el loader del plan pide
+  cada receta referenciada (`src/server/plan-data.ts`). Son N+1 acotados por los 21 slots de una
+  semana; agruparlos con `$in` es trabajo pendiente.
 - Todos los agregados llevan `householdId` aunque su dueño sea un usuario: es la clave que los
   repositorios añaden **siempre** al filtro para que un miembro no vea datos de otro hogar.
 - Un array embebido no puede crecer sin control: si en el futuro una receta admitiera cientos de
   ingredientes o la lista acumulara varias semanas, pasarían a ser su propia colección.
+
+## Actualizaciones atómicas de arrays
+
+Los arrays embebidos se editan **dentro del documento padre, en una sola operación**. Así se
+evita el clásico read-modify-write en el que dos pestañas leen la misma versión y la segunda
+sobrescribe lo que marcó la primera.
+
+### Lista de la compra
+
+`ShoppingListsRepository.updateItem()` usa `findOneAndUpdate` con el filtro
+`{ householdId, weekStart, 'items._id': itemId }` y aplica `$set` sobre `items.$.quantity`,
+`items.$.checked` e `items.$.checkedBy`; al desmarcar usa `$unset` para borrar `checkedBy`, porque
+el dato deja de ser cierto. El operador **posicional `$`** selecciona el elemento coincidente:
+solo se reescribe ese subdocumento y la operación es atómica a nivel de documento. La llamada
+añade `runValidators: true` y `returnDocument: 'after'`.
+
+> El comentario del repositorio dice «usando `arrayFilters`», pero el código usa el operador
+> posicional `$`. La atomicidad la garantiza Mongo, no un `arrayFilters`.
+
+La regeneración (`replaceItems`) sí sustituye el array completo con `$set` y `upsert`; los ítems
+manuales se añaden con `$push`. Después de marcar o regenerar, `ShoppingListsService` publica
+`shopping.item.updated` o `shopping.list.regenerated` con `householdId`, semana y `version`.
+
+### Versión y eventos
+
+El esquema declara `versionKey: 'version'` y `optimisticConcurrency: true`, y los eventos llevan
+`list.version`. El cliente descarta eventos con versión menor (`src/lib/shopping-cache.ts`) y al
+reconectar invalida la consulta. **Pero las actualizaciones posicionales no incrementan
+`version`**: el control optimista de Mongoose no se activa en un `findOneAndUpdate` sin filtro de
+versión, así que el número emitido suele repetirse. Es una limitación conocida: el control de
+concurrencia real es la escritura atómica de Mongo, no el contador.
+
+La regeneración evita además bucles entre pestañas: `sameContent` compara el contenido anterior y
+solo publica el evento si cambió, porque cada cliente que lo recibe invalida su caché y volvería
+a regenerar la lista.
+
+### Otros arrays
+
+- `meal-plans`: `MealPlansService` hace read-modify-write con `replaceSlots` (un `$set` del array
+  completo), aunque el comentario del esquema menciona `arrayFilters`. El tamaño está acotado a
+  21 slots, así que el riesgo de sobrescritura es pequeño.
+- `households`: cambiar un rol usa `$set: { 'members.$.role': role }` con filtro
+  `{ _id, 'members.userId': userId }`; el alta y la baja usan `$push` y `$pull`.
 
 ## Por qué Fastify y no Express
 
@@ -213,6 +257,68 @@ La configuración vive en `backend/src/config/` y se carga con un `ConfigModule`
   de Docker no se copia y las variables llegan del `environment` del compose. Los tests e2e
   rellenan valores por defecto en `backend/test/setup-env.ts` sin pisar los del entorno.
 - **Cambiar un secreto exige reiniciar**: `cache: true` evita leer el entorno en cada acceso.
+
+## URLs prefirmadas
+
+Las imágenes se suben **directamente del navegador a MinIO/S3**: el backend solo firma y
+verifica, así que el binario nunca pasa por la API.
+
+- **Subida.** `POST /api/households/:householdId/media/upload-url` devuelve
+  `{ key, url, fields, expiresAt }` de `createPresignedPost` (`MediaService.createUploadUrl`).
+  La clave es `households/{householdId}/{uuid}.{jpg|png|webp}`, el `Content-Type` queda fijado
+  por una condición `eq`, el tamaño se limita con `content-length-range [1, dto.size]` y la URL
+  expira en 300 s (`UPLOAD_URL_TTL_SECONDS`). El prefijo del hogar es la primera barrera de
+  aislamiento y el guard de membresía comprueba la ruta antes de firmar nada.
+- **Confirmación.** `inspectImage` exige que la clave empiece por el prefijo del hogar, hace
+  `HeadObject` (un 404 se traduce a `NOT_FOUND`), comprueba tamaño ≤ 5 MiB y MIME entre JPEG,
+  PNG y WebP, y lee el objeto con `sharp` para obtener anchura y altura reales. Solo entonces
+  la receta guarda la imagen.
+- **Lectura.** `signImageUrls` firma tres `GetObject` —original, 320 px y 960 px— con TTL de
+  300 s **en cada serialización** (`RecipesService.toResponse`). Las URLs no se guardan en Mongo:
+  un enlace filtrado deja de servir en cinco minutos. Firmar es local y barato, sin petición al
+  bucket. Las variantes las genera el worker en una cola de BullMQ; el borrado encola las tres
+  claves y es idempotente.
+- **Exposición pública.** MinIO sirve el bucket bajo `/media` en Caddy, que reenvía la firma sin
+  reescribirla. Hay dos clientes S3: el interno (`S3_ENDPOINT`) para `HeadObject`/`GetObject` y
+  el público (`S3_PUBLIC_ENDPOINT`) para las URLs que usa el navegador. La comprobación del
+  despliegue está en `docs/production.md`.
+
+### Límite en el frontend
+
+El detalle de la receta ya carga sus datos desde el servidor, pero el listado
+`src/app/(app)/recipes/page.tsx` sigue siendo un placeholder: construye
+`https://minio.example.com/recipes/${recipe.imageKey}` con un `imageKey` que el contrato no
+expone y sin `remotePatterns` en `next.config.ts`. Las URLs firmadas (`smallUrl`, `largeUrl`)
+aparecen solo como tipo en `src/lib/meal-plan.ts`; ningún `<Image>` las consume todavía. Falta
+también limpieza de subidas no confirmadas y un `jobId` determinista al encolar.
+
+## Importación desde URL y SSRF
+
+La importación toma una URL del usuario, la descarga en el worker y parsea JSON-LD. El cliente
+HTTP de `src/imports/safe-http.client.ts` está diseñado para que esa URL no pueda alcanzar la
+red interna:
+
+- **Esquema y puerto.** Solo `http`/`https`, sin credenciales en la URL y solo puertos 80/443.
+- **Bloqueo de red.** Una `BlockList` rechaza loopback, redes privadas, link-local (incluida la
+  IP de metadatos `169.254.169.254`), CGNAT, rangos de documentación y benchmarking, multicast,
+  reservados y sus equivalentes IPv6, más IPv4 embebido en IPv6. `isPublicAddress` decide.
+- **DNS rebinding.** Se resuelve el nombre y se validan **todas** las IP devueltas. La conexión
+  usa la IP ya validada, con el hostname original solo en `Host` y SNI: no hay una segunda
+  resolución entre la comprobación y la petición.
+- **Redirecciones.** Máximo 3 saltos (301/302/303/307/308). Cada salto vuelve a validar URL e IP,
+  así que un `Location` a una IP interna se rechaza igual que la URL inicial.
+- **Cotas.** 5 s para toda la petición (incluidos saltos y lectura del cuerpo), 2 MiB máximo con
+  corte incremental, `Accept-Encoding: identity`, solo `Content-Type: text/html` y respuestas
+  2xx. Los errores son tipados: `INVALID_URL`, `BLOCKED_HOST`, `TOO_MANY_REDIRECTS`, `TIMEOUT`,
+  `TOO_LARGE`, `UNSUPPORTED_CONTENT_TYPE`, `HTTP_ERROR` y `NETWORK_ERROR`.
+- **Excepción de test.** Con `APP_ENV=test`, `IMPORT_ALLOWED_HOSTS` permite hosts concretos —en
+  E2E, `fixtures`— y omite la comprobación de IP pública para servir el JSON-LD desde la red de
+  Compose. Fuera de test la variable se ignora.
+- **Pruebas.** `safe-http.client.spec.ts` cubre URLs y literales IP permitidos y bloqueados,
+  listas mixtas de DNS, rebinding inicial y en redirección, cotas y tipos de contenido.
+
+El worker publica `import.finished` o, en el último intento, `import.failed`. El diálogo de
+importación del frontend aún no escucha esos eventos: es un placeholder (ver «Límites conocidos»).
 
 ## Errores de la API
 
@@ -290,18 +396,16 @@ suya en `onModuleInit` con un orden de `SHUTDOWN_ORDER`:
 
 | Orden | Recurso                | Estado                                                                                                                                |
 | ----- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 10    | `realtime` (Socket.IO) | reservado para la fase de tiempo real                                                                                                 |
-| 20    | `queues` (BullMQ)      | reservado para la fase de colas                                                                                                       |
+| 10    | `realtime` (Socket.IO) | registrado por `registerRealtimeAdapter`: `adapter.disconnect()`                                                                      |
+| 20    | `queues` (BullMQ)      | registrado por `WorkersShutdown`: `close()` de los workers de imágenes e importaciones (idempotente)                                  |
 | 30    | Redis                  | registrado: `quit()` si está conectado; `disconnect()` si está caído o reconectando, para no esperar una conexión que puede no llegar |
 | 40    | MongoDB                | registrado: `connection.close()`. `@nestjs/mongoose` también cierra en su hook; la llamada es idempotente y así queda en el log       |
 
 Las tareas se ejecutan en serie, en orden ascendente. Si una falla, el error se registra y se
 sigue con las demás: un recurso que no cierra no debe dejar abiertos los otros. Una segunda
-señal durante el apagado no repite la secuencia.
-
-Los módulos de sockets y colas aún no existen; cuando se añadan deben registrar su cierre con
-`SHUTDOWN_ORDER.realtime` y `SHUTDOWN_ORDER.queues` en lugar de implementar su propio hook, para
-que dejen de aceptar trabajo antes de que Redis y Mongo se cierren.
+señal durante el apagado no repite la secuencia. El orden importa: sockets y workers dejan de
+aceptar trabajo antes de que se corten Redis y Mongo, para que un trabajo que todavía publica
+su resultado pueda reconectar.
 
 `useProcessExit` hace que el proceso termine con código 0 después de los hooks (en vez de
 re-lanzarse la señal): eso dispara el evento `exit` y pino puede vaciar sus buffers antes de
@@ -427,9 +531,9 @@ Qué ocurre cuando el token no se puede canjear:
 | `usedAt` no es `null` (token ya canjeado) | 401 `UNAUTHORIZED`     | **se revoca la familia entera**: alguien reutilizó un token que ya se había cambiado, señal de robo o de copia |
 | Fila válida y sin usar                    | 204 con cookies nuevas | se marca `usedAt` y se emite el siguiente eslabón                                                              |
 
-La reutilización se registra como evento de seguridad con `userId`, `familyId`, `requestId` e IP,
-nunca con el token ni su hash. No se distingue en la respuesta entre «no existe», «revocado» y
-«reutilizado»: el cliente solo sabe que la sesión terminó y debe volver a autenticarse.
+La reutilización se registra como aviso de seguridad con `userId` y `familyId`, nunca con el
+token ni su hash. No se distingue en la respuesta entre «no existe», «revocado» y «reutilizado»:
+el cliente solo sabe que la sesión terminó y debe volver a autenticarse.
 
 ### Consecuencias
 
@@ -441,9 +545,10 @@ nunca con el token ni su hash. No se distingue en la respuesta entre «no existe
   sigue válido. Nunca queda un token consumido sin sucesor. El replica set de Mongo que ya exige
   el proyecto permite hacerlo atómico.
 - **Dos refresh en paralelo son indistinguibles de un robo.** El backend no añade una ventana de
-  gracia: el segundo en llegar revoca la familia. El frontend debe hacer _single-flight_ —una sola
-  promesa de refresh en vuelo, compartida por todas las peticiones que reciben 401— y reintentar
-  cada petición una vez. Sin eso, abrir dos pestañas a la vez puede cerrar la sesión.
+  gracia: el segundo en llegar revoca la familia. El frontend hace _single-flight_ **por pestaña**
+  (`src/lib/api-client.ts`): una sola promesa de refresh compartida por las peticiones que reciben
+  401 y un único reintento por petición. El _single-flight_ no cruza pestañas, así que dos
+  pestañas que refrescan a la vez siguen siendo un riesgo conocido.
 - **Revocar no invalida el access token actual.** Sobrevive hasta 15 minutos, que es el precio de
   verificarlo sin base de datos; por eso su TTL es corto y no lleva roles ni `householdId`: la
   autorización por hogar se resuelve en cada petición, y un cambio de rol no espera a que caduque
@@ -702,41 +807,37 @@ petición que ve el Server Component como la respuesta que recibe el navegador.
   render (`NextResponse.next({ request: { headers } })`). La navegación se repite una vez con
   credenciales nuevas, que es el «reintento» visible para el usuario: no hay 401, ni redirect,
   ni parpadeo.
-- **Un fallo definitivo limpia la sesión.** Si el refresh responde 400/401/403 (token revocado,
-  familia reutilizada, cookies incompletas), el middleware borra las tres cookies y deja que el
-  layout de la app redirija a login. Si la API no responde o devuelve 5xx, la petición sigue y
-  el mismo layout decide: no se cierra la sesión por un fallo transitorio.
+- **Un refresh que no responde 2xx limpia la sesión.** El middleware borra las tres cookies para
+  cualquier `!ok`, incluidos 5xx, y deja que el layout redirija a login. Solo la excepción de red
+  (fetch sin respuesta) sigue con `NextResponse.next()` sin tocar las cookies. Conviene tenerlo
+  presente: un 503 pasajero de la API cierra la sesión.
 - **El matcher excluye estáticos, imágenes y `/api`.** Solo se refresca en rutas de la app: ni
   `_next/static`, ni `_next/image`, ni el socket, ni los assets. El rewrite de `/api` y
   `src/lib/api-client.ts` gestionan sus propios reintentos desde el navegador, donde el refresh
   sí puede seguir el flujo normal. Sin ese recorte, cada asset dispararía una llamada al refresh.
 
-### Server Actions: mutaciones simples
+### Mutaciones: Server Actions y cliente
 
-Una mutación es «simple» cuando es un formulario que envía una vez, provoca una escritura y
-termina en una recarga o una redirección. Es el caso de login, registro, cerrar sesión, crear un
-hogar, unirse con un código, marcar la despensa o guardar una receta. Esas acciones son **Server
-Actions**:
+La intención del proyecto era concentrar los formularios simples en Server Actions, pero **hoy
+ese no es el patrón dominante**. Conviene distinguir los tres caminos que conviven:
 
-- **Corren en el servidor**, así que reutilizan el mismo `apiFetch`, la misma `API_INTERNAL_URL` y
-  el mismo reenvío de cookies que los Server Components. No hay un segundo cliente HTTP que
-  mantener, ni tokens en el navegador, ni peticiones que dependan de CORS.
-- **Se pueden usar sin JavaScript.** El formulario es un `<form action={...}>` normal; Next lo
-  mejora con JavaScript cuando está disponible. El estado de error y de envío se lee con
-  `useActionState`, y los errores de campo vuelven desde `details` del 400 `VALIDATION_ERROR` para
-  marcar cada input con `aria-invalid` y su mensaje asociado. Un fallo no borra lo escrito.
-- **El CSRF lo exige la API, no Next.** Las Server Actions se invocan por POST desde el mismo
-  origen, y Next comprueba `Origin`/`Host`; aun así el `CsrfGuard` de la API vuelve a comprobarlo.
-  Por eso `apiFetch` añade `Origin: FRONTEND_URL` y la pareja `csrf_token` + `X-CSRF-Token` en las
-  mutaciones. El valor de la cookie lo lee el servidor, no el navegador.
-- **Tras escribir, se invalida lo que se pintó desde el servidor.** `revalidatePath` del segmento
-  afectado (o `revalidateTag`) hace que el siguiente render vuelva a pedir los datos; un
-  `redirect` cubre los flujos que terminan en otra página. Las cookies nuevas que devuelve la API
-  (`Set-Cookie` del login o del refresh) se copian a la respuesta con `cookies().set`, porque solo
-  una acción o un route handler pueden escribir cookies.
+- **Formularios de autenticación.** `src/app/(auth)/login/page.tsx` y `register/page.tsx` son
+  `<form action="/api/auth/login" method="POST">` nativos: el navegador hace el POST al rewrite
+  `/api` de Next y la API devuelve las cookies. No pasan por una Server Action ni por `apiFetch`.
+  Existe `src/app/(auth)/actions.tsx` con `'use server'` y `loginAction`/`registerAction`, pero
+  **no está conectado a esas páginas**: usa una URL relativa desde el servidor, no envía la
+  cabecera CSRF y copia `set-cookie` sin atributos. Es código heredado, no el flujo real.
+- **Mutaciones desde el navegador con TanStack Query.** Despensa, plan y lista usan
+  `src/lib/api-client.ts` con `useMutation`: reintentan una vez tras el refresh y leen
+  `csrf_token` para la cabecera `X-CSRF-Token`. Son las que hacen optimismo y reconciliación.
+- **Capa de servidor para lecturas.** `apiFetch` también sabe mutar (añade `Origin`,
+  `csrf_token` y `X-CSRF-Token`), pero no hay `useActionState`, `revalidatePath` ni
+  `revalidateTag` en el frontend: las pantallas vuelven a pedir datos al navegar.
 
 La frontera con el cliente es deliberada: si una interacción necesita respuesta inmediata,
-deshacer un cambio o escuchar a otros miembros, no es una Server Action.
+deshacer un cambio o escuchar a otros miembros, no va por una acción de servidor. Unificar los
+formularios de autenticación con `apiFetch` + `cookies().set` y `revalidatePath` es deuda
+pendiente.
 
 ### Client Components: partes interactivas en vivo
 
@@ -767,8 +868,43 @@ podría recibir cambios sin refrescar la página; por eso ese árbol es un Clien
   (que no es `httpOnly`) y reintenta una vez tras el refresh. `API_INTERNAL_URL` no aparece aquí.
 
 Que una parte de la interfaz sea interactiva no obliga a moverla entera al cliente: el patrón es
-un Client Component pequeño y con una responsabilidad (la lista, el escalado de raciones, el
-editor) dentro de un árbol que sigue renderizándose en el servidor.
+un Client Component pequeño y con una responsabilidad dentro de un árbol que sigue
+renderizándose en el servidor. El detalle de receta es el ejemplo claro:
+
+- `src/app/(app)/recipes/[id]/page.tsx` es un **Server Component asíncrono**: hace `await params`,
+  llama a `requireHousehold()` y al loader `loadRecipe()` (`src/server/recipe-data.ts`, con
+  `import 'server-only'`). No tiene `'use client'` ni datos escritos a mano.
+- Su única isla cliente es `cooking-trigger.tsx`: guarda el estado «modo cocina abierto» y carga
+  `cooking-mode.tsx` con `next/dynamic` solo cuando se pulsa el botón. Recibe del servidor únicamente
+  `title` y `steps`, datos serializables.
+- `socket.io-client` no entra en esa ruta. El analyzer confirma que su chunk (41.430 B parsed /
+  12.720 B gzip) es inicial **solo** para `/shopping/[weekStart]`; `e2e/tests/realtime-boundary.spec.ts`
+  comprueba que detalle y editor no abren WebSocket y la lista sí.
+- Las herramientas de medición son `@next/bundle-analyzer` (`npm run analyze -w frontend`) y
+  Lighthouse (`npm run measure:lighthouse -w e2e`). El JS del detalle bajó de 5.135 B a 3.912 B
+  parsed; las cuatro categorías de Lighthouse se mantuvieron en 100.
+
+## Límites conocidos
+
+Lo que sigue está pendiente o es una simplificación deliberada, no una decisión de diseño
+cerrada. El detalle y la priorización están en `MEJORAS.md`.
+
+| Límite                | Situación real                                                                                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Importación en la web | `src/app/(app)/recipes/[id]/import-dialog.tsx` es un placeholder («disponible próximamente»). La API, el worker y los eventos `import.finished`/`import.failed` sí funcionan; falta enganchar el diálogo. |
+| Editor de recetas     | `recipes/[id]/editor/page.tsx` muestra «Editor de recetas disponible próximamente», aunque la API expone `PUT` y `PATCH`.                                                                                 |
+| Listado de recetas    | `recipes/page.tsx` usa `fetch` crudo con una «Simulación de estructura de respuesta», un `householdId` por defecto `'current'` y una imagen `minio.example.com` que no existe en el contrato.             |
+| Selector de hogar     | `src/app/(auth)/header.tsx` solo muestra un badge. `requireHousehold()` toma el primer hogar del usuario y conviven dos árboles de ruta de compra: `(app)/shopping` y `(app)/[householdId]/shopping`.     |
+| Sesión                | Sin ventana de gracia para refresh; _single-flight_ solo por pestaña; access token no revocable antes de 15 min; un 5xx del refresh cierra la sesión.                                                     |
+| `version` de la lista | Se emite en los eventos pero no se incrementa al marcar ítems. La atomicidad la da Mongo, no el control optimista.                                                                                        |
+| N+1 de recetas        | La generación de la lista y el loader del plan piden las recetas de una en una; no hay `$in` ni `$lookup`.                                                                                                |
+| Contrato OpenAPI      | Varios cuerpos `200` no tienen `schema` y los tipos se escriben a mano (`src/lib/api-result.ts`, `src/server/recipe-data.ts`).                                                                            |
+| Semanas               | `weekStart` exige lunes a 00:00 **UTC**, sin zona horaria del hogar.                                                                                                                                      |
+| Medios                | Sin limpieza de subidas no confirmadas ni `jobId` determinista al encolar.                                                                                                                                |
+| Arranque              | Quedan restos de `create-next-app` en `frontend/src/app/page.tsx`.                                                                                                                                        |
+
+Además de estas deudas, la sección «Mutaciones: Server Actions y cliente» señala otros puntos
+donde el código aún no sigue el reparto descrito más arriba.
 
 ## Reglas del workspace
 
