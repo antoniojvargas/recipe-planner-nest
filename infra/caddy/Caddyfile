@@ -1,0 +1,36 @@
+# Caddy delante de toda la pila de producción.
+#
+# Termina TLS con su CA interna (`tls internal`), así que el navegador tiene que confiar en
+# ella o añadir una excepción. Todo se sirve en un único origen: Next, `/api`, `/socket.io` y
+# `/media`, que es lo que permite que las cookies `httpOnly` y las URLs prefirmadas de MinIO
+# lleven el mismo host que la web.
+
+{$APP_DOMAIN} {
+	tls internal
+
+	# La API monta sus rutas bajo /api (prefijo de la aplicación).
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy backend:3000
+	}
+
+	# Socket.IO: `reverse_proxy` reenvía el upgrade a WebSocket sin configuración extra.
+	@realtime path /socket.io /socket.io/*
+	handle @realtime {
+		reverse_proxy backend:3000
+	}
+
+	# MinIO se publica en /media. La ruta NO se reescribe: la firma SigV4 se calcula sobre
+	# la ruta completa, así que quitar el prefijo daría `SignatureDoesNotMatch`. El bucket
+	# de producción se llama `media` para que el path-style de S3 (`/<bucket>/<key>`) ya
+	# llegue a MinIO con ese prefijo: /media/<clave> es /media/<clave> dentro del contenedor.
+	@media path /media /media/*
+	handle @media {
+		reverse_proxy minio:9000
+	}
+
+	# El resto es la web.
+	handle {
+		reverse_proxy frontend:3001
+	}
+}
