@@ -99,7 +99,18 @@ services:
       - -c
       - |
         set -e
-        mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}"
+        # El healthcheck de la imagen Bitnami puede marcar healthy antes de que
+        # el puerto S3 acepte conexiones; reintentamos el alias para no fallar
+        # el arranque de la pila en CI de forma intermitente.
+        i=0
+        until mc alias set local http://minio:9000 "$${S3_ACCESS_KEY}" "$${S3_SECRET_KEY}"; do
+          i=$$((i + 1))
+          if [ "$$i" -ge 30 ]; then
+            echo 'MinIO no aceptó conexiones después de 30 intentos'
+            exit 1
+          fi
+          sleep 1
+        done
         mc mb --ignore-existing "local/$${S3_BUCKET}"
         mc anonymous set none "local/$${S3_BUCKET}"
         mc cors set "local/$${S3_BUCKET}" /config/cors.json || echo "Warning: could not set bucket CORS"
