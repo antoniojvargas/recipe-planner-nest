@@ -39,14 +39,14 @@ pisarse entre ellos.
 
 Cuatro capas de testing, desde unitarios hasta integración completa con contenedores:
 
-| Capa                    | Comandos                                                                | Descripción                                                                                               |
-| ----------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Unit tests API**      | `npm run test:unit -w backend`                                          | Unitarios con Vitest. Umbrales: 80% líneas, ramas, functions y statements. Cobertura en `coverage/unit/`. |
-| **Unit tests frontend** | `npm test -w frontend`                                                  | Vitest + React Testing Library sobre componentes y helpers.                                               |
-| **E2E API**             | `npm run test:e2e -w backend`                                           | Vitest + Supertest + Testcontainers (Mongo y Redis). Requiere Docker.                                     |
-| **E2E navegador**       | `npm test -w e2e`                                                       | Playwright sobre `docker-compose.e2e.yml`: flujo crítico, tiempo real, accesibilidad, móvil y sesión.     |
-| **Integration tests**   | `npm run test:integration -w backend`                                   | Infraestructura real con Testcontainers. Requiere Docker.                                                 |
-| **API contract**        | `npm run test:openapi -w backend` / `npm run export:openapi -w backend` | Compara el OpenAPI generado con `.vitest.openapi.snapshot.json`; falla si el contrato diverge.            |
+| Capa                    | Comandos                              | Descripción                                                                                               |
+| ----------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Unit tests API**      | `npm run test:unit -w backend`        | Unitarios con Vitest. Umbrales: 80% líneas, ramas, functions y statements. Cobertura en `coverage/unit/`. |
+| **Unit tests frontend** | `npm test -w frontend`                | Vitest + React Testing Library sobre componentes y helpers.                                               |
+| **E2E API**             | `npm run test:e2e -w backend`         | Vitest + Supertest + Testcontainers (Mongo y Redis). Requiere Docker.                                     |
+| **E2E navegador**       | `npm test -w e2e`                     | Playwright sobre `docker-compose.e2e.yml`: flujo crítico, tiempo real, accesibilidad, móvil y sesión.     |
+| **Integration tests**   | `npm run test:integration -w backend` | Infraestructura real con Testcontainers. Requiere Docker.                                                 |
+| **API contract**        | `npm run export:openapi -w backend`   | Regenera `packages/contracts/openapi.json`; CI falla si el export cambia el contrato versionado.          |
 
 ## Arranque
 
