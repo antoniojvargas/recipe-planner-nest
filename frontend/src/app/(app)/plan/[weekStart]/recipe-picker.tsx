@@ -123,11 +123,11 @@ export function RecipePicker({
           )}
 
           {error === null && isFetching && recipes.length === 0 && (
-            <p className="px-2 py-4 text-sm text-pepper-400">Buscando recetas…</p>
+            <p className="px-2 py-4 text-sm text-pepper-500">Buscando recetas…</p>
           )}
 
           {error === null && !isFetching && recipes.length === 0 && (
-            <p className="px-2 py-4 text-sm text-pepper-400">
+            <p className="px-2 py-4 text-sm text-pepper-500">
               {term.trim() === ''
                 ? 'Todavía no hay recetas en este hogar.'
                 : `Ninguna receta coincide con “${term.trim()}”.`}
@@ -147,7 +147,7 @@ export function RecipePicker({
                   <span className="line-clamp-2 text-sm font-medium text-pepper-800">
                     {recipe.title}
                   </span>
-                  <span className="shrink-0 text-xs text-pepper-400">{recipe.servings} rac.</span>
+                  <span className="shrink-0 text-xs text-pepper-500">{recipe.servings} rac.</span>
                 </button>
               </li>
             ))}

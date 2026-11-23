@@ -12,7 +12,7 @@ export default function RegisterPage() {
           name="name"
           required
           autoComplete="name"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-basil-600"
         />
       </div>
 
@@ -23,13 +23,13 @@ export default function RegisterPage() {
           name="email"
           required
           autoComplete="email"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-basil-600"
         />
       </div>
 
       <button
         type="submit"
-        className="w-full py-2 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 transition-colors"
+        className="w-full py-2 bg-basil-600 text-white font-medium rounded-md hover:bg-basil-700 transition-colors"
       >
         Crear cuenta
       </button>

@@ -23,7 +23,7 @@ export default function InvitePage({
 
           <button
             onClick={() => navigator.clipboard.writeText(inviteCode)}
-            className="w-full py-2 bg-primary-100 text-primary-700 rounded-md hover:bg-primary-200 transition-colors text-sm font-medium"
+            className="w-full py-2 bg-basil-100 text-basil-700 rounded-md hover:bg-basil-300 transition-colors text-sm font-medium"
           >
             Copiar código
           </button>

@@ -1,52 +1,52 @@
-'use client';
+import { requireHousehold } from '@/server/households';
+import { loadRecipe } from '@/server/recipe-data';
+import { CookingTrigger } from './cooking-trigger';
 
-import { useState } from 'react';
-
-interface Recipe {
-  id: string;
-  title: string;
-  servings: number;
-  ingredients: { name: string; quantity: number; unit: string }[];
-  steps: { text: string }[];
+interface RecipeDetailPageProps {
+  params: Promise<{ id: string }>;
 }
 
-export default function RecipeDetailPage({ params }: { params: { id: string } }) {
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
-
-  // Datos simulados - en producción haría una llamada API
-  const simulatedRecipe: Recipe = {
-    id: params.id,
-    title: 'Receta de ejemplo',
-    servings: 4,
-    ingredients: [
-      { name: 'Arroz', quantity: 200, unit: 'g' },
-      { name: 'Pollo', quantity: 300, unit: 'g' },
-    ],
-    steps: [{ text: 'Cortar las verduras' }, { text: 'Cocinar el pollo' }],
-  };
-
-  setRecipe(simulatedRecipe);
-
-  if (!recipe) {
-    return <div>Cargando...</div>;
-  }
+export default async function RecipeDetailPage({ params }: RecipeDetailPageProps) {
+  const { id } = await params;
+  const household = await requireHousehold();
+  const recipe = await loadRecipe(household.id, id);
 
   return (
-    <div>
-      <h1>{recipe.title}</h1>
-      <p>Servings: {recipe.servings}</p>
-      <ul>
-        {recipe.ingredients.map((ing) => (
-          <li key={ing.name}>
-            {ing.quantity} {ing.unit} {ing.name}
+    <section className="mx-auto max-w-3xl p-4 sm:p-6">
+      <header className="mb-8">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-pepper-500">Receta</p>
+        <h1 className="font-serif text-2xl text-pepper-900 sm:text-3xl">{recipe.title}</h1>
+        <p className="mt-1 text-sm text-pepper-500">{recipe.servings} raciones</p>
+        <CookingTrigger title={recipe.title} steps={recipe.steps} />
+      </header>
+
+      <h2 className="mb-2 font-serif text-lg text-pepper-800">Ingredientes</h2>
+      <ul className="mb-8 space-y-2">
+        {recipe.ingredients.map((ingredient) => (
+          <li
+            key={ingredient.name}
+            className="flex justify-between gap-4 rounded-lg border border-flour-300 bg-white px-4 py-3 text-sm text-pepper-800"
+          >
+            <span>{ingredient.name}</span>
+            <span className="tabular-nums text-pepper-500">
+              {ingredient.quantity} {ingredient.unit}
+            </span>
           </li>
         ))}
       </ul>
-      <ol>
-        {recipe.steps.map((step) => (
-          <li key={step.text}>{step.text}</li>
+
+      <h2 className="mb-2 font-serif text-lg text-pepper-800">Pasos</h2>
+      <ol className="space-y-2">
+        {recipe.steps.map((step, index) => (
+          <li
+            key={step.text}
+            className="rounded-lg border border-flour-300 bg-white px-4 py-3 text-sm text-pepper-800"
+          >
+            <span className="mr-2 font-medium text-basil-700">{String(index + 1)}.</span>
+            {step.text}
+          </li>
         ))}
       </ol>
-    </div>
+    </section>
   );
 }

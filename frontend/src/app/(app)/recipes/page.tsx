@@ -107,7 +107,7 @@ export default function RecipesPage() {
               newUrl.searchParams.set('q', e.target.value);
               window.location.href = newUrl.href;
             }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+            className="min-h-11 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-basil-600"
             autoComplete="off"
             aria-label="Buscar recetas"
           />
@@ -121,7 +121,7 @@ export default function RecipesPage() {
               newUrl.searchParams.set('tags', selectedTags.join(','));
               window.location.href = newUrl.href;
             }}
-            className="pr-4 rounded border border-gray-300 py-2 focus:outline-none focus:ring-2 focus:ring-primary-600"
+            className="min-h-11 pr-4 rounded border border-gray-300 py-2 focus:outline-none focus:ring-2 focus:ring-basil-600"
             aria-label="Filtrar por etiquetas"
           >
             <option value="">Todas las etiquetas</option>
@@ -191,7 +191,7 @@ export default function RecipesPage() {
             onClick={() =>
               (window.location.href = `${window.location.pathname}?cursor=${cursor || ''}&limit=${limit}`)
             }
-            className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors font-medium"
+            className="min-h-11 px-6 py-2 bg-basil-600 text-white rounded-md hover:bg-basil-700 transition-colors font-medium"
             aria-label="Cargar más recetas"
           >
             Cargar más

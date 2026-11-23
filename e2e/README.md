@@ -42,6 +42,31 @@ Solo pruebas de humo (`@smoke`):
 npm run test:smoke -w e2e
 ```
 
+Solo la auditoría de accesibilidad (`@axe-core/playwright`):
+
+```bash
+npm run test:a11y -w e2e
+```
+
+La auditoría recorre recetas, editor, plan y lista con un hogar y una receta ya creados y falla
+si Axe encuentra violaciones de WCAG 2.1 A/AA o de buenas prácticas (`document-title`,
+`landmark-one-main`, `region`, `page-has-heading-one`, …). Imprime el detalle de cada nodo
+incumplido para poder corregirlo. Forma parte de la suite completa, así que también corre en CI.
+
+Revisión a 360 px (ancho de móvil pequeño):
+
+```bash
+npm run test:mobile -w e2e
+```
+
+Comprueba que las vistas principales no tienen scroll horizontal, que la lista de la compra
+tiene filas y controles de al menos 44 px con la acción «siguiente pendiente» fija abajo, y que
+el modo cocina muestra pasos de al menos 24 px con botones de 64 px, pide y libera el Wake Lock
+y se maneja con flechas y Escape. También forma parte de la suite de CI.
+
+`realtime-boundary.spec.ts` comprueba que Socket.IO no se conecta en el detalle ni en el editor
+y sí en la lista de la compra.
+
 Otros scripts disponibles:
 
 ```bash
@@ -51,6 +76,19 @@ npm run report -w e2e        # abre el último reporte HTML
 ```
 
 > Nota: `make test-e2e` ejecuta también los tests e2e del backend; para correr únicamente la suite Playwright usa los scripts del workspace `e2e`.
+
+## Medición de bundle y rendimiento
+
+`@next/bundle-analyzer` genera el informe de tamaño por ruta; Lighthouse mide una URL ya servida:
+
+```bash
+npm run analyze -w frontend                       # genera frontend/.next/analyze/client.html
+npm run measure:lighthouse -w e2e -- http://localhost:3001/login --only-categories=performance
+```
+
+El informe del analyzer permite comprobar qué entrypoints cargan cada chunk (por ejemplo, que
+`socket.io-client` solo aparece en la lista de la compra). Para medir una página autenticada hay
+que pasar las cookies de sesión con `--extra-headers` (ver `helpers/data.ts` para preparar el hogar).
 
 ## Configuración y variables de entorno
 

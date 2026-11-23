@@ -8,7 +8,7 @@ export default function Error({ error }: { error: unknown }) {
         onClick={() => {
           window.location.reload();
         }}
-        className="mt-4 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        className="mt-4 min-h-11 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700"
       >
         Reintentar
       </button>

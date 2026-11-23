@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write . --ignore-path ../.prettierignore",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^15.5.29",
     "@tailwindcss/postcss": "^4",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.12",
