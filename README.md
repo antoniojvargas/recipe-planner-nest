@@ -39,12 +39,14 @@ pisarse entre ellos.
 
 Cuatro capas de testing, desde unitarios hasta integración completa con contenedores:
 
-| Capa                  | Comandos                                          | Descripción                                                                                                                                         |
-| --------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unit tests**        | `npm run test:unit`                               | Tests unitarios con Vitest, 30 tests en 4 archivos. Umbrales: 80% líneas, ramas, functions, statements. Cobertura en `coverage/unit/`.              |
-| **E2E tests**         | `npm run test:e2e`                                | Tests e2e/integration con Vitest + Supertest + Testcontainers. 89 tests en 16 archivos. Umbrales: 80% cobertura. Cobertura en `coverage/`.          |
-| **Integration tests** | `npm run test:integration`                        | Tests de integración con infraestructura real (Testcontainers/Docker). 6 tests en 2 archivos. Requieren Docker.                                     |
-| **API contract**      | `npm run test:openapi` / `npm run export:openapi` | Validación del contrato OpenAPI. Genera/actualiza `src/openapi.json` y compara con `.vitest.openapi.snapshot.json`. Fallece si el contrato diverge. |
+| Capa                    | Comandos                                                                | Descripción                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Unit tests API**      | `npm run test:unit -w backend`                                          | Unitarios con Vitest. Umbrales: 80% líneas, ramas, functions y statements. Cobertura en `coverage/unit/`. |
+| **Unit tests frontend** | `npm test -w frontend`                                                  | Vitest + React Testing Library sobre componentes y helpers.                                               |
+| **E2E API**             | `npm run test:e2e -w backend`                                           | Vitest + Supertest + Testcontainers (Mongo y Redis). Requiere Docker.                                     |
+| **E2E navegador**       | `npm test -w e2e`                                                       | Playwright sobre `docker-compose.e2e.yml`: flujo crítico, tiempo real, accesibilidad, móvil y sesión.     |
+| **Integration tests**   | `npm run test:integration -w backend`                                   | Infraestructura real con Testcontainers. Requiere Docker.                                                 |
+| **API contract**        | `npm run test:openapi -w backend` / `npm run export:openapi -w backend` | Compara el OpenAPI generado con `.vitest.openapi.snapshot.json`; falla si el contrato diverge.            |
 
 ## Arranque
 
@@ -69,15 +71,127 @@ Cuando el comando termina, la app está en <http://localhost:3001>.
 | Mailpit SMTP         | 1025   | correo saliente de desarrollo                                |
 | Mailpit web          | 8025   | bandeja donde se leen esos correos (<http://localhost:8025>) |
 
-Comandos útiles: `make logs` para seguir los logs, `make down` para parar la pila, `make seed` para
-cargar datos de ejemplo, `make test` y `make test-frontend` para las pruebas, `make
-test-integration` para las que usan Testcontainers (necesita Docker), `make lint` para ESLint y
-Prettier, y `make help` para ver todos los atajos. Para trabajar sin contenedores, `npm run
-start:dev -w backend` y `npm run dev -w frontend` (este último necesita `--port 3001` si la API ya
-ocupa el 3000).
+Los atajos del día a día están en `make help`; la lista completa de comandos y de variables está
+en las secciones siguientes.
 
 Para levantar y verificar la pila de producción en local —Caddy con TLS interno, secretos,
 healthchecks, URLs prefirmadas y apagado ordenado— sigue [`docs/production.md`](docs/production.md).
+
+## Capturas
+
+Tomadas sobre la pila E2E con datos de prueba creados para la ocasión (Chromium a 1280 × 900,
+salvo la móvil):
+
+**Detalle de receta** — Server Component con datos del hogar, ingredientes y pasos:
+
+![Detalle de receta](docs/screenshots/detalle-receta.jpg)
+
+**Modo cocina** — única isla cliente del detalle, cargada solo al abrirla:
+
+![Modo cocina](docs/screenshots/modo-cocina.jpg)
+
+**Plan semanal** — receta asignada al hueco de la comida del lunes:
+
+![Plan semanal](docs/screenshots/plan-semanal.jpg)
+
+**Lista de la compra** — ingredientes agregados y agrupados por pasillo:
+
+![Lista de la compra](docs/screenshots/lista-compra.jpg)
+
+**Lista de la compra en móvil** — a 390 px, con el progreso y el salto al pendiente al alcance del
+pulgar:
+
+![Lista de la compra en móvil](docs/screenshots/lista-compra-movil.jpg)
+
+## Comandos útiles
+
+| Comando                                                          | Qué hace                                                                                     |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `make help`                                                      | Lista todos los atajos del Makefile.                                                         |
+| `make up` / `make down`                                          | Levanta o para la pila de desarrollo (conserva los volúmenes).                               |
+| `make logs`                                                      | Sigue los logs de todos los servicios.                                                       |
+| `make seed`                                                      | Carga los datos de ejemplo descritos más abajo.                                              |
+| `make test` / `make test-frontend`                               | Unitarios de la API y del frontend.                                                          |
+| `make test-e2e`                                                  | E2E de la API y del navegador.                                                               |
+| `make test-integration`                                          | Tests con Testcontainers (necesita Docker).                                                  |
+| `make lint` / `make format`                                      | ESLint y Prettier: comprobar / aplicar.                                                      |
+| `npm run typecheck`                                              | Typecheck de `contracts`, backend, frontend y e2e.                                           |
+| `npm run build`                                                  | Compila `contracts` y todos los workspaces en orden.                                         |
+| `npm run format:check`                                           | Comprueba Prettier en todo el repo.                                                          |
+| `npm run start:dev -w backend`                                   | API en modo watch, sin contenedores.                                                         |
+| `npm run dev -w frontend -- -p 3001`                             | Next en desarrollo; el puerto evita chocar con la API en el 3000.                            |
+| `npm run analyze -w frontend`                                    | Genera el informe de `@next/bundle-analyzer` en `frontend/.next/analyze/client.html`.        |
+| `npm run measure:lighthouse -w e2e -- <url>`                     | Lighthouse sobre una URL ya servida; para rutas privadas pasa cookies con `--extra-headers`. |
+| `npm run generate:api-types -w frontend`                         | Regenera `src/server/openapi.d.ts` desde `packages/contracts/openapi.json`.                  |
+| `npm run report -w e2e`                                          | Abre el informe de Playwright de la última ejecución.                                        |
+| `docker compose -f docker-compose.e2e.yml up -d --wait`          | Levanta la pila E2E completa, incluido el servidor de fixtures.                              |
+| `docker compose -f docker-compose.e2e.yml down --remove-orphans` | Baja la pila E2E y limpia huérfanos.                                                         |
+
+## Variables de entorno
+
+El backend valida la configuración al arrancar: si falta alguna de las 16 variables obligatorias,
+la API no levanta y el error lista los campos inválidos. `cp .env.example .env` deja los valores de
+desarrollo; la pila E2E y el despliegue tienen sus propios valores.
+
+### Backend: obligatorias
+
+| Variable                           | Para qué                                             | Desarrollo                                       |
+| ---------------------------------- | ---------------------------------------------------- | ------------------------------------------------ |
+| `MONGO_URL`                        | MongoDB con replica set `rs0`                        | `mongodb://mongo:27017/recipes?replicaSet=rs0`   |
+| `REDIS_URL`                        | Redis para colas, caché y Socket.IO                  | `redis://redis:6379`                             |
+| `S3_ENDPOINT`                      | Endpoint interno de MinIO/S3                         | `http://minio:9000`                              |
+| `S3_PUBLIC_ENDPOINT`               | Host que se firma en las URLs del navegador          | `http://localhost:9000`                          |
+| `S3_BUCKET`                        | Bucket de imágenes                                   | `recipes`                                        |
+| `S3_ACCESS_KEY` **(secreto)**      | Credencial S3                                        | `minioadmin` solo en local                       |
+| `S3_SECRET_KEY` **(secreto)**      | Credencial S3                                        | `minioadmin` solo en local                       |
+| `JWT_ACCESS_SECRET` **(secreto)**  | Firma HS256 del access token (mínimo 32 caracteres)  | valor de ejemplo en `.env.example`               |
+| `JWT_REFRESH_SECRET` **(secreto)** | Firma HS256 del refresh token (mínimo 32 caracteres) | valor de ejemplo en `.env.example`               |
+| `SMTP_HOST`                        | Host SMTP                                            | `mailpit`                                        |
+| `SMTP_PORT`                        | Puerto SMTP; la validación lo exige pese al fallback | `1025`                                           |
+| `MAIL_FROM`                        | Remitente de los correos                             | `Recipe Planner <no-reply@recipe-planner.local>` |
+| `APP_ENV`                          | `development`, `test` o `production`                 | `development`                                    |
+| `LOG_LEVEL`                        | `debug`, `info`, `warn` o `error`                    | `debug`                                          |
+| `FRONTEND_URL`                     | Origen exacto de CORS, CSRF, sockets y correos       | `http://localhost:3001`                          |
+| `API_INTERNAL_URL`                 | URL servidor→servidor que usa el frontend            | `http://backend:3000`                            |
+
+### Backend: opcionales y de test
+
+| Variable                                        | Para qué                                                    | Valor por defecto                      |
+| ----------------------------------------------- | ----------------------------------------------------------- | -------------------------------------- |
+| `NODE_ENV`                                      | Swagger UI frente a `/json`, y modo del export OpenAPI      | `development`                          |
+| `PORT`                                          | Puerto HTTP de la API                                       | `3000`                                 |
+| `PUBLIC_URL`                                    | URL del servidor en el documento OpenAPI                    | `http://localhost:3000`                |
+| `TRUST_PROXY`                                   | CIDR aceptado para `X-Forwarded-For` (nunca `true`)         | `172.16.0.0/12`                        |
+| `IMPORT_ALLOWED_HOSTS`                          | Whitelist CSV para importación, **solo con `APP_ENV=test`** | vacía; `fixtures` en E2E               |
+| `OBSERVE_APP_KEY` / `OBSERVE_APP_SECRET`        | Credenciales de NestJS Observe (secretos)                   | las escribe `npx @nestjs/observe link` |
+| `TESTCONTAINERS_MONGO` / `TESTCONTAINERS_REDIS` | Usar Testcontainers en tests de integración                 | solo tests                             |
+| `MINIO_IMAGE`                                   | Imagen de MinIO en tests de integración                     | `chainguard/minio:latest`              |
+
+### Frontend
+
+| Variable              | Para qué                                                       | Valor                                                    |
+| --------------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
+| `API_INTERNAL_URL`    | Base de `apiFetch` en el servidor y destino del rewrite `/api` | `http://backend:3000`; `localhost:3000` sin contenedores |
+| `FRONTEND_URL`        | Cabecera `Origin` del refresh desde el middleware              | `http://localhost:3001`                                  |
+| `NEXT_PUBLIC_API_URL` | Origen del handshake de Socket.IO; se incrusta en el build     | `http://localhost:3000`; vacío en producción             |
+| `ANALYZE`             | `true` activa `@next/bundle-analyzer`                          | no definida                                              |
+
+### E2E y producción
+
+| Variable                | Para qué                                       | Valor                    |
+| ----------------------- | ---------------------------------------------- | ------------------------ |
+| `E2E_BASE_URL`          | URL del frontend para Playwright               | `http://localhost:3001`  |
+| `E2E_API_URL`           | URL de la API para los helpers de datos        | `http://localhost:3000`  |
+| `E2E_JWT_ACCESS_SECRET` | Firma de tokens en el test de sesión           | valor de test            |
+| `CI`                    | Ajusta retries y workers de Playwright         | la define GitHub Actions |
+| `APP_DOMAIN`            | Dominio de Caddy y URLs públicas en producción | `recipes.local`          |
+| `MONGO_ROOT_USERNAME`   | Usuario root de Mongo en producción            | `recipes`                |
+
+En producción los secretos se entregan como Docker secrets: `MONGO_URL_FILE`, `REDIS_URL_FILE`,
+`S3_ACCESS_KEY_FILE`, `S3_SECRET_KEY_FILE`, `JWT_ACCESS_SECRET_FILE` y
+`JWT_REFRESH_SECRET_FILE` leen su contenido de `/run/secrets/`. Si además existe la variable plana,
+**el valor plano gana**. Los nombres de los ficheros y el resto de secretos del stack están en
+`secrets/README.md` y `docs/production.md`.
 
 ## Datos de ejemplo
 
