@@ -42,6 +42,17 @@ Solo pruebas de humo (`@smoke`):
 npm run test:smoke -w e2e
 ```
 
+Solo la auditoría de accesibilidad (`@axe-core/playwright`):
+
+```bash
+npm run test:a11y -w e2e
+```
+
+La auditoría recorre recetas, editor, plan y lista con un hogar y una receta ya creados y falla
+si Axe encuentra violaciones de WCAG 2.1 A/AA o de buenas prácticas (`document-title`,
+`landmark-one-main`, `region`, `page-has-heading-one`, …). Imprime el detalle de cada nodo
+incumplido para poder corregirlo. Forma parte de la suite completa, así que también corre en CI.
+
 Otros scripts disponibles:
 
 ```bash
