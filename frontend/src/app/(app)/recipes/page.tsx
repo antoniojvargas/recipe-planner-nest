@@ -3,14 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 
 export default function RecipesPage() {
-  // Obtener parámetros de la URL
-  const params = new URLSearchParams(window.location.search);
-  const searchQuery = params.get('q') || '';
-  const tagsParam = params.get('tags') || '';
-  const cursor = params.get('cursor') || '';
-  const limit = params.get('limit') || '12';
+  // La query de la URL se lee con `useSearchParams`: `window` no existe en el render del
+  // servidor y este componente también se renderiza allí.
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get('q') ?? '';
+  const tagsParam = searchParams.get('tags') ?? '';
+  const cursor = searchParams.get('cursor') ?? '';
+  const limit = searchParams.get('limit') ?? '12';
 
   const [recipes, setRecipes] = useState<
     {
@@ -50,7 +52,7 @@ export default function RecipesPage() {
 
     try {
       const response = await fetch(
-        `/api/households/${params.get('householdId') || 'current'}/recipes`,
+        `/api/households/${searchParams.get('householdId') ?? 'current'}/recipes`,
         {
           method: 'GET',
           headers: {
