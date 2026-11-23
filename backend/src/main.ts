@@ -72,8 +72,12 @@ async function bootstrap() {
       customSiteTitle: 'Recipe Planner API Docs',
     });
   } else if (isProduction) {
-    // En producción servimos solo el JSON en /json; la UI no está expuesta.
+    // En producción servimos solo el JSON en /json; la UI no está expuesta. `ui: false`
+    // evita registrar la UI y sus assets estáticos, y `jsonDocumentUrl` mantiene el
+    // documento en /json en lugar del `/json-json` por defecto.
     SwaggerModule.setup('json', app, document, {
+      ui: false,
+      jsonDocumentUrl: 'json',
       swaggerOptions: {
         persistAuthorization: true,
       },

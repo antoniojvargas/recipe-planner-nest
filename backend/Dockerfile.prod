@@ -37,8 +37,9 @@ COPY backend/src ./backend/src
 RUN npm run build -w backend
 
 # El runtime no lleva devDependencies: quedan solo las dependencias de producción.
-# La instalación filtrada no hoistea todo a la raíz, así que `backend/node_modules` se
-# crea explícitamente para poder copiarlo en el runtime aunque quede vacío.
+# `npm ci` reparte el árbol según el lockfile: lo que no puede hoistear a la raíz queda
+# anidado en `backend/node_modules`, así que ambas carpetas viajan al runtime. El `mkdir`
+# mantiene la ruta aunque npm deje de anidar nada ahí.
 RUN npm prune --omit=dev --workspace backend --workspace @recipe-planner/contracts \
   && mkdir -p backend/node_modules
 
@@ -61,6 +62,12 @@ COPY --from=build --chown=node:node /app/packages/contracts/package.json ./packa
 COPY --from=build --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=build --chown=node:node /app/backend/package.json ./backend/package.json
 COPY --from=build --chown=node:node /app/backend/dist ./backend/dist
+
+# Guarda contra cambios de reparto de `node_modules`: si algún import del código
+# compilado no se resuelve en esta imagen, el build falla aquí y no con
+# `ERR_MODULE_NOT_FOUND` al arrancar el contenedor.
+COPY backend/scripts/check-runtime-deps.mjs /tmp/check-runtime-deps.mjs
+RUN node /tmp/check-runtime-deps.mjs backend/dist && rm /tmp/check-runtime-deps.mjs
 
 # El proceso corre sin privilegios: no escribe en disco (los logs van a stdout y los
 # ficheros a S3), así que `/app` puede seguir siendo de root.
