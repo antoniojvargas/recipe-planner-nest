@@ -7,12 +7,14 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AppModule, ObserveInstrument } from './app.module.js';
 import { configureApp } from './app.setup.js';
 import { exposeRequestId, requestIdAdapterOptions } from './config/request-id.js';
+import { trustProxyOptions } from './config/trust-proxy.js';
 import { registerRealtimeAdapter } from './realtime/redis-io.adapter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
+      ...trustProxyOptions(),
       // Limit body size to 1 MiB para evitar ataques de subida de archivos
       // y consumos excesivos de memoria.
       bodyLimit: 1_048_576,

@@ -15,6 +15,9 @@ name: recipes-prod
 x-backend-environment: &backend-environment
   APP_ENV: production
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Solo Caddy (en la red de Docker) puede fijar la IP del cliente con X-Forwarded-For.
+  # El throttler cuenta por request.ip, así que esto evita que se pueda falsificar.
+  TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
   MONGO_URL_FILE: /run/secrets/mongo_url
   REDIS_URL_FILE: /run/secrets/redis_url
   # S3_ENDPOINT: tráfico interno (subir, HeadObject, borrar) por la red de Docker.
