@@ -1,0 +1,72 @@
+# syntax=docker/dockerfile:1
+
+# Imagen de producción de la API y el worker. El contexto de build es la raíz del
+# repositorio, porque el lockfile y los manifiestos viven en el workspace:
+#   docker build -f backend/Dockerfile.prod -t recipes-backend:prod .
+# Es una sola imagen para los dos procesos: la API arranca con el `CMD` por defecto y el
+# worker sobrescribiendo el comando (`node backend/dist/worker.js`).
+
+ARG NODE_IMAGE=node:22-alpine
+
+# --- build -------------------------------------------------------------------
+FROM ${NODE_IMAGE} AS build
+
+WORKDIR /app
+
+# `npm ci` necesita las devDependencies (Nest CLI, TypeScript) para compilar.
+ENV NODE_ENV=development
+
+# Manifiestos de todos los workspaces: esta capa solo se invalida si cambian las dependencias.
+COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
+COPY packages/contracts/package.json ./packages/contracts/
+
+# Solo las dependencias de lo que se compila aquí: el frontend tiene su propia imagen.
+RUN npm ci --workspace backend --workspace @recipe-planner/contracts
+
+# El paquete compartido se compila antes: la API importa sus tipos y constantes.
+COPY packages/contracts/tsconfig.json ./packages/contracts/
+COPY packages/contracts/src ./packages/contracts/src
+RUN npm run build -w @recipe-planner/contracts
+
+COPY backend/nest-cli.json backend/tsconfig.json backend/tsconfig.build.json ./backend/
+COPY backend/src ./backend/src
+
+# Genera `dist/main.js` (API) y `dist/worker.js` (colas) en una sola pasada.
+RUN npm run build -w backend
+
+# El runtime no lleva devDependencies: quedan solo las dependencias de producción.
+# La instalación filtrada no hoistea todo a la raíz, así que `backend/node_modules` se
+# crea explícitamente para poder copiarlo en el runtime aunque quede vacío.
+RUN npm prune --omit=dev --workspace backend --workspace @recipe-planner/contracts \
+  && mkdir -p backend/node_modules
+
+# --- runtime -----------------------------------------------------------------
+FROM ${NODE_IMAGE} AS runtime
+
+# tini reapea procesos huérfanos y reenvía SIGTERM/SIGINT, que Nest necesita para el
+# apagado ordenado (`enableShutdownHooks`).
+RUN apk add --no-cache tini
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Se conservan las rutas del workspace porque `node_modules` contiene los symlinks
+# `node_modules/backend` y `node_modules/@recipe-planner/contracts`.
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/backend/node_modules ./backend/node_modules
+COPY --from=build --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=build --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=build --chown=node:node /app/backend/package.json ./backend/package.json
+COPY --from=build --chown=node:node /app/backend/dist ./backend/dist
+
+# El proceso corre sin privilegios: no escribe en disco (los logs van a stdout y los
+# ficheros a S3), así que `/app` puede seguir siendo de root.
+USER node
+
+EXPOSE 3000
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "backend/dist/main.js"]
