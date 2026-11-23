@@ -206,3 +206,6 @@ para la próxima verificación.
   `caddy:/data/caddy/pki/authorities/local/root.crt` como CA de confianza.
 - **El worker no termina limpio**: debe usar `enableShutdownHooks([], { useProcessExit: true })`
   para que pino vacíe sus buffers antes de `process.exit()`.
+- **`up --wait` devuelve 1 aunque todo esté `healthy`**: algunas versiones de Compose tratan la
+  terminación de los servicios de una sola vez (`mongo-keyfile`, `minio-init`) como un fallo.
+  Usa `up -d` y espera a los healthchecks de `backend` y `frontend`, como hace el job de CI.

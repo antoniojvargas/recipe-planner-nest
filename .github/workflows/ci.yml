@@ -231,12 +231,25 @@ jobs:
           gen > secrets/jwt_access_secret.txt
           gen > secrets/jwt_refresh_secret.txt
 
-      # `--wait` falla si alguno de los healthchecks del compose no llega a healthy.
-      - name: Start prod stack and wait for healthchecks
-        run: docker compose -f docker-compose.prod.yml up --wait
+      - name: Start prod stack
+        run: docker compose -f docker-compose.prod.yml up -d
 
-      - name: Verify healthcheck status and endpoints
+      # `up --wait` devuelve 1 en algunas versiones de Compose cuando un servicio de una
+      # sola vez termina (mongo-keyfile, minio-init), aunque todo esté healthy. Se espera
+      # explícitamente a los healthchecks que importan: backend y frontend.
+      - name: Wait for healthchecks and verify endpoints
         run: |
+          for attempt in $(seq 1 60); do
+            all_healthy=true
+            for service in backend frontend; do
+              container=$(docker compose -f docker-compose.prod.yml ps -q "$service")
+              health_status=$(docker inspect -f '{{.State.Health.Status}}' "$container")
+              [ "$health_status" = healthy ] || all_healthy=false
+            done
+            [ "$all_healthy" = true ] && break
+            sleep 2
+          done
+
           for service in backend frontend; do
             container=$(docker compose -f docker-compose.prod.yml ps -q "$service")
             health_status=$(docker inspect -f '{{.State.Health.Status}}' "$container")
