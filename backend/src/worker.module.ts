@@ -11,6 +11,7 @@ import { SafeHttpClient } from './imports/safe-http.client.js';
 import { MEDIA_QUEUE_NAME } from './media/media.queue.js';
 import { MediaProcessor } from './media/media.processor.js';
 import { bullMqConnection } from './queues/bullmq.connection.js';
+import { WorkersShutdown } from './queues/workers-shutdown.js';
 import { RealtimePublisherModule } from './realtime/realtime-publisher.module.js';
 import { RecipesModule } from './recipes/recipes.module.js';
 import { RedisModule } from './redis/redis.module.js';
@@ -50,6 +51,6 @@ import { StorageModule } from './storage/storage.module.js';
     RecipesModule,
     RealtimePublisherModule,
   ],
-  providers: [MediaProcessor, ImportsProcessor, SafeHttpClient],
+  providers: [MediaProcessor, ImportsProcessor, SafeHttpClient, WorkersShutdown],
 })
 export class WorkerModule {}

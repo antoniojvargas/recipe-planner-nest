@@ -15,6 +15,9 @@ name: recipes-prod
 x-backend-environment: &backend-environment
   APP_ENV: production
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Heap de la API: el 75 % del límite de 512m del contenedor. El worker usa otro valor
+  # (768m sobre 1g) porque descarga y redimensiona imágenes con sharp fuera del heap.
+  NODE_OPTIONS: --max-old-space-size=384
   # Solo Caddy (en la red de Docker) puede fijar la IP del cliente con X-Forwarded-For.
   # El throttler cuenta por request.ip, así que esto evita que se pueda falsificar.
   TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
@@ -224,6 +227,7 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+    mem_limit: 512m
     # Nest cierra sockets, colas, Redis y Mongo con calma cuando recibe el SIGTERM.
     stop_grace_period: 30s
     restart: unless-stopped
@@ -241,6 +245,8 @@ services:
       - jwt_refresh_secret
     environment:
       <<: *backend-environment
+      # Más heap que la API: sharp trabaja con buffers fuera de V8 al generar miniaturas.
+      NODE_OPTIONS: --max-old-space-size=768
     depends_on:
       backend:
         condition: service_started
@@ -250,6 +256,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    mem_limit: 1g
+    # `worker.close()` espera a los trabajos en curso antes de cortar Redis y Mongo.
     stop_grace_period: 30s
     restart: unless-stopped
 
@@ -262,10 +270,12 @@ services:
       NODE_ENV: production
       API_INTERNAL_URL: http://backend:3000
       FRONTEND_URL: https://${APP_DOMAIN:-recipes.local}
+      NODE_OPTIONS: --max-old-space-size=384
       # `NEXT_PUBLIC_API_URL` no se define: Caddy sirve Next y `/socket.io` en el mismo
       # origen, que es lo que usa el cliente cuando la variable está vacía.
     expose:
       - '3001'
+    mem_limit: 512m
     depends_on:
       backend:
         condition: service_healthy
