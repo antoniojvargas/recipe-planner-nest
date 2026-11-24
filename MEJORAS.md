@@ -311,15 +311,18 @@ export const requestContext = new AsyncLocalStorage<{ requestId: string; userId?
 
 # Apéndice — Hallazgos a verificar
 
+> Estado tras la Fase 0. La evidencia (archivo y línea) y los hallazgos nuevos H11–H18 están en
+> [`docs/architecture-review.md`](docs/architecture-review.md).
+
 | # | Hallazgo candidato | Cómo se verifica | Impacto | Estado | Se corrige en |
 | --- | --- | --- | --- | --- | --- |
-| H1 | Refresh simultáneo de dos pestañas revoca la familia | Test con dos refresh paralelos | Cierres de sesión aleatorios | a verificar | Fase 1 |
-| H2 | Middleware de Next refrescando de más | Contar llamadas a `/refresh` | Latencia y carga | a verificar | Fase 1 |
-| H3 | `fetch` del servidor de Next cacheado entre usuarios | Dos usuarios en paralelo | Fuga de datos | a verificar | Fase 2 |
-| H4 | Acceso a `Model` fuera de los repositorios, sin filtro de hogar | `grep` + tests de aislamiento | Lectura de otros hogares | a verificar | Fase 3 |
-| H5 | Documentos de Mongoose serializados tal cual | Buscar `__v`/`passwordHash` en respuestas | Fuga de campos internos | a verificar | Fase 3 |
-| H6 | Objetos huérfanos en MinIO | Listar objetos sin receta | Coste y datos sin dueño | a verificar | Fase 4 |
-| H7 | Trabajos de BullMQ no idempotentes y sin limpieza | Encolar dos veces; `KEYS bull:*` | Duplicados y Redis creciente | a verificar | Fase 4 |
-| H8 | Unidades calculadas distinto en back y front | Tabla de casos compartida | Cantidades que no cuadran | a verificar | Fase 5 |
-| H9 | `weekStart` calculado en UTC | Domingo por la noche en UTC−5 | Plan de la semana equivocada | a verificar | Fase 5 |
-| H10 | El `SafeHttpClient` no revalida la IP en cada redirección | Test de redirección a IP privada | SSRF | a verificar | Fase 0 → asignar |
+| H1 | Refresh simultáneo de dos pestañas revoca la familia | Test con dos refresh paralelos | Cierres de sesión aleatorios | confirmado | Fase 1 |
+| H2 | Middleware de Next refrescando de más | Contar llamadas a `/refresh` | Latencia y carga | descartado | — |
+| H3 | `fetch` del servidor de Next cacheado entre usuarios | Dos usuarios en paralelo | Fuga de datos | descartado | — |
+| H4 | Acceso a `Model` fuera de los repositorios, sin filtro de hogar | `grep` + tests de aislamiento | Lectura de otros hogares | descartado | — |
+| H5 | Documentos de Mongoose serializados tal cual | Buscar `__v`/`passwordHash` en respuestas | Fuga de campos internos | parcial | Fase 3 |
+| H6 | Objetos huérfanos en MinIO | Listar objetos sin receta | Coste y datos sin dueño | confirmado | Fase 4 |
+| H7 | Trabajos de BullMQ no idempotentes y sin limpieza | Encolar dos veces; `KEYS bull:*` | Duplicados y Redis creciente | parcial | Fase 4 |
+| H8 | Unidades calculadas distinto en back y front | Tabla de casos compartida | Cantidades que no cuadran | descartado | — |
+| H9 | `weekStart` calculado en UTC | Domingo por la noche en UTC−5 | Plan de la semana equivocada | confirmado | Fase 5 |
+| H10 | El `SafeHttpClient` no revalida la IP en cada redirección | Test de redirección a IP privada | SSRF | descartado | — |
