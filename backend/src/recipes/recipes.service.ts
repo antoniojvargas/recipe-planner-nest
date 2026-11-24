@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import { Types, type UpdateQuery } from 'mongoose';
 import { AppException } from '../common/exceptions/app.exception.js';
+import { toResponseDto } from '../common/response.js';
 import type { ConfirmImageDto } from '../media/dto/confirm-image.dto.js';
 import { MediaService } from '../media/media.service.js';
 import { CreateRecipeDto } from './dto/create-recipe.dto.js';
@@ -15,7 +16,7 @@ import {
   type RecipesSearchCursor,
 } from './recipes.cursor.js';
 import { RecipesRepository } from './recipes.repository.js';
-import type { RecipeListResponse, RecipeResponse } from './recipes.types.js';
+import { RecipeListResponse, RecipeResponse } from './recipes.types.js';
 
 async function toResponse(recipe: Recipe, media: MediaService): Promise<RecipeResponse> {
   const image =
@@ -28,7 +29,7 @@ async function toResponse(recipe: Recipe, media: MediaService): Promise<RecipeRe
           ...(await media.signImageUrls(recipe.image.key)),
         };
 
-  return {
+  return toResponseDto(RecipeResponse, {
     id: recipe._id.toString(),
     householdId: recipe.householdId.toString(),
     title: recipe.title,
@@ -51,7 +52,7 @@ async function toResponse(recipe: Recipe, media: MediaService): Promise<RecipeRe
     createdBy: recipe.createdBy.toString(),
     createdAt: recipe.createdAt,
     updatedAt: recipe.updatedAt,
-  };
+  });
 }
 
 function notFound(): AppException {
@@ -284,9 +285,9 @@ export class RecipesService {
           })
         : null;
 
-    return {
+    return toResponseDto(RecipeListResponse, {
       items: await Promise.all(items.map((recipe) => toResponse(recipe, this.media))),
       nextCursor,
-    };
+    });
   }
 }

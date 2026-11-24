@@ -1,7 +1,14 @@
+import { Expose, Type } from 'class-transformer';
+
 /** Datos públicos del usuario que devuelven `register` y `login`. */
-export interface AuthUser {
+export class AuthUser {
+  @Expose()
   id: string;
+
+  @Expose()
   email: string;
+
+  @Expose()
   displayName: string;
 }
 
@@ -18,7 +25,9 @@ export interface LoginInput {
 }
 
 /** Respuesta de los endpoints de sesión: las cookies viajan aparte, en `Set-Cookie`. */
-export interface AuthResponse {
+export class AuthResponse {
+  @Expose()
+  @Type(() => AuthUser)
   user: AuthUser;
 }
 

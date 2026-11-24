@@ -53,7 +53,13 @@ export class MediaProcessor extends WorkerHost {
     }
   }
 
-  private async createThumbnails({ key }: ThumbnailJobData): Promise<void> {
+  private async createThumbnails({ householdId, recipeId, key }: ThumbnailJobData): Promise<void> {
+    const prefix = householdMediaPrefix(householdId);
+
+    if (!key.startsWith(prefix)) {
+      throw new Error(`La imagen de la receta ${recipeId} pertenece a otro hogar`);
+    }
+
     const object = await this.s3.send(
       new GetObjectCommand({ Bucket: this.config.bucket, Key: key }),
     );

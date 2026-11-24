@@ -14,6 +14,7 @@ import { ERROR_CODES } from '@recipe-planner/contracts';
 import type { Queue } from 'bullmq';
 import sharp from 'sharp';
 import { AppException } from '../common/exceptions/app.exception.js';
+import { toResponseDto } from '../common/response.js';
 import { storageConfig, type StorageConfig } from '../config/index.js';
 import { S3_CLIENT, S3_PUBLIC_CLIENT } from '../storage/storage.module.js';
 import type { CreateUploadUrlDto } from './dto/create-upload-url.dto.js';
@@ -33,7 +34,7 @@ import {
   type MediaJobData,
   type ThumbnailJobData,
 } from './media.queue.js';
-import type { SignedImageUrls, UploadedImage, UploadUrlResponse } from './media.types.js';
+import { UploadUrlResponse, type SignedImageUrls, type UploadedImage } from './media.types.js';
 
 /** Opciones comunes de los trabajos de medios: reintentos y limpieza de la cola. */
 const MEDIA_JOB_OPTIONS = {
@@ -85,7 +86,7 @@ export class MediaService {
       ],
     });
 
-    return { key, url, fields, expiresAt };
+    return toResponseDto(UploadUrlResponse, { key, url, fields, expiresAt });
   }
 
   /**

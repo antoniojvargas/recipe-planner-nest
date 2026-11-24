@@ -1,14 +1,22 @@
 import { Injectable, BadRequestException, Inject } from '@nestjs/common';
 import { SOCKET_EVENTS, type MealPlanUpdatedPayload } from '@recipe-planner/contracts';
-import type { HydratedDocument } from 'mongoose';
 import { isWeekStart, toWeekStartString } from '../common/week.js';
 import { MealPlan, MealPlanSlot, MEALS } from './meal-plan.schema.js';
+import { toMealPlanResponse, type MealPlanResponse } from './meal-plan.types.js';
 import { MealPlansRepository } from './meal-plans.repository.js';
 import { RecipesRepository } from '../recipes/recipes.repository.js';
 import { REALTIME_PUBLISHER, type RealtimePublisher } from '../realtime/realtime-publisher.js';
 import { Types } from 'mongoose';
 
 type UpdatedSlot = MealPlanUpdatedPayload['slots'][number];
+
+function toSavedPlanResponse(plan: MealPlan | null): MealPlanResponse {
+  if (plan === null) {
+    throw new BadRequestException('No se pudo guardar el plan de la semana');
+  }
+
+  return toMealPlanResponse(plan);
+}
 
 @Injectable()
 export class MealPlansService {
@@ -18,7 +26,7 @@ export class MealPlansService {
     @Inject(REALTIME_PUBLISHER) private readonly publisher: RealtimePublisher,
   ) {}
 
-  async getPlan(householdId: string, weekStart: Date): Promise<HydratedDocument<MealPlan>> {
+  async getPlan(householdId: string, weekStart: Date): Promise<MealPlanResponse> {
     if (!isWeekStart(weekStart)) {
       throw new BadRequestException('weekStart debe ser el lunes de la semana a las 00:00 UTC');
     }
@@ -29,14 +37,14 @@ export class MealPlansService {
       throw new BadRequestException('No se pudo crear el plan de la semana');
     }
 
-    return plan as HydratedDocument<MealPlan>;
+    return toMealPlanResponse(plan);
   }
 
   async updateSlots(
     householdId: string,
     weekStart: Date,
     dto: { day: number; meal: string; recipeId?: string; servings?: number },
-  ): Promise<HydratedDocument<MealPlan>> {
+  ): Promise<MealPlanResponse> {
     if (dto.day < 0 || dto.day > 6) {
       throw new BadRequestException('day debe ser un entero entre 0 (lunes) y 6 (domingo)');
     }
@@ -72,7 +80,7 @@ export class MealPlansService {
         },
       ]);
 
-      return result as HydratedDocument<MealPlan>;
+      return toSavedPlanResponse(result);
     }
 
     // Validar que la receta existe y pertenece al hogar usando findById
@@ -110,7 +118,7 @@ export class MealPlansService {
 
       this.publishUpdated(householdId, weekStart, [updatedSlot]);
 
-      return result as HydratedDocument<MealPlan>;
+      return toSavedPlanResponse(result);
     }
 
     // No hay receta en este slot, agregar una nueva
@@ -121,7 +129,7 @@ export class MealPlansService {
 
     this.publishUpdated(householdId, weekStart, [updatedSlot]);
 
-    return result as HydratedDocument<MealPlan>;
+    return toSavedPlanResponse(result);
   }
 
   /** Notifica solo los huecos que cambiaron; el cliente actualiza su plan sin releerlo. */

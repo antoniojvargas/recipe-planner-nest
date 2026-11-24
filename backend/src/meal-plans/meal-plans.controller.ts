@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Put, UseGuards } from '@nestjs/common';
 import { HouseholdMemberGuard } from '../households/guards/household-member.guard.js';
+import { MealPlanResponse } from './meal-plan.types.js';
 import { MealPlansService } from './meal-plans.service.js';
-import { MealPlan } from './meal-plan.schema.js';
 
 @Controller('households/:householdId/meal-plans')
 @UseGuards(HouseholdMemberGuard)
@@ -14,7 +14,7 @@ export class MealPlansController {
   async getPlan(
     @Param('householdId') householdId: string,
     @Param('weekStart') weekStart: string,
-  ): Promise<MealPlan> {
+  ): Promise<MealPlanResponse> {
     const date = new Date(weekStart);
     return this.mealPlansService.getPlan(householdId, date);
   }
@@ -26,7 +26,7 @@ export class MealPlansController {
     @Param('householdId') householdId: string,
     @Param('weekStart') weekStart: string,
     @Body() dto: { day: number; meal: string; recipeId?: string; servings?: number },
-  ): Promise<MealPlan> {
+  ): Promise<MealPlanResponse> {
     const date = new Date(weekStart);
     return this.mealPlansService.updateSlots(householdId, date, dto);
   }

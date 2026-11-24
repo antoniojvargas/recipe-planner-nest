@@ -16,7 +16,9 @@ export class InMemoryImportsRepository {
   readonly jobs: StoredImportJob[] = [];
 
   createOrFind(input: CreateImportJobInput): Promise<CreatedImportJob> {
-    const existing = this.jobs.find((job) => job.jobId === input.jobId);
+    const existing = this.jobs.find(
+      (job) => job.jobId === input.jobId && job.householdId.toString() === input.householdId,
+    );
 
     if (existing !== undefined) {
       return Promise.resolve({ job: existing, created: false });
@@ -39,20 +41,28 @@ export class InMemoryImportsRepository {
     return Promise.resolve({ job, created: true });
   }
 
-  findById(importId: string): Promise<ImportJob | null> {
-    return Promise.resolve(this.jobs.find((job) => job._id.toString() === importId) ?? null);
+  findById(householdId: string, importId: string): Promise<ImportJob | null> {
+    return Promise.resolve(
+      this.jobs.find(
+        (job) => job.householdId.toString() === householdId && job._id.toString() === importId,
+      ) ?? null,
+    );
   }
 
-  markProcessing(importId: string): Promise<ImportJob | null> {
-    return this.update(importId, (job) => {
+  markProcessing(householdId: string, importId: string): Promise<ImportJob | null> {
+    return this.update(householdId, importId, (job) => {
       job.status = 'processing';
       job.errorCode = undefined;
       job.errorMessage = undefined;
     });
   }
 
-  markCompleted(importId: string, recipeId: string): Promise<ImportJob | null> {
-    return this.update(importId, (job) => {
+  markCompleted(
+    householdId: string,
+    importId: string,
+    recipeId: string,
+  ): Promise<ImportJob | null> {
+    return this.update(householdId, importId, (job) => {
       job.status = 'completed';
       job.recipeId = new Types.ObjectId(recipeId);
       job.errorCode = undefined;
@@ -60,8 +70,13 @@ export class InMemoryImportsRepository {
     });
   }
 
-  markFailed(importId: string, code: string, message: string): Promise<ImportJob | null> {
-    return this.update(importId, (job) => {
+  markFailed(
+    householdId: string,
+    importId: string,
+    code: string,
+    message: string,
+  ): Promise<ImportJob | null> {
+    return this.update(householdId, importId, (job) => {
       job.status = 'failed';
       job.recipeId = undefined;
       job.errorCode = code;
@@ -70,10 +85,13 @@ export class InMemoryImportsRepository {
   }
 
   private update(
+    householdId: string,
     importId: string,
     change: (job: StoredImportJob) => void,
   ): Promise<ImportJob | null> {
-    const job = this.jobs.find((item) => item._id.toString() === importId);
+    const job = this.jobs.find(
+      (item) => item.householdId.toString() === householdId && item._id.toString() === importId,
+    );
 
     if (job === undefined) {
       return Promise.resolve(null);

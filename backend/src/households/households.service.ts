@@ -2,6 +2,7 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ERROR_CODES } from '@recipe-planner/contracts';
 import { Types } from 'mongoose';
 import { AppException } from '../common/exceptions/app.exception.js';
+import { toResponseDto } from '../common/response.js';
 import { AUTH_CLOCK, type AuthClock } from '../auth/auth.clock.js';
 import { RealtimeRoomsService } from '../realtime/realtime-rooms.service.js';
 import { UsersRepository } from '../users/users.repository.js';
@@ -13,7 +14,7 @@ import {
   INVITE_CODE_TTL_MS,
   normalizeInviteCode,
 } from './invite-code.js';
-import type { HouseholdInviteResponse, HouseholdResponse } from './households.types.js';
+import { HouseholdInviteResponse, HouseholdResponse } from './households.types.js';
 
 /**
  * Casos de uso de hogares. No conoce HTTP: devuelve datos de dominio o lanza `AppException`.
@@ -98,7 +99,7 @@ export class HouseholdsService {
 
     await this.households.setInviteCode(householdId, hashInviteCode(code), expiresAt);
 
-    return { code, expiresAt };
+    return toResponseDto(HouseholdInviteResponse, { code, expiresAt });
   }
 
   async joinWithCode(code: string, userId: string): Promise<HouseholdResponse> {
@@ -202,7 +203,7 @@ export class HouseholdsService {
     );
     const displayNames = new Map(users.map((user) => [user._id.toString(), user.displayName]));
 
-    return {
+    return toResponseDto(HouseholdResponse, {
       id: household._id.toString(),
       name: household.name,
       members: household.members.map((member) => {
@@ -217,6 +218,6 @@ export class HouseholdsService {
       }),
       createdAt: household.createdAt,
       updatedAt: household.updatedAt,
-    };
+    });
   }
 }

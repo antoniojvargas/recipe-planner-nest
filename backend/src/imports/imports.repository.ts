@@ -29,9 +29,9 @@ function isDuplicateKeyError(error: unknown): boolean {
 /**
  * Único punto de acceso a la colección `import_jobs`.
  *
- * La creación es idempotente por `jobId`: el índice único cierra la carrera entre dos
- * peticiones simultáneas con el mismo hogar y URL. La que pierde recupera el documento que
- * creó la otra en lugar de fallar.
+ * Toda consulta lleva `householdId`: un `importId` de otro hogar no sirve para leer ni marcar
+ * trabajos ajenos. La creación es idempotente por hogar y `jobId`; el índice único cierra la
+ * carrera entre dos peticiones simultáneas y la que pierde recupera el documento creado.
  */
 @Injectable()
 export class ImportsRepository {
@@ -48,7 +48,7 @@ export class ImportsRepository {
       }
 
       const existing = await this.importModel
-        .findOne({ jobId: input.jobId })
+        .findOne({ jobId: input.jobId, householdId: input.householdId })
         .lean<ImportJob>()
         .exec();
 
@@ -60,15 +60,15 @@ export class ImportsRepository {
     }
   }
 
-  async findById(importId: string): Promise<ImportJob | null> {
-    return this.importModel.findById(importId).lean<ImportJob>().exec();
+  async findById(householdId: string, importId: string): Promise<ImportJob | null> {
+    return this.importModel.findOne({ _id: importId, householdId }).lean<ImportJob>().exec();
   }
 
   /** El worker marca el trabajo como en curso y limpia el error de un intento anterior. */
-  async markProcessing(importId: string): Promise<ImportJob | null> {
+  async markProcessing(householdId: string, importId: string): Promise<ImportJob | null> {
     return this.importModel
-      .findByIdAndUpdate(
-        importId,
+      .findOneAndUpdate(
+        { _id: importId, householdId },
         { $set: { status: 'processing' }, $unset: { errorCode: '', errorMessage: '' } },
         { returnDocument: 'after' },
       )
@@ -77,10 +77,14 @@ export class ImportsRepository {
   }
 
   /** Cierra el trabajo con la receta creada. */
-  async markCompleted(importId: string, recipeId: string): Promise<ImportJob | null> {
+  async markCompleted(
+    householdId: string,
+    importId: string,
+    recipeId: string,
+  ): Promise<ImportJob | null> {
     return this.importModel
-      .findByIdAndUpdate(
-        importId,
+      .findOneAndUpdate(
+        { _id: importId, householdId },
         {
           $set: { status: 'completed', recipeId },
           $unset: { errorCode: '', errorMessage: '' },
@@ -92,10 +96,15 @@ export class ImportsRepository {
   }
 
   /** Guarda el fallo para que el cliente pueda explicar por qué no se importó. */
-  async markFailed(importId: string, code: string, message: string): Promise<ImportJob | null> {
+  async markFailed(
+    householdId: string,
+    importId: string,
+    code: string,
+    message: string,
+  ): Promise<ImportJob | null> {
     return this.importModel
-      .findByIdAndUpdate(
-        importId,
+      .findOneAndUpdate(
+        { _id: importId, householdId },
         {
           $set: { status: 'failed', errorCode: code, errorMessage: message },
           $unset: { recipeId: '' },
