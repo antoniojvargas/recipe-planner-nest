@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { middleware, parseSetCookie, shouldRefresh, updateCookieHeader } from './middleware';
+import {
+  config,
+  middleware,
+  parseSetCookie,
+  shouldRefresh,
+  updateCookieHeader,
+} from './middleware';
 
 const NOW_SECONDS = Math.floor(Date.now() / 1000);
 
@@ -10,15 +16,20 @@ function jwtWithExp(exp: number): string {
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: 'user-1', exp })}.signature`;
 }
 
-function requestWithCookies(cookies: Record<string, string>): NextRequest {
+function requestWithCookies(
+  cookies: Record<string, string>,
+  headers: Record<string, string> = {},
+): NextRequest {
   const cookieHeader = Object.entries(cookies)
     .map(([name, value]) => `${name}=${value}`)
     .join('; ');
 
   return new NextRequest(new URL('http://localhost:3001/recipes'), {
-    headers: { cookie: cookieHeader },
+    headers: { cookie: cookieHeader, ...headers },
   });
 }
+
+const matcher = new RegExp(`^${config.matcher[0]}$`);
 
 function refreshResponse(status = 204): Response {
   const headers = new Headers();
@@ -97,6 +108,31 @@ describe('updateCookieHeader', () => {
   });
 });
 
+describe('config.matcher', () => {
+  it.each(['/', '/recipes', '/plan/2026-11-23', '/shopping/2026-11-23'])(
+    'ejecuta el middleware en la ruta de la app %s',
+    (pathname) => {
+      expect(matcher.test(pathname)).toBe(true);
+    },
+  );
+
+  it.each([
+    '/api/auth/refresh',
+    '/socket.io/',
+    '/_next/static/chunks/main.js',
+    '/_next/image?url=/foto.png',
+    '/favicon.ico',
+    '/robots.txt',
+    '/avatar.svg',
+    '/foto.png',
+    '/foto.webp',
+    '/styles.css',
+    '/manifest.webmanifest',
+  ])('no ejecuta el middleware en %s', (pathname) => {
+    expect(matcher.test(pathname)).toBe(false);
+  });
+});
+
 describe('middleware', () => {
   it('deja pasar la petición sin llamar a la API si el token sigue vigente', async () => {
     const fetchMock = vi.fn();
@@ -151,6 +187,29 @@ describe('middleware', () => {
     expect(forwardedCookie).toContain('access_token=new-access');
     expect(forwardedCookie).toContain('refresh_token=new-refresh');
     expect(forwardedCookie).toContain('csrf_token=csrf-token');
+
+    // La marca viaja con la petición reenviada: si Next vuelve a ejecutar el middleware
+    // para la misma navegación, la segunda pasada no refresca otra vez.
+    expect(response.headers.get('x-middleware-refreshed')).toBe('1');
+    expect(response.headers.get('x-middleware-request-x-middleware-refreshed')).toBe('1');
+  });
+
+  it('renueva una sola vez por petición aunque el middleware se ejecute dos veces', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(refreshResponse()));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await middleware(
+      requestWithCookies(
+        {
+          access_token: jwtWithExp(NOW_SECONDS - 10),
+          refresh_token: 'refresh-token',
+        },
+        { 'x-middleware-refreshed': '1' },
+      ),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.headers.getSetCookie()).toEqual([]);
   });
 
   it('no refresca si no hay refresh token', async () => {

@@ -808,7 +808,9 @@ petición que ve el Server Component como la respuesta que recibe el navegador.
 - **Una sola llamada de refresh por petición.** `POST ${API_INTERNAL_URL}/api/auth/refresh`
   lleva `refresh_token` y `csrf_token` en la cabecera `Cookie`, `Origin: FRONTEND_URL` y
   `X-CSRF-Token`, porque el `CsrfGuard` también protege esta mutación. `API_INTERNAL_URL` evita
-  el salto por el navegador y el CORS.
+  el salto por el navegador y el CORS. La petición reenviada y la respuesta llevan
+  `X-Middleware-Refreshed: 1`; si Next ejecuta el middleware otra vez para la misma navegación,
+  la marca hace que la segunda pasada deje pasar la petición sin volver a refrescar.
 - **Se copian las cookies dos veces.** El `Set-Cookie` de la API se escribe en la respuesta al
   navegador y, con los mismos valores, en la cabecera `Cookie` de la petición que continúa al
   render (`NextResponse.next({ request: { headers } })`). La navegación se repite una vez con
@@ -818,10 +820,11 @@ petición que ve el Server Component como la respuesta que recibe el navegador.
   cualquier `!ok`, incluidos 5xx, y deja que el layout redirija a login. Solo la excepción de red
   (fetch sin respuesta) sigue con `NextResponse.next()` sin tocar las cookies. Conviene tenerlo
   presente: un 503 pasajero de la API cierra la sesión.
-- **El matcher excluye estáticos, imágenes y `/api`.** Solo se refresca en rutas de la app: ni
-  `_next/static`, ni `_next/image`, ni el socket, ni los assets. El rewrite de `/api` y
-  `src/lib/api-client.ts` gestionan sus propios reintentos desde el navegador, donde el refresh
-  sí puede seguir el flujo normal. Sin ese recorte, cada asset dispararía una llamada al refresh.
+- **El matcher excluye estáticos, imágenes y `/api`.** Solo se refresca en rutas de la app: todo
+  `_next`, el socket, los assets por extensión (imágenes, fuentes, CSS, JS…), `robots.txt`
+  y `sitemap.xml`. El rewrite de `/api` y `src/lib/api-client.ts` gestionan sus propios reintentos
+  desde el navegador, donde el refresh sí puede seguir el flujo normal. Sin ese recorte, cada
+  asset dispararía una llamada al refresh. `frontend/src/middleware.spec.ts` congela la lista.
 
 ### Mutaciones: Server Actions y cliente
 

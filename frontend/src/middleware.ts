@@ -12,6 +12,12 @@ const EXPIRY_SKEW_SECONDS = 30;
 
 const REQUEST_ID_HEADER = 'x-request-id';
 const CSRF_HEADER = 'x-csrf-token';
+/**
+ * Marca la petición ya renovada. Next puede ejecutar el middleware más de una vez para la
+ * misma navegación (por ejemplo, al combinar la página con su carga RSC); con esta marca la
+ * segunda ejecución deja pasar la petición sin volver a llamar a `/api/auth/refresh`.
+ */
+const REFRESHED_HEADER = 'x-middleware-refreshed';
 
 function apiInternalUrl(): string | null {
   const url = process.env.API_INTERNAL_URL?.trim();
@@ -168,6 +174,10 @@ function setCookieHeaders(headers: Headers): string[] {
  * el render continúa una sola vez con credenciales nuevas.
  */
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  if (request.headers.get(REFRESHED_HEADER) === '1') {
+    return NextResponse.next();
+  }
+
   const accessToken = request.cookies.get('access_token')?.value;
   const refreshToken = request.cookies.get('refresh_token')?.value;
 
@@ -211,6 +221,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // navegación y el layout de la app redirige a login.
     const response = NextResponse.next();
 
+    response.headers.set(REFRESHED_HEADER, '1');
     clearSessionCookies(response);
 
     return response;
@@ -230,8 +241,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   const headers = new Headers(request.headers);
   headers.set('cookie', updateCookieHeader(request.headers.get('cookie'), updates));
+  headers.set(REFRESHED_HEADER, '1');
 
   const response = NextResponse.next({ request: { headers } });
+  response.headers.set(REFRESHED_HEADER, '1');
 
   for (const cookie of renewedCookies) {
     response.cookies.set(cookie.name, cookie.value, cookie.options);
@@ -243,10 +256,10 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 /**
  * Solo rutas de la app: ni estáticos, ni imágenes, ni `/api` (el rewrite y el cliente del
  * navegador gestionan sus propios reintentos), ni el socket. Refrescar en cada asset sería
- * una llamada al refresh por recurso.
+ * una llamada al refresh por recurso. `_next` se excluye completo, no solo `static` e `image`.
  */
 export const config = {
   matcher: [
-    '/((?!api|socket.io|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)',
+    '/((?!api|socket\\.io|_next|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|css|js|mjs|map|txt|xml|json|webmanifest|woff|woff2|ttf|eot)$).*)',
   ],
 };
