@@ -4,6 +4,9 @@ import { requireHousehold } from '@/server/households';
 import { loadPlanPageData } from '@/server/plan-data';
 import { PlanBoard } from './plan-board';
 
+// Datos de la sesión: nunca se sirven desde una caché compartida entre usuarios.
+export const dynamic = 'force-dynamic';
+
 /**
  * Plan semanal del hogar.
  *

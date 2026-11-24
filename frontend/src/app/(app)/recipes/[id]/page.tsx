@@ -2,6 +2,9 @@ import { requireHousehold } from '@/server/households';
 import { loadRecipe } from '@/server/recipe-data';
 import { CookingTrigger } from './cooking-trigger';
 
+// Datos de la sesión: nunca se sirven desde una caché compartida entre usuarios.
+export const dynamic = 'force-dynamic';
+
 interface RecipeDetailPageProps {
   params: Promise<{ id: string }>;
 }

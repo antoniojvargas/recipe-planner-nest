@@ -758,12 +758,12 @@ verdad necesitan estado local, eventos del navegador o datos que cambian sin nav
 en Client Components. Cada capa tiene una única forma de hablar con la API, para que no convivan
 dos maneras de autenticarse o de invalidar datos.
 
-| Necesidad                                                      | Dónde vive                                         |
-| -------------------------------------------------------------- | -------------------------------------------------- |
-| Leer datos para pintar una página                              | Server Component → `apiFetch` → `API_INTERNAL_URL` |
-| Mutación de un formulario: una acción, una escritura, recargar | Server Action → `apiFetch` + `revalidatePath`      |
-| Estado que cambia sin navegar o que comparten varios miembros  | Client Component + TanStack Query (+ Socket.IO)    |
-| Interactividad puramente local (raciones, Wake Lock, editor)   | Client Component con estado de React, sin Query    |
+| Necesidad                                                      | Dónde vive                                                        |
+| -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Leer datos para pintar una página                              | Server Component → `apiFetch` → `API_INTERNAL_URL`                |
+| Mutación de un formulario: una acción, una escritura, recargar | Server Action → `cookies()` + `redirect`; sin caché que invalidar |
+| Estado que cambia sin navegar o que comparten varios miembros  | Client Component + TanStack Query (+ Socket.IO)                   |
+| Interactividad puramente local (raciones, Wake Lock, editor)   | Client Component con estado de React, sin Query                   |
 
 ### Server Components: carga de datos
 
@@ -785,6 +785,15 @@ dos maneras de autenticarse o de invalidar datos.
   porque aquí es una regla de seguridad, no un detalle de rendimiento. La memoización de React
   dentro de un mismo render sigue funcionando: dos componentes que piden lo mismo comparten una
   sola llamada.
+- **Las rutas con datos de sesión son dinámicas de forma explícita.** Los cuatro Server
+  Components que leen el hogar o el usuario —`plan/[weekStart]`, `recipes/[id]`, `pantry` y
+  `shopping/[weekStart]`— declaran `export const dynamic = 'force-dynamic'`. No dependen así de
+  que `apiFetch` llame a `cookies()` en su middleware para caer en render dinámico: aunque se
+  cambiara la configuración de `fetch`, Next no puede servir esas páginas desde una caché
+  compartida. El layout raíz también lee `cookies()` para comprobar la sesión.
+- **No hay `revalidatePath` ni `revalidateTag`.** Ninguna llamada en `frontend/src`: con
+  `force-dynamic` y `cache: 'no-store'` no hay caché de servidor que invalidar. Las mutaciones
+  interactivas se actualizan en el navegador con `invalidateQueries` de TanStack Query.
 - **`X-Request-Id` viaja de extremo a extremo.** Si la petición entrante ya trae uno, se reutiliza;
   si no, `apiFetch` genera un UUID y lo devuelve junto con la respuesta. Así el id que aparece en
   los logs de Next, en los de la API y en el mensaje de `error.tsx` es el mismo.
@@ -846,8 +855,7 @@ ese no es el patrón dominante**. Conviene distinguir los tres caminos que convi
 
 La frontera con el cliente es deliberada: si una interacción necesita respuesta inmediata,
 deshacer un cambio o escuchar a otros miembros, no va por una acción de servidor. Unificar los
-formularios de autenticación con `apiFetch` + `cookies().set` y `revalidatePath` es deuda
-pendiente.
+formularios de autenticación con `apiFetch` + `cookies().set` es deuda pendiente.
 
 ### Client Components: partes interactivas en vivo
 
