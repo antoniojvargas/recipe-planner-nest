@@ -45,6 +45,23 @@ function stubFetch(body: unknown = {}, status = 200): CapturedCall[] {
   return calls;
 }
 
+/**
+ * `openapi-fetch` copia las opciones no estándar de cada llamada al `Request`, así que
+ * `next.revalidate` solo aparece cuando se pasa por llamada. `cache` sí es estándar y refleja
+ * la configuración del cliente. Cualquiera de las dos formas evita la caché de Next.
+ */
+type RequestWithNext = Request & { next?: { revalidate?: number } };
+
+function uncachedViolations(requests: Request[]): string[] {
+  return requests
+    .filter((request) => {
+      const revalidate = (request as RequestWithNext).next?.revalidate;
+
+      return request.cache !== 'no-store' && revalidate !== 0;
+    })
+    .map((request) => `${request.method} ${request.url}`);
+}
+
 beforeEach(() => {
   for (const name of Object.keys(cookieValues)) {
     cookieValues[name] = undefined;
@@ -92,12 +109,22 @@ describe('apiFetch', () => {
     expect(calls[0]?.request.headers.get('cookie')).toBeNull();
   });
 
-  it('desactiva la caché de fetch', async () => {
+  it('ninguna llamada habilita la caché: todas llevan cache: no-store o revalidate: 0', async () => {
     const calls = stubFetch();
 
     await apiFetch.GET('/api/auth/me');
+    await apiFetch.GET('/api/health');
+    await apiFetch.GET('/api/households');
+    await apiFetch.GET('/api/households/{householdId}/pantry', {
+      params: { path: { householdId: 'household-1' } },
+    });
+    await apiFetch.GET('/api/households/{householdId}/meal-plans/{weekStart}', {
+      params: { path: { householdId: 'household-1', weekStart: '2026-11-23' } },
+    });
+    await apiFetch.POST('/api/auth/logout');
 
-    expect(calls[0]?.request.cache).toBe('no-store');
+    expect(calls).toHaveLength(6);
+    expect(uncachedViolations(calls.map(({ request }) => request))).toEqual([]);
   });
 
   it('reutiliza el X-Request-Id de la petición entrante', async () => {
