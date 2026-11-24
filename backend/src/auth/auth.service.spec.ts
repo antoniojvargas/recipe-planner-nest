@@ -4,7 +4,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import { HouseholdsRepository } from '../households/households.repository.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { AppException } from '../common/exceptions/app.exception.js';
-import { systemAuthClock } from './auth.clock.js';
+import { systemAuthClock, type AuthClock } from './auth.clock.js';
 import { AuthService } from './auth.service.js';
 import { AuthTokensService, hashRefreshToken } from './auth-tokens.service.js';
 import {
@@ -18,7 +18,7 @@ import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TX_SESSION = { id: 'transaccion' };
 
-function createService() {
+function createService(clock: AuthClock = systemAuthClock) {
   const users = {
     create: vi.fn(),
     findById: vi.fn(),
@@ -60,7 +60,7 @@ function createService() {
     passwords as unknown as PasswordHasher,
     tokens as unknown as AuthTokensService,
     logger as unknown as PinoLogger,
-    systemAuthClock,
+    clock,
   );
 
   return { service, users, households, refreshSessions, passwords, tokens, logger };
@@ -209,6 +209,34 @@ describe('AuthService', () => {
         refreshToken: 'opaque-refresh',
         refreshTokenExpiresAt: new Date('2026-12-13T00:00:00.000Z'),
       });
+    });
+
+    it('dentro de la ventana de gracia emite otro sucesor en lugar de revocar', async () => {
+      const clock: AuthClock = { now: () => new Date('2026-11-13T12:00:00.000Z') };
+      const { service, refreshSessions, tokens } = createService(clock);
+      refreshSessions.claimForRotation.mockResolvedValue(null);
+      refreshSessions.findByTokenHash.mockResolvedValue({
+        familyId,
+        userId,
+        usedAt: new Date('2026-11-13T11:59:55.000Z'),
+        revokedAt: null,
+        expiresAt: new Date('2026-12-13T00:00:00.000Z'),
+      });
+
+      const issued = await service.refresh('token-repetido');
+
+      expect(issued.refreshToken).toBe('opaque-refresh');
+      expect(tokens.createAccessToken).toHaveBeenCalledWith(userId.toString(), familyId);
+      expect(refreshSessions.create).toHaveBeenCalledWith(
+        {
+          familyId,
+          userId: userId.toString(),
+          tokenHash: 'a'.repeat(64),
+          expiresAt: new Date('2026-12-13T00:00:00.000Z'),
+        },
+        TX_SESSION,
+      );
+      expect(refreshSessions.revokeFamily).not.toHaveBeenCalled();
     });
 
     it('si el token ya se usó, revoca la familia y no emite nada', async () => {

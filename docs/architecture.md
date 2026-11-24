@@ -513,7 +513,7 @@ sesión en uno no afecta al otro.
    (la tabla siguiente); esa lectura decide la respuesta y el efecto, pero nunca acepta el token.
    La transacción se ejecuta con `withTransaction`, que reintenta los conflictos de escritura: si
    dos peticiones compiten por el mismo token, una confirma y la otra vuelve a empezar, ya ve
-   `usedAt` y revoca la familia.
+   `usedAt` y aplica la ventana de gracia de 10 s descrita más abajo.
 
 3. Si la fila se consumió, se inserta el siguiente token de la misma familia (`familyId` igual,
    hash nuevo, `expiresAt` nuevo) y se responden 204 con las cookies actualizadas: access token
@@ -523,32 +523,39 @@ sesión en uno no afecta al otro.
 
 Qué ocurre cuando el token no se puede canjear:
 
-| Situación                                 | Respuesta              | Efecto                                                                                                         |
-| ----------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| No hay cookie o el hash no existe         | 401 `UNAUTHORIZED`     | nada                                                                                                           |
-| `expiresAt` ya pasó                       | 401 `TOKEN_EXPIRED`    | nada; la fila la borrará el TTL                                                                                |
-| `revokedAt` no es `null`                  | 401 `UNAUTHORIZED`     | nada                                                                                                           |
-| `usedAt` no es `null` (token ya canjeado) | 401 `UNAUTHORIZED`     | **se revoca la familia entera**: alguien reutilizó un token que ya se había cambiado, señal de robo o de copia |
-| Fila válida y sin usar                    | 204 con cookies nuevas | se marca `usedAt` y se emite el siguiente eslabón                                                              |
+| Situación                         | Respuesta              | Efecto                                                                                                         |
+| --------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| No hay cookie o el hash no existe | 401 `UNAUTHORIZED`     | nada                                                                                                           |
+| `revokedAt` no es `null`          | 401 `UNAUTHORIZED`     | nada; una familia revocada no se reabre aunque la fila también esté usada                                      |
+| `expiresAt` ya pasó               | 401 `TOKEN_EXPIRED`    | nada; la fila la borrará el TTL; se comprueba antes que `usedAt`                                               |
+| `usedAt` de hace menos de 10 s    | 204 con cookies nuevas | gracia: se emite otro eslabón vivo de la misma familia, sin revocar                                            |
+| `usedAt` de hace 10 s o más       | 401 `UNAUTHORIZED`     | **se revoca la familia entera**: alguien reutilizó un token que ya se había cambiado, señal de robo o de copia |
+| Fila válida y sin usar            | 204 con cookies nuevas | se marca `usedAt` y se emite el siguiente eslabón                                                              |
 
-La reutilización se registra como aviso de seguridad con `userId` y `familyId`, nunca con el
-token ni su hash. No se distingue en la respuesta entre «no existe», «revocado» y «reutilizado»:
-el cliente solo sabe que la sesión terminó y debe volver a autenticarse.
+La decisión y sus alternativas están en
+[`docs/adr/0001-ventana-de-gracia-para-refresh.md`](adr/0001-ventana-de-gracia-para-refresh.md).
+
+La reutilización fuera de la ventana se registra como aviso de seguridad con `userId` y
+`familyId`, nunca con el token ni su hash. No se distingue en la respuesta entre «no existe»,
+«revocado» y «reutilizado»: el cliente solo sabe que la sesión terminó y debe volver a
+autenticarse.
 
 ### Consecuencias
 
-- **Un refresh token sirve una sola vez.** Si lo roban, el ladrón y el cliente legítimo compiten por
-  el siguiente eslabón; en cuanto uno de los dos usa el token que el otro ya canjeó, la familia
-  entera cae. Es lo que convierte un robo silencioso en un cierre de sesión visible.
+- **Un refresh token sirve una sola vez, salvo durante los 10 s de gracia.** Si lo roban, el ladrón
+  y el cliente legítimo compiten por el siguiente eslabón; pasada la ventana, en cuanto uno de los
+  dos usa el token que el otro ya canjeó, la familia entera cae. Es lo que convierte un robo
+  silencioso en un cierre de sesión visible.
 - **Consumir y emitir van en la misma transacción.** Son dos escrituras (marcar `usedAt` e insertar
   el nuevo token); si el proceso muere entre ambas, la transacción se aborta y el token anterior
   sigue válido. Nunca queda un token consumido sin sucesor. El replica set de Mongo que ya exige
   el proyecto permite hacerlo atómico.
-- **Dos refresh en paralelo son indistinguibles de un robo.** El backend no añade una ventana de
-  gracia: el segundo en llegar revoca la familia. El frontend hace _single-flight_ **por pestaña**
+- **Dos refresh en paralelo se aceptan durante 10 s.** El segundo en llegar, al encontrar `usedAt`
+  reciente, recibe otro eslabón vivo de la misma familia en lugar de revocarla. Pasada la ventana
+  vuelve a valer la detección de robo. El frontend hace _single-flight_ **por pestaña**
   (`src/lib/api-client.ts`): una sola promesa de refresh compartida por las peticiones que reciben
-  401 y un único reintento por petición. El _single-flight_ no cruza pestañas, así que dos
-  pestañas que refrescan a la vez siguen siendo un riesgo conocido.
+  401 y un único reintento por petición. El _single-flight_ sigue sin cruzar pestañas; la gracia
+  es la que cubre ese caso.
 - **Revocar no invalida el access token actual.** Sobrevive hasta 15 minutos, que es el precio de
   verificarlo sin base de datos; por eso su TTL es corto y no lleva roles ni `householdId`: la
   autorización por hogar se resuelve en cada petición, y un cambio de rol no espera a que caduque
@@ -895,7 +902,7 @@ cerrada. El detalle y la priorización están en `MEJORAS.md`.
 | Editor de recetas     | `recipes/[id]/editor/page.tsx` muestra «Editor de recetas disponible próximamente», aunque la API expone `PUT` y `PATCH`.                                                                                 |
 | Listado de recetas    | `recipes/page.tsx` usa `fetch` crudo con una «Simulación de estructura de respuesta», un `householdId` por defecto `'current'` y una imagen `minio.example.com` que no existe en el contrato.             |
 | Selector de hogar     | `src/app/(auth)/header.tsx` solo muestra un badge. `requireHousehold()` toma el primer hogar del usuario y conviven dos árboles de ruta de compra: `(app)/shopping` y `(app)/[householdId]/shopping`.     |
-| Sesión                | Sin ventana de gracia para refresh; _single-flight_ solo por pestaña; access token no revocable antes de 15 min; un 5xx del refresh cierra la sesión.                                                     |
+| Sesión                | Gracia de 10 s para refresh concurrente; _single-flight_ solo por pestaña; access token no revocable antes de 15 min; un 5xx del refresh cierra la sesión.                                                |
 | `version` de la lista | Se emite en los eventos pero no se incrementa al marcar ítems. La atomicidad la da Mongo, no el control optimista.                                                                                        |
 | N+1 de recetas        | La generación de la lista y el loader del plan piden las recetas de una en una; no hay `$in` ni `$lookup`.                                                                                                |
 | Contrato OpenAPI      | Varios cuerpos `200` no tienen `schema` y los tipos se escriben a mano (`src/lib/api-result.ts`, `src/server/recipe-data.ts`).                                                                            |

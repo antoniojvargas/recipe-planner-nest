@@ -21,6 +21,14 @@ export const REFRESH_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 /** El refresh se guarda con `expiresAt = now + 30 días`. */
 export const REFRESH_TOKEN_TTL_MS = REFRESH_TOKEN_MAX_AGE_SECONDS * 1000;
 
+/**
+ * Ventana en la que un refresh token recién canjeado puede volver a presentarse sin que se
+ * interprete como robo. Dos pestañas que refrescan a la vez comparten la cookie: la que pierde
+ * la carrera recibe un sucesor nuevo en la misma familia en lugar de cerrar la sesión. Pasada
+ * la ventana, la reutilización vuelve a revocar la familia.
+ */
+export const REFRESH_ROTATION_GRACE_MS = 10_000;
+
 /** 256 bits de entropía: el token no se puede adivinar ni enumerar. */
 export const REFRESH_TOKEN_BYTES = 32;
 
