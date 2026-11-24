@@ -159,20 +159,23 @@ describe('AuthService: rotación de refresh tokens', () => {
     await expect(service.refresh(first.refreshToken)).rejects.toBeInstanceOf(AppException);
   });
 
-  it('con dos refresh concurrentes del mismo token, solo uno rota y el otro revoca la familia', async () => {
+  it('con dos refresh concurrentes del mismo token, ambas pestañas renuevan y la familia no se revoca', async () => {
     const { service, refreshSessions } = createRotationService();
     const { familyId, token } = await seedFamily(refreshSessions);
 
-    const [a, b] = await Promise.allSettled([service.refresh(token), service.refresh(token)]);
+    // Dos pestañas presentan el mismo refresh token a la vez (misma familia).
+    const results = await Promise.allSettled([service.refresh(token), service.refresh(token)]);
+    const rejected = results.filter((result) => result.status === 'rejected');
 
-    const fulfilled = [a, b].filter((result) => result.status === 'fulfilled');
-    const rejected = [a, b].filter((result) => result.status === 'rejected');
+    // Ninguna pestaña debe perder la sesión por una carrera legítima.
+    expect(rejected).toHaveLength(0);
 
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
+    for (const result of results) {
+      expect(result.status).toBe('fulfilled');
+    }
 
     const sessions = refreshSessions.sessions.filter((session) => session.familyId === familyId);
-    expect(sessions.every((session) => session.revokedAt !== null)).toBe(true);
+    expect(sessions.every((session) => session.revokedAt === null)).toBe(true);
   });
 
   it('logout revoca la familia usando el reloj inyectable', async () => {
