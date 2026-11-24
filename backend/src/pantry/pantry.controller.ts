@@ -12,8 +12,8 @@ import {
 import { UNITS_LIST } from '@recipe-planner/contracts';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { HouseholdMemberGuard } from '../households/guards/household-member.guard.js';
+import { toPantryItemResponse, type PantryItemResponse } from './pantry.types.js';
 import { PantryRepository } from './pantry.repository.js';
-import type { PantryItem } from './pantry-item.schema.js';
 
 @Controller('households/:householdId/pantry')
 @UseGuards(HouseholdMemberGuard)
@@ -25,8 +25,10 @@ export class PantryController {
   @HttpCode(HttpStatus.OK)
   async getPantry(
     @Param('householdId', ParseObjectIdPipe) householdId: string,
-  ): Promise<PantryItem[]> {
-    return this.pantryRepository.findByHousehold(householdId);
+  ): Promise<PantryItemResponse[]> {
+    const items = await this.pantryRepository.findByHousehold(householdId);
+
+    return items.map(toPantryItemResponse);
   }
 
   /** Agrega o actualiza un artículo en la despensa.
@@ -37,8 +39,10 @@ export class PantryController {
   async upsertPantryItem(
     @Param('householdId', ParseObjectIdPipe) householdId: string,
     @Body() dto: { name: string; quantity: number; unit: (typeof UNITS_LIST)[number] },
-  ): Promise<PantryItem | null> {
-    return this.pantryRepository.upsert(householdId, dto);
+  ): Promise<PantryItemResponse | null> {
+    const item = await this.pantryRepository.upsert(householdId, dto);
+
+    return item === null ? null : toPantryItemResponse(item);
   }
 
   /** Remueve un artículo de la despensa por nombre. */

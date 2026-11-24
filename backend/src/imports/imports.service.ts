@@ -1,6 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import type { Queue } from 'bullmq';
+import { toResponseDto } from '../common/response.js';
 import type { CreateImportDto } from './dto/create-import.dto.js';
 import type { ImportJob } from './import-job.schema.js';
 import {
@@ -11,16 +12,16 @@ import {
   type ImportRecipeJobData,
 } from './imports.queue.js';
 import { ImportsRepository } from './imports.repository.js';
-import type { ImportJobResponse } from './imports.types.js';
+import { ImportJobResponse } from './imports.types.js';
 
 function toResponse(job: ImportJob): ImportJobResponse {
-  return {
+  return toResponseDto(ImportJobResponse, {
     id: job._id.toString(),
     householdId: job.householdId.toString(),
     url: job.url,
     status: job.status,
     createdAt: job.createdAt,
-  };
+  });
 }
 
 /**

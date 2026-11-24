@@ -1,3 +1,5 @@
+import { Expose } from 'class-transformer';
+
 /** Objeto ya subido, comprobado y medido; es lo que se guarda como imagen de la receta. */
 export interface UploadedImage {
   key: string;
@@ -17,13 +19,20 @@ export interface SignedImageUrls {
 }
 
 /** Datos para subir la imagen directamente a MinIO/S3 desde el navegador. */
-export interface UploadUrlResponse {
+export class UploadUrlResponse {
   /** Clave del objeto bajo el prefijo del hogar; se usa después al confirmar la receta. */
+  @Expose()
   key: string;
+
   /** Endpoint del `POST` multipart (`S3_PUBLIC_ENDPOINT/<bucket>`). */
+  @Expose()
   url: string;
+
   /** Campos del formulario, en el orden que devuelve el SDK; `file` va al final. */
+  @Expose()
   fields: Record<string, string>;
+
   /** Momento a partir del cual la URL ya no sirve. */
+  @Expose()
   expiresAt: Date;
 }

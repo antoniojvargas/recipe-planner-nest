@@ -10,10 +10,11 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { toResponseDto } from '../common/response.js';
 import { appConfig, type AppConfig } from '../config/index.js';
 import { AuthService } from './auth.service.js';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from './auth.constants.js';
-import type { AuthResponse, IssuedSession } from './auth.types.js';
+import { AuthResponse, type IssuedSession } from './auth.types.js';
 import { CurrentUser, type AuthenticatedUser } from './decorators/current-user.decorator.js';
 import { Public } from './decorators/public.decorator.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -42,7 +43,7 @@ export class AuthController {
     const session = await this.authService.register(dto);
     this.writeSessionCookies(reply, session);
 
-    return { user: session.user };
+    return toResponseDto(AuthResponse, { user: session.user });
   }
 
   @Public()
@@ -55,7 +56,7 @@ export class AuthController {
     const session = await this.authService.login(dto);
     this.writeSessionCookies(reply, session);
 
-    return { user: session.user };
+    return toResponseDto(AuthResponse, { user: session.user });
   }
 
   /**

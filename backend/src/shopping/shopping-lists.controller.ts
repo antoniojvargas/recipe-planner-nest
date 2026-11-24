@@ -13,6 +13,7 @@ import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { HouseholdMemberGuard } from '../households/guards/household-member.guard.js';
 import { ShoppingListsService, type UpdateShoppingItemInput } from './shopping-lists.service.js';
+import { toShoppingListResponse, type ShoppingListResponse } from './shopping.types.js';
 import type { ShoppingList } from './shopping-list.schema.js';
 
 /**
@@ -32,8 +33,10 @@ export class ShoppingListsController {
   async generate(
     @Param('householdId', ParseObjectIdPipe) householdId: string,
     @Param('weekStart') weekStart: string,
-  ): Promise<ShoppingList> {
-    return this.shoppingListsService.generate(householdId, new Date(weekStart));
+  ): Promise<ShoppingListResponse> {
+    const list = await this.shoppingListsService.generate(householdId, new Date(weekStart));
+
+    return toShoppingListResponse(list);
   }
 
   /**
@@ -55,7 +58,7 @@ export class ShoppingListsController {
       checked?: boolean;
     },
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<ShoppingList> {
+  ): Promise<ShoppingListResponse> {
     const partialUpdates: UpdateShoppingItemInput = {};
 
     if (updates.quantity !== undefined) {
@@ -68,12 +71,14 @@ export class ShoppingListsController {
       partialUpdates.checkedBy = new Types.ObjectId(user.id);
     }
 
-    return this.shoppingListsService.updateItem(
+    const list = await this.shoppingListsService.updateItem(
       householdId,
       new Date(weekStart),
       new Types.ObjectId(itemId),
       partialUpdates,
     );
+
+    return toShoppingListResponse(list);
   }
 
   /** Añade un ítem manual; si la lista de la semana no existe, la crea. */
@@ -90,8 +95,8 @@ export class ShoppingListsController {
       checked?: boolean;
       checkedBy?: string;
     },
-  ): Promise<ShoppingList> {
-    return this.shoppingListsService.addManualItem(householdId, new Date(weekStart), {
+  ): Promise<ShoppingListResponse> {
+    const list = await this.shoppingListsService.addManualItem(householdId, new Date(weekStart), {
       name: item.name,
       quantity: item.quantity,
       unit: item.unit as ShoppingList['items'][number]['unit'],
@@ -99,5 +104,7 @@ export class ShoppingListsController {
       checked: item.checked ?? false,
       ...(item.checkedBy === undefined ? {} : { checkedBy: new Types.ObjectId(item.checkedBy) }),
     });
+
+    return toShoppingListResponse(list);
   }
 }

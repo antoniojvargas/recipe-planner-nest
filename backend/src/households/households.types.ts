@@ -1,22 +1,43 @@
+import { Expose, Type } from 'class-transformer';
 import type { HouseholdRole } from './household.schema.js';
 
-export interface HouseholdMemberResponse {
+export class HouseholdMemberResponse {
+  @Expose()
   userId: string;
+
   /** Nombre visible del miembro, para no mostrar ids en la interfaz. */
+  @Expose()
   displayName: string;
+
+  @Expose()
   role: HouseholdRole;
+
+  @Expose()
   joinedAt: Date;
 }
 
-export interface HouseholdResponse {
+export class HouseholdResponse {
+  @Expose()
   id: string;
+
+  @Expose()
   name: string;
+
+  @Expose()
+  @Type(() => HouseholdMemberResponse)
   members: HouseholdMemberResponse[];
+
+  @Expose()
   createdAt: Date;
+
+  @Expose()
   updatedAt: Date;
 }
 
-export interface HouseholdInviteResponse {
+export class HouseholdInviteResponse {
+  @Expose()
   code: string;
+
+  @Expose()
   expiresAt: Date;
 }

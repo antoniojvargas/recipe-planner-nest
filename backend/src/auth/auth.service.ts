@@ -4,6 +4,7 @@ import { ERROR_CODES } from '@recipe-planner/contracts';
 import type { ClientSession } from 'mongoose';
 import { PinoLogger } from 'nestjs-pino';
 import { AppException } from '../common/exceptions/app.exception.js';
+import { toResponseDto } from '../common/response.js';
 import { HouseholdsRepository } from '../households/households.repository.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { User, UserDocument } from '../users/user.schema.js';
@@ -15,12 +16,13 @@ import {
   INVALID_SESSION_MESSAGE,
   REFRESH_ROTATION_GRACE_MS,
 } from './auth.constants.js';
-import type {
+import {
   AuthResponse,
-  AuthSession,
-  IssuedSession,
-  LoginInput,
-  RegisterInput,
+  AuthUser,
+  type AuthSession,
+  type IssuedSession,
+  type LoginInput,
+  type RegisterInput,
 } from './auth.types.js';
 import { PasswordHasher } from './password.hasher.js';
 import type { RefreshSession } from './refresh-session.schema.js';
@@ -146,13 +148,13 @@ export class AuthService {
       throw this.invalidSession();
     }
 
-    return {
+    return toResponseDto(AuthResponse, {
       user: {
         id: user._id.toString(),
         email: user.email,
         displayName: user.displayName,
       },
-    };
+    });
   }
 
   private async openSession(user: User | UserDocument): Promise<AuthSession> {
@@ -168,11 +170,11 @@ export class AuthService {
     });
 
     return {
-      user: {
+      user: toResponseDto(AuthUser, {
         id: user._id.toString(),
         email: user.email,
         displayName: user.displayName,
-      },
+      }),
       accessToken,
       refreshToken: refreshToken.token,
       refreshTokenExpiresAt: refreshToken.expiresAt,
