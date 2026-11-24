@@ -44,14 +44,19 @@ export class ImportsProcessor extends WorkerHost {
   async process(job: Job<ImportRecipeJobData>): Promise<void> {
     const { importId, householdId, url } = job.data;
 
-    await this.imports.markProcessing(importId);
-
     try {
-      const importJob = await this.imports.findById(importId);
+      const importJob = await this.imports.findById(householdId, importId);
 
       if (importJob === null) {
         throw new Error(`La importación ${importId} ya no existe`);
       }
+
+      // El trabajo viene de la cola: su `householdId` puede no coincidir con el del registro.
+      if (importJob.householdId.toString() !== householdId) {
+        throw new Error(`La importación ${importId} pertenece a otro hogar`);
+      }
+
+      await this.imports.markProcessing(householdId, importId);
 
       const page = await this.http.get(url);
       const extracted = extractRecipe(page.body.toString('utf8'));
@@ -79,7 +84,7 @@ export class ImportsProcessor extends WorkerHost {
         source: { url, importedAt: new Date() },
       });
 
-      await this.imports.markCompleted(importId, recipe._id.toString());
+      await this.imports.markCompleted(householdId, importId, recipe._id.toString());
       this.publisher.publish(SOCKET_EVENTS.importFinished, {
         householdId,
         importId,
@@ -89,7 +94,7 @@ export class ImportsProcessor extends WorkerHost {
       const message = error instanceof Error ? error.message : String(error);
 
       this.logger.warn(`Importación ${importId} falló: ${message}`);
-      await this.imports.markFailed(importId, ERROR_CODES.IMPORT_FAILED, message);
+      await this.imports.markFailed(householdId, importId, ERROR_CODES.IMPORT_FAILED, message);
 
       // Solo se avisa cuando ya no quedan reintentos: así el cliente no recibe un fallo por
       // cada intento de un 503 pasajero.

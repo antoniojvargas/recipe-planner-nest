@@ -416,12 +416,10 @@ describe('Aislamiento entre hogares', () => {
     it('imports: el repositorio y el worker no cruzan hogares', async () => {
       const query = mockMongooseQuery<ImportJob | null>(null);
       const existing = { _id: new Types.ObjectId(resourceId) } as ImportJob;
-      const findById = vi.fn(() => query);
       const findOne = vi.fn(() => mockMongooseQuery<ImportJob | null>(existing));
       const findOneAndUpdate = vi.fn(() => query);
       const findByIdAndUpdate = vi.fn(() => query);
       const model = {
-        findById,
         findOne,
         findOneAndUpdate,
         findByIdAndUpdate,
@@ -429,10 +427,10 @@ describe('Aislamiento entre hogares', () => {
       } as unknown as Model<ImportJob>;
       const repository = new ImportsRepository(model);
 
-      await repository.findById(resourceId);
-      await repository.markProcessing(resourceId);
-      await repository.markCompleted(resourceId, resourceId);
-      await repository.markFailed(resourceId, 'IMPORT_FAILED', 'falló');
+      await repository.findById(attackerId, resourceId);
+      await repository.markProcessing(attackerId, resourceId);
+      await repository.markCompleted(attackerId, resourceId, resourceId);
+      await repository.markFailed(attackerId, resourceId, 'IMPORT_FAILED', 'falló');
       await repository.createOrFind({
         householdId: attackerId,
         createdBy: attackerId,
@@ -442,7 +440,7 @@ describe('Aislamiento entre hogares', () => {
 
       // Las cinco consultas deben identificar el documento por hogar, no solo por `_id`.
       expect
-        .soft(findById)
+        .soft(findOne)
         .toHaveBeenCalledWith(
           expect.objectContaining({ _id: resourceId, householdId: attackerId }),
         );
