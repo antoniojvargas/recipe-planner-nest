@@ -2,6 +2,9 @@ import { requireHousehold } from '@/server/households';
 import { loadPantry } from '@/server/pantry-data';
 import { PantryBoard } from './pantry-board';
 
+// Datos de la sesión: nunca se sirven desde una caché compartida entre usuarios.
+export const dynamic = 'force-dynamic';
+
 /**
  * Despensa del hogar.
  *

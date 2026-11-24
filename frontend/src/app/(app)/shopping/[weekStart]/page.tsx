@@ -5,6 +5,9 @@ import { requireHousehold, type HouseholdMemberSummary } from '@/server/househol
 import { loadShoppingList } from '@/server/shopping-data';
 import { ShoppingList } from './shopping-list';
 
+// Datos de la sesión: nunca se sirven desde una caché compartida entre usuarios.
+export const dynamic = 'force-dynamic';
+
 /**
  * Lista de la compra del hogar para una semana.
  *
