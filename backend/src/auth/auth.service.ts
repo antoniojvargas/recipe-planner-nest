@@ -13,6 +13,7 @@ import {
   EXPIRED_SESSION_MESSAGE,
   INVALID_CREDENTIALS_MESSAGE,
   INVALID_SESSION_MESSAGE,
+  REFRESH_ROTATION_GRACE_MS,
 } from './auth.constants.js';
 import type {
   AuthResponse,
@@ -22,6 +23,7 @@ import type {
   RegisterInput,
 } from './auth.types.js';
 import { PasswordHasher } from './password.hasher.js';
+import type { RefreshSession } from './refresh-session.schema.js';
 import { RefreshSessionsRepository } from './refresh-sessions.repository.js';
 
 /** Resultado de la transacción de rotación, antes de traducirlo a error HTTP. */
@@ -39,8 +41,9 @@ type RotationResult =
  * y contraseña incorrecta: mismo mensaje, mismo estado y una sola verificación argon2 en los
  * dos caminos (real o contra el hash de relleno).
  *
- * El refresh consume y emite dentro de una transacción. La segunda petición que presenta un
- * token ya usado no puede canjearlo y, al detectar la reutilización, revoca la familia entera.
+ * El refresh consume y emite dentro de una transacción. Un token presentado dentro de la
+ * ventana de gracia (dos pestañas que refrescan a la vez) recibe un sucesor nuevo de la misma
+ * familia; pasada la ventana, la reutilización revoca la familia entera.
  *
  * El logout no necesita el refresh token: el access token lleva `fid`, la familia a la que
  * pertenece, y así se revoca aunque la cookie de refresh no llegue a `/api/auth/logout`.
@@ -193,32 +196,52 @@ export class AuthService {
         return this.classifyFailedClaim(tokenHash, now, session);
       }
 
-      const next = this.tokens.createRefreshToken();
-      const accessToken = await this.tokens.createAccessToken(
-        claimed.userId.toString(),
-        claimed.familyId,
-      );
-
-      // Mismo `familyId`: el eslabón nuevo pertenece a la sesión original.
-      await this.refreshSessions.create(
-        {
-          familyId: claimed.familyId,
-          userId: claimed.userId.toString(),
-          tokenHash: next.tokenHash,
-          expiresAt: next.expiresAt,
-        },
-        session,
-      );
-
-      return {
-        status: 'rotated',
-        tokens: {
-          accessToken,
-          refreshToken: next.token,
-          refreshTokenExpiresAt: next.expiresAt,
-        },
-      };
+      return this.issueSuccessor(claimed.userId.toString(), claimed.familyId, session);
     });
+  }
+
+  /**
+   * Emite el siguiente eslabón de la familia y su access token. Lo usan la rotación normal y
+   * la ventana de gracia: en ambos casos el resultado es un par nuevo dentro de la misma familia.
+   */
+  private async issueSuccessor(
+    userId: string,
+    familyId: string,
+    session: ClientSession,
+  ): Promise<RotationResult> {
+    const next = this.tokens.createRefreshToken();
+    const accessToken = await this.tokens.createAccessToken(userId, familyId);
+
+    // Mismo `familyId`: el eslabón nuevo pertenece a la sesión original.
+    await this.refreshSessions.create(
+      {
+        familyId,
+        userId,
+        tokenHash: next.tokenHash,
+        expiresAt: next.expiresAt,
+      },
+      session,
+    );
+
+    return {
+      status: 'rotated',
+      tokens: {
+        accessToken,
+        refreshToken: next.token,
+        refreshTokenExpiresAt: next.expiresAt,
+      },
+    };
+  }
+
+  /**
+   * Un token ya canjeado dentro de la ventana de gracia no es un robo: la otra pestaña llegó
+   * tarde a una carrera legítima. Se emite otro sucesor en la misma familia en lugar de revocar.
+   */
+  private reissueSuccessor(
+    existing: RefreshSession,
+    session: ClientSession,
+  ): Promise<RotationResult> {
+    return this.issueSuccessor(existing.userId.toString(), existing.familyId, session);
   }
 
   private async classifyFailedClaim(
@@ -232,9 +255,25 @@ export class AuthService {
       return { status: 'invalid' };
     }
 
+    // Una fila revocada gana a una usada: tras un logout conserva las dos marcas y el replay
+    // no debe reabrir la familia ni emitir credenciales nuevas.
+    if (existing.revokedAt !== null) {
+      return { status: 'invalid' };
+    }
+
+    if (existing.expiresAt.getTime() <= now.getTime()) {
+      return { status: 'expired' };
+    }
+
     if (existing.usedAt !== null) {
-      // Alguien presenta un token que ya se canjeó: se revoca la familia entera. El
-      // callback termina sin lanzar para que la transacción confirme la revocación.
+      const elapsedMs = now.getTime() - existing.usedAt.getTime();
+
+      if (elapsedMs < REFRESH_ROTATION_GRACE_MS) {
+        return this.reissueSuccessor(existing, session);
+      }
+
+      // Fuera de la ventana sí es reutilización: se revoca la familia entera. El callback
+      // termina sin lanzar para que la transacción confirme la revocación.
       await this.refreshSessions.revokeFamily(existing.familyId, now, session);
 
       return {
@@ -242,14 +281,6 @@ export class AuthService {
         userId: existing.userId.toString(),
         familyId: existing.familyId,
       };
-    }
-
-    if (existing.revokedAt !== null) {
-      return { status: 'invalid' };
-    }
-
-    if (existing.expiresAt.getTime() <= now.getTime()) {
-      return { status: 'expired' };
     }
 
     // El filtro atómico no debería fallar con una fila viva; si pasa, no se canjea.

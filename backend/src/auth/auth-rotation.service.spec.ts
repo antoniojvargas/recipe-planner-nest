@@ -8,7 +8,11 @@ import type { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
 import type { AuthClock } from './auth.clock.js';
 import { hashRefreshToken, type AuthTokensService } from './auth-tokens.service.js';
-import { EXPIRED_SESSION_MESSAGE, INVALID_SESSION_MESSAGE } from './auth.constants.js';
+import {
+  EXPIRED_SESSION_MESSAGE,
+  INVALID_SESSION_MESSAGE,
+  REFRESH_ROTATION_GRACE_MS,
+} from './auth.constants.js';
 import type { PasswordHasher } from './password.hasher.js';
 
 const NOW = new Date('2026-11-13T12:00:00.000Z');
@@ -137,10 +141,12 @@ describe('AuthService: rotación de refresh tokens', () => {
   });
 
   it('si se reutiliza un token ya canjeado, revoca toda la familia y no emite credenciales', async () => {
-    const { service, refreshSessions, clock, logger } = createRotationService();
+    const clock = fixedClock();
+    const { service, refreshSessions, logger } = createRotationService(clock);
     const { familyId, userId, token } = await seedFamily(refreshSessions);
 
     const first = await service.refresh(token);
+    clock.at = new Date(clock.at.getTime() + REFRESH_ROTATION_GRACE_MS + 1);
     const error = await captureError(service.refresh(token));
 
     expect(error.code).toBe('UNAUTHORIZED');
@@ -159,20 +165,80 @@ describe('AuthService: rotación de refresh tokens', () => {
     await expect(service.refresh(first.refreshToken)).rejects.toBeInstanceOf(AppException);
   });
 
-  it('con dos refresh concurrentes del mismo token, solo uno rota y el otro revoca la familia', async () => {
+  it('con dos refresh concurrentes del mismo token, ambas pestañas renuevan y la familia no se revoca', async () => {
     const { service, refreshSessions } = createRotationService();
     const { familyId, token } = await seedFamily(refreshSessions);
 
-    const [a, b] = await Promise.allSettled([service.refresh(token), service.refresh(token)]);
+    // Dos pestañas presentan el mismo refresh token a la vez (misma familia).
+    const results = await Promise.allSettled([service.refresh(token), service.refresh(token)]);
+    const rejected = results.filter((result) => result.status === 'rejected');
 
-    const fulfilled = [a, b].filter((result) => result.status === 'fulfilled');
-    const rejected = [a, b].filter((result) => result.status === 'rejected');
+    // Ninguna pestaña debe perder la sesión por una carrera legítima.
+    expect(rejected).toHaveLength(0);
 
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
+    const fulfilled = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    expect(fulfilled).toHaveLength(2);
+    expect(fulfilled.every((issued) => issued.refreshToken !== '')).toBe(true);
 
     const sessions = refreshSessions.sessions.filter((session) => session.familyId === familyId);
-    expect(sessions.every((session) => session.revokedAt !== null)).toBe(true);
+    expect(sessions.every((session) => session.revokedAt === null)).toBe(true);
+  });
+
+  it('dentro de la ventana de gracia, repetir el token emite otro sucesor sin revocar', async () => {
+    const clock = fixedClock();
+    const { service, refreshSessions } = createRotationService(clock);
+    const { familyId, token } = await seedFamily(refreshSessions);
+
+    const first = await service.refresh(token);
+    clock.at = new Date(clock.at.getTime() + REFRESH_ROTATION_GRACE_MS - 1);
+
+    const second = await service.refresh(token);
+
+    expect(second.refreshToken).not.toBe(first.refreshToken);
+
+    const sessions = refreshSessions.sessions.filter((session) => session.familyId === familyId);
+    expect(sessions.every((session) => session.revokedAt === null)).toBe(true);
+    // El original quedó usado; los dos sucesores siguen vivos.
+    expect(sessions.filter((session) => session.usedAt === null)).toHaveLength(2);
+  });
+
+  it('pasada la ventana de gracia, repetir el token revoca la familia', async () => {
+    const clock = fixedClock();
+    const { service, refreshSessions, logger } = createRotationService(clock);
+    const { familyId, userId, token } = await seedFamily(refreshSessions);
+
+    await service.refresh(token);
+    clock.at = new Date(clock.at.getTime() + REFRESH_ROTATION_GRACE_MS + 1);
+
+    const error = await captureError(service.refresh(token));
+
+    expect(error.code).toBe('UNAUTHORIZED');
+    expect(logger.warn).toHaveBeenCalledWith(
+      { userId: userId.toString(), familyId },
+      'Refresh token reutilizado: familia revocada',
+    );
+
+    const sessions = refreshSessions.sessions.filter((session) => session.familyId === familyId);
+    expect(sessions.every((session) => session.revokedAt?.getTime() === clock.at.getTime())).toBe(
+      true,
+    );
+  });
+
+  it('un token usado no reabre la familia si ya se revocó', async () => {
+    const clock = fixedClock();
+    const { service, refreshSessions } = createRotationService(clock);
+    const { familyId, token } = await seedFamily(refreshSessions);
+
+    await service.refresh(token);
+    await refreshSessions.revokeFamily(familyId, clock.now());
+
+    const sessionsBefore = refreshSessions.sessions.length;
+    const error = await captureError(service.refresh(token));
+
+    expect(error.code).toBe('UNAUTHORIZED');
+    expect(refreshSessions.sessions).toHaveLength(sessionsBefore);
   });
 
   it('logout revoca la familia usando el reloj inyectable', async () => {

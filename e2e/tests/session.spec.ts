@@ -71,6 +71,17 @@ async function setExpiredAccessToken(context: BrowserContext): Promise<void> {
   await setCookie(context, 'access_token', expired);
 }
 
+function replayRefresh(page: Page, refreshToken: string) {
+  return page.request.post(`${apiURL}/api/auth/refresh`, {
+    headers: {
+      Origin: origin,
+      'X-CSRF-Token': csrfToken,
+      Cookie: `csrf_token=${csrfToken}; refresh_token=${refreshToken}`,
+      Accept: 'application/json',
+    },
+  });
+}
+
 async function register(page: Page): Promise<void> {
   const response = await page.context().request.post(`${apiURL}/api/auth/register`, {
     headers: {
@@ -125,17 +136,20 @@ test('refresca la sesión de forma transparente y la cierra al reutilizar un ref
   });
   await expect(page.getByText('Correo electrónico')).toHaveCount(0);
 
-  // Reutiliza a mano el refresh token anterior (ya rotado): el backend detecta la
-  // reutilización y revoca la familia completa.
-  const reuse = await page.request.post(`${apiURL}/api/auth/refresh`, {
-    headers: {
-      Origin: origin,
-      'X-CSRF-Token': csrfToken,
-      Cookie: `csrf_token=${csrfToken}; refresh_token=${oldRefreshToken}`,
-      Accept: 'application/json',
-    },
-  });
-  expect(reuse.status()).toBe(401);
+  // Dentro de la ventana de gracia de 10 s, el token ya rotado devuelve otro sucesor
+  // en lugar de revocar la familia: dos pestañas que refrescan a la vez no se cierran.
+  const withinGrace = await replayRefresh(page, oldRefreshToken);
+  expect(withinGrace.status()).toBe(204);
+
+  // Pasada la ventana, el mismo token sí es reutilización: se revoca la familia.
+  // El reloj de la página se adelantó con `page.clock`, pero la gracia la mide el servidor,
+  // así que se espera en tiempo real hasta que la API deje de aceptar el replay.
+  await expect
+    .poll(() => replayRefresh(page, oldRefreshToken).then((response) => response.status()), {
+      timeout: 15_000,
+      intervals: [1_000],
+    })
+    .toBe(401);
 
   // Con la familia revocada, forzamos de nuevo la caducidad del access token para
   // que el siguiente intento de refresh falle y se cierre la sesión.
