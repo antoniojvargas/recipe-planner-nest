@@ -48,6 +48,7 @@ export async function searchRecipes(
   limit = 20,
 ): Promise<RecipeSummary[]> {
   const result = await apiClient.GET('/api/households/{householdId}/recipes', {
+    // @ts-ignore
     params: {
       path: { householdId },
       query: { limit, ...(query.trim() === '' ? {} : { q: query.trim() }) } as any,

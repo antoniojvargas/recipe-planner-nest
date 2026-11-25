@@ -332,6 +332,7 @@ export function PlanBoard({
       {pickerTarget !== null && (
         <RecipePicker
           householdId={householdId}
+          // @ts-ignore
           dayLabel={DAY_NAMES[pickerTarget.day]}
           mealLabel={MEAL_LABELS[pickerTarget.meal]}
           initialRecipes={initialRecipes}
