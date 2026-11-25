@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { configModule } from '../config/config.module.js';
 import { Household, HouseholdSchema } from '../households/household.schema.js';
 import { HouseholdTimeZoneMigration } from '../households/household-timezone.migration.js';
+import { HouseholdsRepository } from '../households/households.repository.js';
 import { ShutdownModule } from '../shutdown/shutdown.module.js';
 import { DatabaseModule } from './database.module.js';
 
@@ -17,6 +18,6 @@ import { DatabaseModule } from './database.module.js';
     DatabaseModule,
     MongooseModule.forFeature([{ name: Household.name, schema: HouseholdSchema }]),
   ],
-  providers: [HouseholdTimeZoneMigration],
+  providers: [HouseholdsRepository, HouseholdTimeZoneMigration],
 })
 export class MigrateModule {}

@@ -1,35 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
-import { DEFAULT_HOUSEHOLD_TIME_ZONE, Household } from './household.schema.js';
+import { DEFAULT_HOUSEHOLD_TIME_ZONE } from './household.schema.js';
+import { HouseholdsRepository } from './households.repository.js';
 
 /**
  * Migración de datos: los hogares creados antes de que existiera `timeZone` no tienen el campo.
  *
  * Mongoose aplica el `default` solo a documentos nuevos, así que se rellenan una vez con `UTC`
- * (la zona con la que se calculaba la semana hasta ahora). El filtro solo toca documentos sin
- * campo, así que ejecutarla dos veces no cambia nada y no pisa una zona ya elegida.
+ * (la zona con la que se calculaba la semana hasta ahora). La escritura vive en el repositorio,
+ * que es el único punto que toca la colección.
  */
 @Injectable()
 export class HouseholdTimeZoneMigration {
   private readonly logger = new Logger(HouseholdTimeZoneMigration.name);
 
-  constructor(@InjectModel(Household.name) private readonly householdModel: Model<Household>) {}
+  constructor(private readonly households: HouseholdsRepository) {}
 
   async run(): Promise<number> {
-    const result = await this.householdModel
-      .updateMany(
-        { timeZone: { $exists: false } },
-        { $set: { timeZone: DEFAULT_HOUSEHOLD_TIME_ZONE } },
-      )
-      .exec();
+    const updated = await this.households.backfillMissingTimeZone(DEFAULT_HOUSEHOLD_TIME_ZONE);
 
-    if (result.modifiedCount > 0) {
+    if (updated > 0) {
       this.logger.log(
-        `Zona horaria ${DEFAULT_HOUSEHOLD_TIME_ZONE} añadida a ${String(result.modifiedCount)} hogares`,
+        `Zona horaria ${DEFAULT_HOUSEHOLD_TIME_ZONE} añadida a ${String(updated)} hogares`,
       );
     }
 
-    return result.modifiedCount;
+    return updated;
   }
 }

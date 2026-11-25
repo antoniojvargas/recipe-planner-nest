@@ -1,28 +1,22 @@
-import type { Model } from 'mongoose';
-import { DEFAULT_HOUSEHOLD_TIME_ZONE, type Household } from '../src/households/household.schema.js';
+import { DEFAULT_HOUSEHOLD_TIME_ZONE } from '../src/households/household.schema.js';
 import { HouseholdTimeZoneMigration } from '../src/households/household-timezone.migration.js';
+import type { HouseholdsRepository } from '../src/households/households.repository.js';
 
 describe('HouseholdTimeZoneMigration', () => {
-  it('rellena la zona de los hogares que no tienen el campo', async () => {
-    const exec = vi.fn().mockResolvedValue({ modifiedCount: 3 });
-    const updateMany = vi.fn().mockReturnValue({ exec });
+  it('rellena con UTC los hogares que no tienen zona', async () => {
+    const backfillMissingTimeZone = vi.fn().mockResolvedValue(3);
     const migration = new HouseholdTimeZoneMigration({
-      updateMany,
-    } as unknown as Model<Household>);
+      backfillMissingTimeZone,
+    } as unknown as HouseholdsRepository);
 
     await expect(migration.run()).resolves.toBe(3);
-    expect(updateMany).toHaveBeenCalledWith(
-      { timeZone: { $exists: false } },
-      { $set: { timeZone: DEFAULT_HOUSEHOLD_TIME_ZONE } },
-    );
-    expect(exec).toHaveBeenCalledOnce();
+    expect(backfillMissingTimeZone).toHaveBeenCalledWith(DEFAULT_HOUSEHOLD_TIME_ZONE);
   });
 
   it('es idempotente: si ya no quedan hogares sin zona no modifica nada', async () => {
-    const exec = vi.fn().mockResolvedValue({ modifiedCount: 0 });
     const migration = new HouseholdTimeZoneMigration({
-      updateMany: vi.fn().mockReturnValue({ exec }),
-    } as unknown as Model<Household>);
+      backfillMissingTimeZone: vi.fn().mockResolvedValue(0),
+    } as unknown as HouseholdsRepository);
 
     await expect(migration.run()).resolves.toBe(0);
   });

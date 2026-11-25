@@ -94,6 +94,20 @@ export class HouseholdsRepository {
       .exec();
   }
 
+  /**
+   * Rellena la zona horaria de los hogares creados antes de que existiera el campo.
+   *
+   * El filtro solo toca documentos sin `timeZone`, así que es idempotente y no pisa una zona
+   * ya elegida. Devuelve cuántos documentos modificó.
+   */
+  async backfillMissingTimeZone(timeZone: string): Promise<number> {
+    const result = await this.householdModel
+      .updateMany({ timeZone: { $exists: false } }, { $set: { timeZone } })
+      .exec();
+
+    return result.modifiedCount;
+  }
+
   /** Guarda el hash y la caducidad del código de invitación vigente; el código no se persiste. */
   async setInviteCode(
     householdId: string,
