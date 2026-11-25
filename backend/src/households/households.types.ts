@@ -23,6 +23,10 @@ export class HouseholdResponse {
   @Expose()
   name: string;
 
+  /** Zona IANA del hogar: con ella se calcula la semana del plan. */
+  @Expose()
+  timeZone: string;
+
   @Expose()
   @Type(() => HouseholdMemberResponse)
   members: HouseholdMemberResponse[];

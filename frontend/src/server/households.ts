@@ -14,6 +14,8 @@ export interface HouseholdMemberSummary {
 export interface HouseholdSummary {
   id: string;
   name: string;
+  /** Zona IANA del hogar: decide qué semana es "esta semana" en el plan y la compra. */
+  timeZone: string;
   members: HouseholdMemberSummary[];
 }
 

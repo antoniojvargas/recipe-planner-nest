@@ -3,7 +3,7 @@ COMPOSE ?= docker compose
 COMPOSE_TEST = $(COMPOSE) -f docker-compose.test.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs seed test test-frontend test-e2e test-integration lint format
+.PHONY: help up down logs seed migrate test test-frontend test-e2e test-integration lint format
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -22,6 +22,9 @@ logs: ## Sigue los logs de todos los servicios
 
 seed: ## Carga datos de ejemplo en la pila en marcha (dos usuarios, un hogar, recetas)
 	$(COMPOSE) exec backend npm run seed -w backend
+
+migrate: ## Rellena la zona horaria de los hogares creados antes de existir el campo
+	$(COMPOSE) exec backend npm run migrate -w backend
 
 test: ## Tests unitarios de la API
 	npm run test -w backend

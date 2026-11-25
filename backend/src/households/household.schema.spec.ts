@@ -36,6 +36,25 @@ describe('HouseholdSchema', () => {
     expect(household.members[0].joinedAt).toBeInstanceOf(Date);
   });
 
+  it('asigna UTC como zona horaria por defecto', async () => {
+    const household = new HouseholdModel({ name: 'Casa' });
+
+    await expect(household.validate()).resolves.toBeUndefined();
+    expect(household.timeZone).toBe('UTC');
+  });
+
+  it('acepta una zona IANA y rechaza una inventada', async () => {
+    await expect(
+      new HouseholdModel({ name: 'Casa', timeZone: 'America/Bogota' }).validate(),
+    ).resolves.toBeUndefined();
+
+    const error = await new HouseholdModel({ name: 'Casa', timeZone: 'Zona/Inventada' })
+      .validate()
+      .catch((caught: unknown) => caught as mongoose.Error.ValidationError);
+
+    expect(error?.errors.timeZone).toBeDefined();
+  });
+
   it('rechaza roles fuera del catálogo', async () => {
     const error = await new HouseholdModel({
       name: 'Casa',

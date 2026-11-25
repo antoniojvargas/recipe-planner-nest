@@ -113,7 +113,7 @@ describe('Households (e2e)', () => {
       .set('Origin', ORIGIN)
       .set('X-CSRF-Token', CSRF_TOKEN)
       .set('Cookie', authedCookies(accessToken))
-      .send({ name: 'Casa de playa' })
+      .send({ name: 'Casa de playa', timeZone: 'America/Bogota' })
       .expect(201);
 
     const body = response.body as HouseholdResponse;
@@ -121,6 +121,7 @@ describe('Households (e2e)', () => {
     expect(body).toEqual(
       expect.objectContaining({
         name: 'Casa de playa',
+        timeZone: 'America/Bogota',
         members: [
           expect.objectContaining({
             userId: users.users[0]?._id.toString(),
@@ -130,6 +131,20 @@ describe('Households (e2e)', () => {
       }),
     );
     expect(body.id).toMatch(/^[0-9a-f]{24}$/);
+  });
+
+  it('POST /api/households rechaza una zona horaria que no es IANA', async () => {
+    const accessToken = await registerAndGetAccessToken();
+
+    const response = await request(app.getHttpServer() as App)
+      .post('/api/households')
+      .set('Origin', ORIGIN)
+      .set('X-CSRF-Token', CSRF_TOKEN)
+      .set('Cookie', authedCookies(accessToken))
+      .send({ name: 'Casa de playa', timeZone: 'Zona/Inventada' })
+      .expect(400);
+
+    expect((response.body as ErrorResponse).error.code).toBe('VALIDATION_ERROR');
   });
 
   it('GET /api/households devuelve los hogares del usuario autenticado', async () => {

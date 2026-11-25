@@ -12,6 +12,7 @@ export class InMemoryHouseholdsRepository {
     const household = {
       _id: new Types.ObjectId(),
       name: input.name,
+      timeZone: input.timeZone ?? 'UTC',
       members: (input.members ?? []).map((member) => ({
         userId: member.userId,
         role: member.role,

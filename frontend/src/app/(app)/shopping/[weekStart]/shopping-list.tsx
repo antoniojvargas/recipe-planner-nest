@@ -18,6 +18,8 @@ import { currentWeekStart, formatWeekRange, shiftWeek, type WeekStart } from '@/
 
 interface ShoppingListProps {
   householdId: string;
+  /** Zona IANA del hogar, para saber cuál es la semana actual. */
+  timeZone: string;
   weekStart: WeekStart;
   initialList: ShoppingListResponse;
   /** Usuario de la sesión, para marcar sus propios cambios como «tú». */
@@ -47,6 +49,7 @@ interface ToggleContext {
  */
 export function ShoppingList({
   householdId,
+  timeZone,
   weekStart,
   initialList,
   currentUserId,
@@ -119,7 +122,7 @@ export function ShoppingList({
   const total = list.items.length;
   const done = list.items.filter((item) => item.checked).length;
   const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-  const thisWeek = currentWeekStart();
+  const thisWeek = currentWeekStart(new Date(), timeZone);
   const pendingItemId = toggleMutation.isPending ? toggleMutation.variables.itemId : undefined;
   const nextPending = list.items.find((item) => !item.checked);
 

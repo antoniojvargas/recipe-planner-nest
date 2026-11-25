@@ -5,6 +5,7 @@ import { Household, type HouseholdDocument, type HouseholdMember } from './house
 
 export interface CreateHouseholdInput {
   name: string;
+  timeZone?: string;
   members?: HouseholdMember[];
   inviteCodeHash?: string;
   inviteCodeExpiresAt?: Date;

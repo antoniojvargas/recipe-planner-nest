@@ -111,6 +111,7 @@ pulgar:
 | `make up` / `make down`                                          | Levanta o para la pila de desarrollo (conserva los volúmenes).                               |
 | `make logs`                                                      | Sigue los logs de todos los servicios.                                                       |
 | `make seed`                                                      | Carga los datos de ejemplo descritos más abajo.                                              |
+| `make migrate`                                                   | Rellena con `UTC` la zona horaria de los hogares creados antes de existir el campo.          |
 | `make test` / `make test-frontend`                               | Unitarios de la API y del frontend.                                                          |
 | `make test-e2e`                                                  | E2E de la API y del navegador.                                                               |
 | `make test-integration`                                          | Tests con Testcontainers (necesita Docker).                                                  |

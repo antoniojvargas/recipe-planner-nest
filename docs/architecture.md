@@ -933,7 +933,7 @@ cerrada. El detalle y la priorización están en `MEJORAS.md`.
 | `version` de la lista | Se emite en los eventos pero no se incrementa al marcar ítems. La atomicidad la da Mongo, no el control optimista.                                                                                        |
 | N+1 de recetas        | La generación de la lista y el loader del plan piden las recetas de una en una; no hay `$in` ni `$lookup`.                                                                                                |
 | Contrato OpenAPI      | Varios cuerpos `200` no tienen `schema` y los tipos se escriben a mano (`src/lib/api-result.ts`, `src/server/recipe-data.ts`).                                                                            |
-| Semanas               | `weekStart` exige lunes a 00:00 **UTC**, sin zona horaria del hogar.                                                                                                                                      |
+| Semanas               | `weekStart` se guarda como lunes a 00:00 **UTC**; la semana actual se calcula con la zona IANA del hogar (`timeZone`), que se migra a `UTC` en los hogares antiguos.                                      |
 | Medios                | Sin limpieza de subidas no confirmadas ni `jobId` determinista al encolar.                                                                                                                                |
 | Arranque              | Quedan restos de `create-next-app` en `frontend/src/app/page.tsx`.                                                                                                                                        |
 
