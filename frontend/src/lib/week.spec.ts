@@ -6,6 +6,7 @@ import {
   parseWeekStart,
   shiftWeek,
   startOfWeek,
+  todayIso,
   weekDays,
 } from './week';
 
@@ -18,13 +19,41 @@ describe('startOfWeek', () => {
     expect(startOfWeek(new Date('2026-11-15T20:00:00Z'))).toBe('2026-11-09');
   });
 
-  it('no se desplaza cuando el lunes llega ya en UTC desde un huso negativo', () => {
-    // Domingo 23:00 en UTC−5 = lunes 04:00 UTC.
-    expect(startOfWeek(new Date('2026-11-16T04:00:00Z'))).toBe('2026-11-16');
+  it('en un huso negativo, el domingo por la noche sigue en la semana anterior', () => {
+    // Bogotá (UTC−5): domingo 15 nov 23:00 local = lunes 16 nov 04:00 UTC.
+    expect(startOfWeek(new Date('2026-11-16T04:00:00Z'), 'America/Bogota')).toBe('2026-11-09');
+  });
+
+  it('en un huso negativo, el lunes por la mañana ya es la semana nueva', () => {
+    // Bogotá: lunes 16 nov 09:00 local = lunes 16 nov 14:00 UTC.
+    expect(startOfWeek(new Date('2026-11-16T14:00:00Z'), 'America/Bogota')).toBe('2026-11-16');
+  });
+
+  it('en un huso positivo, el domingo por la noche local sigue en la semana anterior', () => {
+    // Madrid (UTC+1): domingo 15 nov 23:30 local = domingo 15 nov 22:30 UTC.
+    expect(startOfWeek(new Date('2026-11-15T22:30:00Z'), 'Europe/Madrid')).toBe('2026-11-09');
+  });
+
+  it('en un huso positivo, el lunes empieza antes que en UTC', () => {
+    // Tokio (UTC+9): lunes 16 nov 00:30 local = domingo 15 nov 15:30 UTC.
+    expect(startOfWeek(new Date('2026-11-15T15:30:00Z'), 'Asia/Tokyo')).toBe('2026-11-16');
   });
 
   it('usa la semana de `now` cuando no se pasa fecha', () => {
     expect(currentWeekStart(new Date('2026-12-31T10:00:00Z'))).toBe('2026-12-28');
+  });
+
+  it('usa la zona del hogar al calcular la semana actual', () => {
+    // En UTC ya es lunes 16; en Bogotá todavía es domingo 15 por la noche.
+    expect(currentWeekStart(new Date('2026-11-16T04:00:00Z'), 'America/Bogota')).toBe('2026-11-09');
+  });
+});
+
+describe('todayIso', () => {
+  it('devuelve el día del calendario del hogar', () => {
+    // Domingo 15 nov 23:00 en Bogotá = lunes 16 nov 04:00 UTC.
+    expect(todayIso(new Date('2026-11-16T04:00:00Z'), 'America/Bogota')).toBe('2026-11-15');
+    expect(todayIso(new Date('2026-11-15T15:30:00Z'), 'Asia/Tokyo')).toBe('2026-11-16');
   });
 });
 

@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { UNITS, type Unit, type UnitDimension } from '@recipe-planner/contracts';
+import {
+  UNITS,
+  normalize,
+  unitsOfDimension,
+  type Unit,
+  type UnitDimension,
+} from '@recipe-planner/contracts';
 import { RecipesRepository } from '../recipes/recipes.repository.js';
 import type { MealPlan } from '../meal-plans/meal-plan.schema.js';
 import type { PantryItem } from '../pantry/pantry-item.schema.js';
@@ -13,16 +19,8 @@ function dimensionOf(unit: Unit): UnitDimension {
   return UNITS[unit].dimension;
 }
 
-function toBase(qty: number, unit: Unit): number {
-  return qty * UNITS[unit].factor;
-}
-
-function unitsInDimension(dimension: UnitDimension): Unit[] {
-  return (Object.keys(UNITS) as Unit[]).filter((unit) => UNITS[unit].dimension === dimension);
-}
-
 function fromBase(qtyBase: number, dimension: UnitDimension): { qty: number; unit: Unit } {
-  const candidates = unitsInDimension(dimension);
+  const candidates = unitsOfDimension(dimension);
   let bestUnit = candidates[0];
   let bestFactor = UNITS[bestUnit].factor;
   let bestQty = qtyBase / bestFactor;
@@ -58,7 +56,7 @@ function addScaled(
     return null;
   }
 
-  const baseTotal = toBase(aQty, aUnit) + toBase(bQty, bUnit);
+  const baseTotal = normalize(aQty, aUnit).quantity + normalize(bQty, bUnit).quantity;
   if (Number.isNaN(baseTotal) || baseTotal <= 0) {
     return null;
   }
@@ -108,7 +106,7 @@ export class ShoppingListGenerator {
       const byDimension = pantryByName.get(key) ?? new Map<UnitDimension, number>();
       byDimension.set(
         dimension,
-        (byDimension.get(dimension) ?? 0) + toBase(item.quantity, item.unit),
+        (byDimension.get(dimension) ?? 0) + normalize(item.quantity, item.unit).quantity,
       );
       pantryByName.set(key, byDimension);
     }
@@ -122,7 +120,7 @@ export class ShoppingListGenerator {
 
       const dimension = dimensionOf(unit);
       const pantryBase = pantryByName.get(normName)?.get(dimension) ?? 0;
-      const remainingBase = toBase(qty, unit) - pantryBase;
+      const remainingBase = normalize(qty, unit).quantity - pantryBase;
 
       if (remainingBase > 0) {
         const converted = fromBase(remainingBase, dimension);

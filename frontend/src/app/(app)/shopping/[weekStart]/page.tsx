@@ -21,13 +21,15 @@ export default async function ShoppingListPage({
   params: Promise<{ weekStart: string }>;
 }>) {
   const { weekStart: requested } = await params;
-  const weekStart = isWeekStartString(requested) ? requested : currentWeekStart();
+  const [household, currentUser] = await Promise.all([requireHousehold(), requireCurrentUser()]);
+  const weekStart = isWeekStartString(requested)
+    ? requested
+    : currentWeekStart(new Date(), household.timeZone);
 
   if (weekStart !== requested) {
     redirect(`/shopping/${weekStart}`);
   }
 
-  const [household, currentUser] = await Promise.all([requireHousehold(), requireCurrentUser()]);
   const list = await loadShoppingList(household.id, weekStart);
   const memberNames = Object.fromEntries(
     household.members.map((member: HouseholdMemberSummary) => [member.userId, member.displayName]),
@@ -37,6 +39,7 @@ export default async function ShoppingListPage({
     <section className="mx-auto max-w-3xl p-4 sm:p-6">
       <ShoppingList
         householdId={household.id}
+        timeZone={household.timeZone}
         weekStart={weekStart}
         initialList={list}
         currentUserId={currentUser.id}

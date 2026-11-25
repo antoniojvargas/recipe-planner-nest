@@ -27,7 +27,7 @@ export class HouseholdsController {
     @Body() dto: CreateHouseholdDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<HouseholdResponse> {
-    return this.householdsService.create(dto.name, user.id);
+    return this.householdsService.create(dto.name, user.id, dto.timeZone);
   }
 
   @Get()

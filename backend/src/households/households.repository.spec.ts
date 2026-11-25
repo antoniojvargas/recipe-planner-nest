@@ -11,6 +11,7 @@ function createModelMock() {
     find: vi.fn(),
     findOne: vi.fn(),
     findByIdAndUpdate: vi.fn(),
+    updateMany: vi.fn(),
   };
 
   return { model: mocks as unknown as Model<Household>, mocks };
@@ -95,5 +96,19 @@ describe('HouseholdsRepository', () => {
       { returnDocument: 'after', runValidators: true },
     );
     expect(query.lean).toHaveBeenCalledOnce();
+  });
+
+  it('rellena la zona de los hogares que no la tienen', async () => {
+    const { model, mocks } = createModelMock();
+    const repository = new HouseholdsRepository(model);
+    const exec = vi.fn().mockResolvedValue({ modifiedCount: 2 });
+    mocks.updateMany.mockReturnValue({ exec });
+
+    await expect(repository.backfillMissingTimeZone('UTC')).resolves.toBe(2);
+    expect(mocks.updateMany).toHaveBeenCalledWith(
+      { timeZone: { $exists: false } },
+      { $set: { timeZone: 'UTC' } },
+    );
+    expect(exec).toHaveBeenCalledOnce();
   });
 });

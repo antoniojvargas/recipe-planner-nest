@@ -1,10 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { isTimeZone } from '@recipe-planner/contracts';
 import { SchemaTypes, Types, type HydratedDocument } from 'mongoose';
 
 /** Roles posibles dentro de un hogar. */
 export const HOUSEHOLD_ROLES = ['owner', 'member'] as const;
 
 export type HouseholdRole = (typeof HOUSEHOLD_ROLES)[number];
+
+/** Zona de los hogares que se crearon antes de que existiera el campo. */
+export const DEFAULT_HOUSEHOLD_TIME_ZONE = 'UTC';
 
 /**
  * Membresía de un usuario en un hogar.
@@ -32,6 +36,22 @@ export class Household {
 
   @Prop({ required: true, trim: true })
   name: string;
+
+  /**
+   * Zona horaria IANA del hogar (`Europe/Madrid`, `America/Bogota`…). Decide qué semana es
+   * "esta semana" para el plan y la lista de la compra. Opcional en el tipo porque los
+   * documentos anteriores a la migración no tienen el campo.
+   */
+  @Prop({
+    required: true,
+    trim: true,
+    default: DEFAULT_HOUSEHOLD_TIME_ZONE,
+    validate: {
+      validator: (value: string) => isTimeZone(value),
+      message: 'La zona horaria no es una zona IANA válida',
+    },
+  })
+  timeZone?: string;
 
   @Prop({ type: [HouseholdMemberSchema], default: [] })
   members: HouseholdMember[];

@@ -14,6 +14,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "migrate": "nest build && node dist/database/migrate.js",
     "seed": "nest build && node dist/seed/seed.js",
     "lint": "eslint .",
     "test": "vitest run",

@@ -1,32 +1,30 @@
+import { dateInTimeZone, weekStartInTimeZone } from '@recipe-planner/contracts';
+
 /**
  * La semana del plan se identifica por el lunes a las 00:00 UTC en formato `YYYY-MM-DD`.
  *
- * Todo se calcula en UTC, igual que la API: si se usara la zona local, un domingo por la noche
- * en un huso negativo caería en la semana siguiente y se abriría el plan equivocado.
+ * El lunes se calcula con la zona IANA del hogar: un domingo por la noche en un huso negativo
+ * todavía pertenece a la semana que empieza ese lunes, y en un huso positivo el lunes ya empezó
+ * aunque en UTC siga siendo domingo.
  */
 
 export type WeekStart = string;
 
 const WEEK_START_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Convierte una fecha en el lunes de su semana (UTC), como `YYYY-MM-DD`. */
-export function startOfWeek(date: Date): WeekStart {
-  const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const weekday = monday.getUTCDay();
-
-  monday.setUTCDate(monday.getUTCDate() - (weekday === 0 ? 6 : weekday - 1));
-
-  return toWeekStartString(monday);
+/** Convierte una fecha en el lunes de su semana según la zona del hogar, como `YYYY-MM-DD`. */
+export function startOfWeek(date: Date, timeZone = 'UTC'): WeekStart {
+  return weekStartInTimeZone(date, timeZone);
 }
 
 /** Lunes de la semana actual, que es el que usa la navegación "Esta semana". */
-export function currentWeekStart(now: Date = new Date()): WeekStart {
-  return startOfWeek(now);
+export function currentWeekStart(now: Date = new Date(), timeZone = 'UTC'): WeekStart {
+  return startOfWeek(now, timeZone);
 }
 
-/** Fecha de hoy como `YYYY-MM-DD` en UTC, para marcar el día en la cuadrícula. */
-export function todayIso(now: Date = new Date()): string {
-  return toWeekStartString(now);
+/** Fecha de hoy como `YYYY-MM-DD` en la zona del hogar, para marcar el día en la cuadrícula. */
+export function todayIso(now: Date = new Date(), timeZone = 'UTC'): string {
+  return dateInTimeZone(now, timeZone);
 }
 
 export function toWeekStartString(date: Date): WeekStart {

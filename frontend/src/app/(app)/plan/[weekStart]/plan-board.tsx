@@ -29,6 +29,8 @@ import { RecipePicker } from './recipe-picker';
 
 interface PlanBoardProps {
   householdId: string;
+  /** Zona IANA del hogar, para saber qué día es hoy y cuál es la semana actual. */
+  timeZone: string;
   weekStart: WeekStart;
   initialPlan: MealPlanResponse;
   initialRecipes: RecipeSummary[];
@@ -53,6 +55,7 @@ function planQueryKey(householdId: string, weekStart: WeekStart) {
  */
 export function PlanBoard({
   householdId,
+  timeZone,
   weekStart,
   initialPlan,
   initialRecipes,
@@ -103,8 +106,8 @@ export function PlanBoard({
   const slots = indexSlots(planQuery.data.slots);
   const recipes = { ...initialRecipesById, ...pickedRecipes };
   const days = weekDays(weekStart);
-  const thisWeek = currentWeekStart();
-  const today = todayIso();
+  const thisWeek = currentWeekStart(new Date(), timeZone);
+  const today = todayIso(new Date(), timeZone);
 
   function handleSelect(recipe: RecipeSummary): void {
     if (pickerTarget === null) {

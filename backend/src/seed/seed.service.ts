@@ -70,12 +70,13 @@ export class SeedService {
 
     const household = await this.ensureHousehold(ana, luis);
     const householdId = household._id.toString();
+    const weekStart = startOfWeek(new Date(), household.timeZone);
     const recipes = await this.ensureRecipes(householdId, ana._id.toString());
-    const slots = await this.seedPlan(householdId, recipes);
+    const slots = await this.seedPlan(householdId, weekStart, recipes);
     await this.seedPantry(householdId);
 
     return {
-      weekStart: startOfWeek(),
+      weekStart,
       recipes: recipes.length,
       slots: slots.length,
       pantryItems: PANTRY_ITEMS.length,
@@ -148,7 +149,11 @@ export class SeedService {
     return recipes;
   }
 
-  private async seedPlan(householdId: string, recipes: Recipe[]): Promise<MealPlanSlot[]> {
+  private async seedPlan(
+    householdId: string,
+    weekStart: Date,
+    recipes: Recipe[],
+  ): Promise<MealPlanSlot[]> {
     const byTitle = new Map(recipes.map((recipe) => [recipe.title, recipe]));
     const slots: MealPlanSlot[] = [];
 
@@ -173,7 +178,7 @@ export class SeedService {
       );
     }
 
-    await this.mealPlans.replaceSlots(householdId, startOfWeek(), slots);
+    await this.mealPlans.replaceSlots(householdId, weekStart, slots);
 
     return slots;
   }

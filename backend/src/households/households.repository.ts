@@ -5,6 +5,7 @@ import { Household, type HouseholdDocument, type HouseholdMember } from './house
 
 export interface CreateHouseholdInput {
   name: string;
+  timeZone?: string;
   members?: HouseholdMember[];
   inviteCodeHash?: string;
   inviteCodeExpiresAt?: Date;
@@ -91,6 +92,20 @@ export class HouseholdsRepository {
       )
       .lean<Household>()
       .exec();
+  }
+
+  /**
+   * Rellena la zona horaria de los hogares creados antes de que existiera el campo.
+   *
+   * El filtro solo toca documentos sin `timeZone`, así que es idempotente y no pisa una zona
+   * ya elegida. Devuelve cuántos documentos modificó.
+   */
+  async backfillMissingTimeZone(timeZone: string): Promise<number> {
+    const result = await this.householdModel
+      .updateMany({ timeZone: { $exists: false } }, { $set: { timeZone } })
+      .exec();
+
+    return result.modifiedCount;
   }
 
   /** Guarda el hash y la caducidad del código de invitación vigente; el código no se persiste. */

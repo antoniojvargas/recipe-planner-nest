@@ -19,20 +19,23 @@ export default async function PlanPage({
   params: Promise<{ weekStart: string }>;
 }>) {
   const { weekStart: requested } = await params;
-  const weekStart = isWeekStartString(requested) ? requested : currentWeekStart();
+  const household = await requireHousehold();
+  const weekStart = isWeekStartString(requested)
+    ? requested
+    : currentWeekStart(new Date(), household.timeZone);
 
   // Una fecha que no sea lunes la rechazaría la API: se corrige a la semana real antes de leer.
   if (weekStart !== requested) {
     redirect(`/plan/${weekStart}`);
   }
 
-  const household = await requireHousehold();
   const { plan, recipes, recipesById } = await loadPlanPageData(household.id, weekStart);
 
   return (
     <section className="mx-auto max-w-7xl p-4 sm:p-6">
       <PlanBoard
         householdId={household.id}
+        timeZone={household.timeZone}
         weekStart={weekStart}
         initialPlan={plan}
         initialRecipes={recipes}

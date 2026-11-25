@@ -6,7 +6,7 @@ import { toResponseDto } from '../common/response.js';
 import { AUTH_CLOCK, type AuthClock } from '../auth/auth.clock.js';
 import { RealtimeRoomsService } from '../realtime/realtime-rooms.service.js';
 import { UsersRepository } from '../users/users.repository.js';
-import type { Household } from './household.schema.js';
+import { DEFAULT_HOUSEHOLD_TIME_ZONE, type Household } from './household.schema.js';
 import { HouseholdsRepository } from './households.repository.js';
 import {
   generateInviteCode,
@@ -28,9 +28,10 @@ export class HouseholdsService {
     @Inject(AUTH_CLOCK) private readonly clock: AuthClock,
   ) {}
 
-  async create(name: string, userId: string): Promise<HouseholdResponse> {
+  async create(name: string, userId: string, timeZone?: string): Promise<HouseholdResponse> {
     const household = await this.households.create({
       name,
+      timeZone,
       members: [
         {
           userId: new Types.ObjectId(userId),
@@ -206,6 +207,7 @@ export class HouseholdsService {
     return toResponseDto(HouseholdResponse, {
       id: household._id.toString(),
       name: household.name,
+      timeZone: household.timeZone ?? DEFAULT_HOUSEHOLD_TIME_ZONE,
       members: household.members.map((member) => {
         const userId = member.userId.toString();
 

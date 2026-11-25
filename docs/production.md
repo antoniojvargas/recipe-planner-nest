@@ -58,6 +58,19 @@ siguiente; el import reemplaza la configuración del bucket, así que es idempot
 docker compose -f docker-compose.prod.yml ps -a
 ```
 
+### 2.1 Actualizar una instalación existente
+
+Los hogares creados antes de que existiera `timeZone` no tienen el campo. La migración los
+rellena con `UTC` (la zona con la que se calculaba la semana hasta ahora) y es idempotente: solo
+toca documentos sin campo, así que se puede ejecutar en cada despliegue.
+
+```sh
+docker compose -f docker-compose.prod.yml exec backend npm run migrate -w backend
+```
+
+La zona se puede indicar al crear el hogar (`POST /api/households` con `timeZone`, una zona IANA
+como `America/Bogota`). Los hogares nuevos sin zona usan `UTC`.
+
 ## 3. Comprobaciones
 
 ### 3.1 Rutas de Caddy

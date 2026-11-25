@@ -1,63 +1,64 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { scale, type Unit } from '@recipe-planner/contracts';
+import { describe, expect, it } from 'vitest';
 
-// Mock the scaleIngredients function for testing purposes since it's defined in the page component
-// We'll test the logic directly
+/**
+ * Casos compartidos con el backend en `packages/contracts/units-cases.json`.
+ *
+ * El escalado se calcula en `@recipe-planner/contracts`, no en este paquete: la web pinta el
+ * resultado de la misma función que usa la API y la despensa.
+ */
+interface ScaleCase {
+  description: string;
+  quantity: number;
+  factor: number;
+  quantityScaled: number;
+}
+
+interface Ingredient {
+  name: string;
+  quantity: number;
+  unit: Unit;
+}
+
+const cases = JSON.parse(
+  readFileSync(new URL('../../../packages/contracts/units-cases.json', import.meta.url), 'utf8'),
+) as { scale: ScaleCase[] };
+
+function scaleIngredients(ingredients: Ingredient[], factor: number): Ingredient[] {
+  return ingredients.map((ingredient) => ({
+    ...ingredient,
+    quantity: scale(ingredient.quantity, factor),
+  }));
+}
+
+describe('scale', () => {
+  it.each(cases.scale)('$description', ({ quantity, factor, quantityScaled }) => {
+    expect(scale(quantity, factor)).toBe(quantityScaled);
+  });
+});
 
 describe('scaleIngredients', () => {
-  // Test the portion scaling logic
-  it('scales ingredients quantity by factor', () => {
-    const ingredients = [
-      { name: 'Arroz', quantity: 200, unit: 'g' },
-      { name: 'Pollo', quantity: 300, unit: 'g' },
-      { name: 'Verduras', quantity: 150, unit: 'g' },
-    ];
+  it('escala la cantidad de cada ingrediente sin cambiar la unidad', () => {
+    const scaled = scaleIngredients(
+      [
+        { name: 'Arroz', quantity: 200, unit: 'g' },
+        { name: 'Pollo', quantity: 300, unit: 'g' },
+        { name: 'Verduras', quantity: 150, unit: 'g' },
+      ],
+      1.5,
+    );
 
-    // Factor: 6 servings / 4 original servings = 1.5
-    const factor = 1.5;
-
-    const scaled = ingredients.map((ing) => ({
-      name: ing.name,
-      quantity: Math.round(ing.quantity * factor * 10) / 10,
-      unit: ing.unit,
-    }));
-
-    // Arroz: 200 * 1.5 = 300
-    expect(scaled[0]).toEqual({ name: 'Arroz', quantity: 300, unit: 'g' });
-
-    // Pollo: 300 * 1.5 = 450
-    expect(scaled[1]).toEqual({ name: 'Pollo', quantity: 450, unit: 'g' });
-
-    // Verduras: 150 * 1.5 = 225
-    expect(scaled[2]).toEqual({ name: 'Verduras', quantity: 225, unit: 'g' });
+    expect(scaled).toEqual([
+      { name: 'Arroz', quantity: 300, unit: 'g' },
+      { name: 'Pollo', quantity: 450, unit: 'g' },
+      { name: 'Verduras', quantity: 225, unit: 'g' },
+    ]);
   });
 
-  it('scales ingredients with fractional factor', () => {
-    const ingredients = [{ name: 'Sal', quantity: 10, unit: 'g' }];
+  it('redondea a un decimal al reducir raciones', () => {
+    const scaled = scaleIngredients([{ name: 'Sal', quantity: 10, unit: 'g' }], 0.75);
 
-    // Factor: 3 servings / 4 original servings = 0.75
-    const factor = 0.75;
-
-    const scaled = ingredients.map((ing) => ({
-      name: ing.name,
-      quantity: Math.round(ing.quantity * factor * 10) / 10,
-      unit: ing.unit,
-    }));
-
-    // Sal: 10 * 0.75 = 7.5
-    expect(scaled[0]).toEqual({ name: 'Sal', quantity: 7.5, unit: 'g' });
-  });
-
-  it('handles zero factor', () => {
-    const ingredients = [{ name: 'Agua', quantity: 500, unit: 'ml' }];
-
-    const factor = 0;
-
-    const scaled = ingredients.map((ing) => ({
-      name: ing.name,
-      quantity: Math.round(ing.quantity * 0 * 10) / 10,
-      unit: ing.unit,
-    }));
-
-    expect(scaled[0]).toEqual({ name: 'Agua', quantity: 0, unit: 'ml' });
+    expect(scaled).toEqual([{ name: 'Sal', quantity: 7.5, unit: 'g' }]);
   });
 });
