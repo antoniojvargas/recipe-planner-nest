@@ -366,6 +366,23 @@ Todas las respuestas de error tienen la misma forma, definida en
   compartido y, por tanto, a compilarlo antes que la API (`npm run build` de la raíz ya lo hace y
   el Dockerfile de desarrollo lo construye dentro de la imagen).
 
+## Caracterización de las respuestas
+
+`backend/test/characterization.e2e-spec.ts` fija en snapshots el JSON exacto de cada endpoint:
+el cuerpo de éxito y el sobre de error de cada `code` (400, 401, 403, 404, 409, 429 y 500). No
+son especificaciones, son una red de seguridad: si un refactor cambia un campo, un mensaje o un
+estado, el snapshot falla y obliga a decidir si el cambio es el buscado.
+
+- Se comparan `status` y `body` juntos, así que mover un error de estado también rompe.
+- Antes de comparar se normaliza solo lo que no puede ser determinista: identificadores (se
+  aliasan como `<id:1>`, `<id:2>`… por orden de aparición), instantes, códigos de invitación,
+  UUIDs de claves de medios, firmas de URLs prefirmadas y `responseTime` del health check.
+- Los tests arrancan la app real con los repositorios en memoria de `test/support`, así que los
+  valores dependientes de Mongo (versión optimista de la lista, `_id` de subdocumentos) reflejan
+  el comportamiento de los dobles, no el de la base de datos.
+- Para aceptar un cambio: `npx vitest run --config vitest.config.e2e.ts test/characterization.e2e-spec.ts -u`
+  y revisar el diff del `.snap` en la revisión.
+
 ## Salud y dependencias
 
 `GET /api/health` (Terminus) comprueba Mongo, Redis y el bucket de MinIO y responde **200** si

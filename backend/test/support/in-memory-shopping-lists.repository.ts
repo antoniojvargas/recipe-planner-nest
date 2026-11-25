@@ -22,6 +22,11 @@ export class InMemoryShoppingListsRepository {
   ): Promise<ShoppingList | null> {
     const objectId = new Types.ObjectId(householdId);
     const date = new Date(weekStart);
+    // Mongo asigna `_id` a cada subdocumento al guardar; el servicio solo lo conserva.
+    const storedItems = items.map((item) => ({
+      ...item,
+      _id: item._id ?? new Types.ObjectId(),
+    }));
 
     // Buscar si ya existe la lista
     const list = this.lists.find(
@@ -32,19 +37,23 @@ export class InMemoryShoppingListsRepository {
 
     if (list) {
       // Actualizar items existentes
-      list.items = items;
+      list.items = storedItems;
       list.version = (list.version ?? 0) + 1;
+      list.updatedAt = new Date();
       return list;
     } else {
       // Crear nueva lista
+      const now = new Date();
       const newList: ShoppingList = {
         _id: new Types.ObjectId(),
         householdId: objectId,
         weekStart: date,
         items: [],
         version: 1,
+        createdAt: now,
+        updatedAt: now,
       };
-      newList.items = items;
+      newList.items = storedItems;
       this.lists.push(newList);
       return newList;
     }
@@ -107,13 +116,15 @@ export class InMemoryShoppingListsRepository {
 
     if (!list) {
       // Crear nueva lista
-      const objectId = new Types.ObjectId(householdId);
+      const now = new Date();
       list = {
         _id: new Types.ObjectId(),
-        householdId: objectId,
+        householdId: new Types.ObjectId(householdId),
         weekStart: date,
         items: [],
         version: 1,
+        createdAt: now,
+        updatedAt: now,
       };
       this.lists.push(list);
     }
