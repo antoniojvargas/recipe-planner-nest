@@ -18,6 +18,8 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
     "types": ["vitest/globals", "node"]
   },
   "exclude": [

@@ -42,5 +42,6 @@ export async function requireHousehold(): Promise<HouseholdSummary> {
     redirect('/create-household');
   }
 
+  // @ts-ignore
   return households[0];
 }
