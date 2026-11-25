@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import type { JobsOptions } from 'bullmq';
+import { IMAGE_EXTENSIONS, MEDIA_ROOT_PREFIX, PENDING_UPLOAD_PREFIX } from './media.constants.js';
+
 /**
  * Nombres y datos de la cola de medios.
  *
@@ -9,6 +13,31 @@ export const MEDIA_QUEUE_NAME = 'media';
 export const THUMBNAIL_JOB = 'media.thumbnail';
 
 export const DELETE_IMAGE_JOB = 'media.delete';
+
+/** Barrido periódico de objetos que ninguna receta referencia. */
+export const MEDIA_CLEANUP_JOB = 'media.cleanup-orphans';
+
+/** Id del programador; repetirlo en cada arranque actualiza el trabajo, no lo duplica. */
+export const MEDIA_CLEANUP_SCHEDULER_ID = 'media.cleanup-orphans';
+
+/** Cada hora: el barrido solo borra objetos de más de 24 h, así que no corre prisa. */
+export const MEDIA_CLEANUP_PATTERN = '0 * * * *';
+
+/** Opciones comunes de los trabajos de medios: reintentos y limpieza de la cola. */
+export const MEDIA_JOB_OPTIONS = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 1_000 },
+  removeOnComplete: { age: 86_400, count: 1_000 },
+  removeOnFail: { age: 604_800, count: 5_000 },
+} as const satisfies JobsOptions;
+
+/**
+ * Prefijos que el barrido puede borrar.
+ *
+ * Son las dos raíces de medios: las subidas pendientes y los objetos definitivos. Cualquier
+ * otra clave del bucket queda fuera del alcance del trabajo.
+ */
+export const MANAGED_MEDIA_PREFIXES = [PENDING_UPLOAD_PREFIX, MEDIA_ROOT_PREFIX] as const;
 
 /** Variantes WebP que genera el worker a partir de la imagen original. */
 export const THUMBNAIL_WIDTHS = [320, 960] as const;
@@ -28,7 +57,10 @@ export interface DeleteImageJobData {
   keys: string[];
 }
 
-export type MediaJobData = ThumbnailJobData | DeleteImageJobData;
+/** El barrido no necesita datos: recorre el bucket entero de medios. */
+export type CleanupOrphansJobData = Record<string, never>;
+
+export type MediaJobData = ThumbnailJobData | DeleteImageJobData | CleanupOrphansJobData;
 
 /**
  * Clave de una variante: mismo nombre que el original y sufijo con el ancho.
@@ -43,4 +75,39 @@ export function thumbnailKey(originalKey: string, width: number): string {
 /** Todas las claves que genera una imagen: el original y cada variante WebP. */
 export function imageObjectKeys(originalKey: string): string[] {
   return [originalKey, ...THUMBNAIL_WIDTHS.map((width) => thumbnailKey(originalKey, width))];
+}
+
+/**
+ * Id determinista del trabajo de miniaturas de una imagen.
+ *
+ * BullMQ descarta un `add` cuyo `jobId` ya existe, así que confirmar dos veces la misma imagen
+ * (dos pestañas, un reintento del navegador) genera un solo trabajo. Se usa un hash porque la
+ * clave lleva `/` y `.` y el id acaba en una clave de Redis; además cabe siempre.
+ */
+export function thumbnailJobId(key: string): string {
+  return `${THUMBNAIL_JOB}-${createHash('sha256').update(key).digest('hex')}`;
+}
+
+/**
+ * Base de una variante: la clave del original sin la extensión, o `undefined` si la clave no
+ * es una miniatura.
+ *
+ * Las variantes se nombran con la base del original y el ancho (`foto-320.webp`), así que la
+ * extensión del original se perdió al generarlas y hay que probar las del catálogo.
+ */
+export function variantBaseKey(key: string): string | undefined {
+  for (const width of THUMBNAIL_WIDTHS) {
+    const suffix = `-${String(width)}.webp`;
+
+    if (key.endsWith(suffix)) {
+      return key.slice(0, -suffix.length);
+    }
+  }
+
+  return undefined;
+}
+
+/** Claves originales posibles para una base de variante, una por extensión del catálogo. */
+export function originalKeysForBase(base: string): string[] {
+  return Object.values(IMAGE_EXTENSIONS).map((extension) => `${base}.${extension}`);
 }

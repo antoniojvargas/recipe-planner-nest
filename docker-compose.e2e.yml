@@ -94,6 +94,7 @@ services:
       S3_BUCKET: recipes
     volumes:
       - ./infra/minio/cors.json:/config/cors.json:ro
+      - ./infra/minio/lifecycle.json:/config/lifecycle.json:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -114,6 +115,8 @@ services:
         mc mb --ignore-existing "local/$${S3_BUCKET}"
         mc anonymous set none "local/$${S3_BUCKET}"
         mc cors set "local/$${S3_BUCKET}" /config/cors.json || echo "Warning: could not set bucket CORS"
+        # Red de seguridad: las subidas que nadie confirma se van solas al día siguiente.
+        mc ilm rule import "local/$${S3_BUCKET}" < /config/lifecycle.json
     restart: 'no'
 
   mailpit:

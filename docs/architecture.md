@@ -265,19 +265,33 @@ verifica, así que el binario nunca pasa por la API.
 
 - **Subida.** `POST /api/households/:householdId/media/upload-url` devuelve
   `{ key, url, fields, expiresAt }` de `createPresignedPost` (`MediaService.createUploadUrl`).
-  La clave es `households/{householdId}/{uuid}.{jpg|png|webp}`, el `Content-Type` queda fijado
+  La clave es `pending/{householdId}/{uuid}.{jpg|png|webp}`, el `Content-Type` queda fijado
   por una condición `eq`, el tamaño se limita con `content-length-range [1, dto.size]` y la URL
   expira en 300 s (`UPLOAD_URL_TTL_SECONDS`). El prefijo del hogar es la primera barrera de
-  aislamiento y el guard de membresía comprueba la ruta antes de firmar nada.
-- **Confirmación.** `inspectImage` exige que la clave empiece por el prefijo del hogar, hace
-  `HeadObject` (un 404 se traduce a `NOT_FOUND`), comprueba tamaño ≤ 5 MiB y MIME entre JPEG,
-  PNG y WebP, y lee el objeto con `sharp` para obtener anchura y altura reales. Solo entonces
-  la receta guarda la imagen.
+  aislamiento y el guard de membresía comprueba la ruta antes de firmar nada. La subida vive en
+  `pending/` hasta que se confirma: así la regla de ciclo de vida del bucket puede expirar lo
+  que nadie confirmó sin tocar ninguna imagen en uso.
+- **Confirmación.** `inspectImage` exige que la clave empiece por el prefijo pendiente o por el
+  definitivo del hogar, hace `HeadObject` (un 404 se traduce a `NOT_FOUND`), comprueba tamaño
+  ≤ 5 MiB y MIME entre JPEG, PNG y WebP, y lee el objeto con `sharp` para obtener anchura y
+  altura reales. Si la clave era pendiente, copia el objeto a `households/{householdId}/…`
+  (`CopyObject`) y devuelve la clave definitiva: la receta nunca apunta a algo que el ciclo de
+  vida pueda borrar. La copia deja el original pendiente en su sitio para que reintentar la
+  confirmación siga funcionando; MinIO lo elimina al vencer el plazo.
 - **Lectura.** `signImageUrls` firma tres `GetObject` —original, 320 px y 960 px— con TTL de
   300 s **en cada serialización** (`RecipesService.toResponse`). Las URLs no se guardan en Mongo:
   un enlace filtrado deja de servir en cinco minutos. Firmar es local y barato, sin petición al
   bucket. Las variantes las genera el worker en una cola de BullMQ; el borrado encola las tres
-  claves y es idempotente.
+  claves y es idempotente. El trabajo de miniaturas lleva un `jobId` determinista por clave de
+  imagen (`thumbnailJobId`), así que confirmar dos veces la misma foto —dos pestañas, un
+  reintento del navegador— encola un solo trabajo; la cola se limpia por edad y por número
+  (`removeOnComplete`/`removeOnFail`).
+- **Huérfanos.** Una URL prefirmada que se usa pero nunca se confirma deja un objeto sin receta.
+  El worker registra cada hora un trabajo repetible (`media.cleanup-orphans`) que lista
+  `pending/` y `households/` con `ListObjectsV2` por páginas, consulta en lote qué claves
+  referencian las recetas y borra las que llevan más de 24 h sin dueño. Como red de seguridad,
+  `minio-init` importa `infra/minio/lifecycle.json`: la regla expira todo `pending/` al día
+  siguiente, de modo que un barrido roto no acumula basura indefinidamente.
 - **Exposición pública.** MinIO sirve el bucket bajo `/media` en Caddy, que reenvía la firma sin
   reescribirla. Hay dos clientes S3: el interno (`S3_ENDPOINT`) para `HeadObject`/`GetObject` y
   el público (`S3_PUBLIC_ENDPOINT`) para las URLs que usa el navegador. La comprobación del
@@ -289,8 +303,7 @@ El detalle de la receta ya carga sus datos desde el servidor, pero el listado
 `src/app/(app)/recipes/page.tsx` sigue siendo un placeholder: construye
 `https://minio.example.com/recipes/${recipe.imageKey}` con un `imageKey` que el contrato no
 expone y sin `remotePatterns` en `next.config.ts`. Las URLs firmadas (`smallUrl`, `largeUrl`)
-aparecen solo como tipo en `src/lib/meal-plan.ts`; ningún `<Image>` las consume todavía. Falta
-también limpieza de subidas no confirmadas y un `jobId` determinista al encolar.
+aparecen solo como tipo en `src/lib/meal-plan.ts`; ningún `<Image>` las consume todavía.
 
 ## Importación desde URL y SSRF
 

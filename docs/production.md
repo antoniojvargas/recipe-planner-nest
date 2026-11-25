@@ -50,7 +50,9 @@ docker compose -f docker-compose.prod.yml up -d --build --wait
 
 `--wait` espera a que todos los healthchecks estén `healthy` y falla si alguno no llega. Es
 normal ver dos servicios terminados con código 0: `mongo-keyfile` (genera el keyfile una vez) y
-`minio-init` (crea el bucket privado `media`).
+`minio-init` (crea el bucket privado `media` e importa la regla de ciclo de vida de
+`infra/minio/lifecycle.json`, que expira las subidas sin confirmar de `pending/` al día
+siguiente; el import reemplaza la configuración del bucket, así que es idempotente).
 
 ```sh
 docker compose -f docker-compose.prod.yml ps -a

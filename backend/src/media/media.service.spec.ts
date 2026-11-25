@@ -1,4 +1,10 @@
-import { HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
+import {
+  CopyObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  S3Client,
+  S3ServiceException,
+} from '@aws-sdk/client-s3';
 import type { Queue } from 'bullmq';
 import sharp from 'sharp';
 import type { StorageConfig } from '../config/index.js';
@@ -16,6 +22,7 @@ import {
   imageObjectKeys,
   MEDIA_QUEUE_NAME,
   THUMBNAIL_JOB,
+  thumbnailJobId,
   thumbnailKey,
   type MediaJobData,
 } from './media.queue.js';
@@ -102,7 +109,7 @@ describe('MediaService', () => {
       const result = await service.createUploadUrl(householdId, dto('image/jpeg', 1024));
 
       expect(result.url).toBe('http://localhost:9000/recipes');
-      expect(result.key).toMatch(new RegExp(`^households/${householdId}/[0-9a-f-]{36}\\.jpg$`));
+      expect(result.key).toMatch(new RegExp(`^pending/${householdId}/[0-9a-f-]{36}\\.jpg$`));
       expect(result.fields.key).toBe(result.key);
       expect(result.fields['Content-Type']).toBe('image/jpeg');
       expect(result.fields['X-Amz-Signature']).toMatch(/^[0-9a-f]{64}$/);
@@ -230,6 +237,52 @@ describe('MediaService', () => {
       });
       expect(internal.send.mock.calls[0]?.[0]).toBeInstanceOf(HeadObjectCommand);
     });
+
+    it('promociona la subida pendiente a una clave definitiva al confirmar', async () => {
+      const { service, internal } = createDoubles();
+      const bytes = await png(10, 10);
+      const pendingKey = `pending/${householdId}/foto.png`;
+      internal.send
+        .mockResolvedValueOnce({ ContentLength: bytes.length, ContentType: 'image/png' })
+        .mockResolvedValueOnce(objectBody(bytes))
+        .mockResolvedValueOnce({});
+
+      const image = await service.inspectImage(householdId, pendingKey);
+
+      expect(image.key).toBe(key);
+
+      const copy = internal.send.mock.calls[2]?.[0] as CopyObjectCommand;
+
+      expect(copy).toBeInstanceOf(CopyObjectCommand);
+      expect(copy.input).toMatchObject({
+        Bucket: 'recipes',
+        Key: key,
+        CopySource: `recipes/${pendingKey}`,
+      });
+    });
+
+    it('rechaza una clave pendiente de otro hogar', async () => {
+      const { service, internal } = createDoubles();
+
+      await expect(
+        service.inspectImage(householdId, 'pending/otro-hogar/foto.png'),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(internal.send).not.toHaveBeenCalled();
+    });
+
+    it('acepta una clave ya definitiva sin volver a copiarla', async () => {
+      const { service, internal } = createDoubles();
+      const bytes = await png(10, 10);
+      internal.send
+        .mockResolvedValueOnce({ ContentLength: bytes.length, ContentType: 'image/png' })
+        .mockResolvedValueOnce(objectBody(bytes));
+
+      const image = await service.inspectImage(householdId, key);
+
+      expect(image.key).toBe(key);
+      expect(internal.send).toHaveBeenCalledTimes(2);
+      expect(internal.send.mock.calls[1]?.[0]).toBeInstanceOf(GetObjectCommand);
+    });
   });
 
   describe('enqueueThumbnail', () => {
@@ -243,9 +296,27 @@ describe('MediaService', () => {
         attempts: 3,
         backoff: { type: 'exponential', delay: 1_000 },
         removeOnComplete: { age: 86_400, count: 1_000 },
-        removeOnFail: { age: 604_800 },
+        removeOnFail: { age: 604_800, count: 5_000 },
+        jobId: thumbnailJobId(key),
       });
       expect(MEDIA_QUEUE_NAME).toBe('media');
+    });
+
+    it('usa un jobId determinista para que dos confirmaciones de la misma imagen sean un solo trabajo', async () => {
+      const { service, queue } = createDoubles();
+      const data = { householdId, recipeId: 'recipe-1', key };
+
+      await service.enqueueThumbnail(data);
+      await service.enqueueThumbnail(data);
+      await service.enqueueThumbnail({ ...data, key: `${key.replace(/\.png$/, '')}-otra.png` });
+
+      const ids = queue.add.mock.calls.map(
+        (call) => (call[2] as { jobId?: string } | undefined)?.jobId,
+      );
+
+      expect(ids[0]).toBe(ids[1]);
+      expect(ids[0]).toBe(thumbnailJobId(key));
+      expect(ids[2]).not.toBe(ids[0]);
     });
   });
 

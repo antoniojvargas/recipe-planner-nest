@@ -59,6 +59,24 @@ export class RecipesRepository {
     return this.recipeModel.findOne({ householdId, _id: recipeId }).lean<Recipe>().exec();
   }
 
+  /**
+   * Claves de imagen que alguna receta referencia, de entre las indicadas.
+   *
+   * Es la única consulta del repositorio sin `householdId`: la usa el barrido de huérfanos,
+   * que recorre el bucket entero y solo necesita saber si una clave sigue viva en algún hogar.
+   */
+  async findReferencedImageKeys(keys: string[]): Promise<Set<string>> {
+    if (keys.length === 0) {
+      return new Set();
+    }
+
+    const referenced = (await this.recipeModel
+      .distinct('image.key', { 'image.key': { $in: keys } })
+      .exec()) as string[];
+
+    return new Set(referenced);
+  }
+
   async findByHousehold(
     householdId: string,
     { limit = 50, skip = 0 }: ListRecipesOptions = {},

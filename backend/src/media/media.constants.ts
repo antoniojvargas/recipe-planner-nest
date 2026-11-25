@@ -22,7 +22,29 @@ export function isAllowedImageType(value: string): value is AllowedImageType {
 /** Segundos que la URL prefirmada permite iniciar la subida. */
 export const UPLOAD_URL_TTL_SECONDS = 300;
 
+/**
+ * Antigüedad mínima de un objeto sin receta antes de borrarlo. Da margen a que una subida
+ * recién hecha se confirme y a que un trabajo de miniatura termine.
+ */
+export const ORPHAN_RETENTION_MS = 24 * 60 * 60 * 1_000;
+
+/** Raíz de los objetos definitivos; ninguna operación de medios puede salir de ella. */
+export const MEDIA_ROOT_PREFIX = 'households/';
+
+/** Raíz de las subidas sin confirmar, la única que expira por ciclo de vida. */
+export const PENDING_UPLOAD_PREFIX = 'pending/';
+
 /** Prefijo del hogar: ninguna operación de medios puede salir de él. */
 export function householdMediaPrefix(householdId: string): string {
-  return `households/${householdId}/`;
+  return `${MEDIA_ROOT_PREFIX}${householdId}/`;
+}
+
+/**
+ * Prefijo donde el navegador deja la subida hasta que la API la confirma.
+ *
+ * Está separado del definitivo para que la regla de ciclo de vida del bucket expire solo lo
+ * que nadie confirmó, sin tocar las imágenes que ya usa una receta.
+ */
+export function pendingUploadPrefix(householdId: string): string {
+  return `${PENDING_UPLOAD_PREFIX}${householdId}/`;
 }

@@ -13,6 +13,7 @@ import type { AllowedImageType } from '../src/media/media.constants.js';
 import { THUMBNAIL_JOB, thumbnailKey, type MediaJobData } from '../src/media/media.queue.js';
 import { MediaProcessor } from '../src/media/media.processor.js';
 import { MediaService } from '../src/media/media.service.js';
+import type { RecipesRepository } from '../src/recipes/recipes.repository.js';
 
 const BUCKET = 'recipes-integration';
 const USERNAME = 'minioadmin';
@@ -121,7 +122,9 @@ describe('Media con MinIO real (integración)', () => {
 
     const jobs = { add: vi.fn().mockResolvedValue({ id: 'test-job' }) };
     media = new MediaService(client, client, config, jobs as unknown as Queue<MediaJobData>);
-    processor = new MediaProcessor(client, config);
+    processor = new MediaProcessor(client, config, {
+      findReferencedImageKeys: vi.fn().mockResolvedValue(new Set<string>()),
+    } as unknown as RecipesRepository);
   });
 
   afterAll(async () => {
@@ -147,10 +150,11 @@ describe('Media con MinIO real (integración)', () => {
     expect(response.status).toBe(204);
 
     const image = await media.inspectImage(householdId, key);
+    const finalKey = `households/${householdId}/${key.slice(`pending/${householdId}/`.length)}`;
 
-    expect(image).toEqual({ key, width: 1200, height: 800, size: bytes.length });
+    expect(image).toEqual({ key: finalKey, width: 1200, height: 800, size: bytes.length });
 
-    const urls = await media.signImageUrls(key);
+    const urls = await media.signImageUrls(image.key);
     const served = await fetch(urls.originalUrl);
 
     expect(served.status).toBe(200);
@@ -210,11 +214,11 @@ describe('Media con MinIO real (integración)', () => {
     });
 
     expect(response.ok).toBe(true);
-    await media.inspectImage(householdId, key);
+    const image = await media.inspectImage(householdId, key);
 
     await processor.process({
       name: THUMBNAIL_JOB,
-      data: { householdId, recipeId, key },
+      data: { householdId, recipeId, key: image.key },
     } as unknown as Job<MediaJobData>);
 
     for (const [width, height] of [
@@ -222,7 +226,7 @@ describe('Media con MinIO real (integración)', () => {
       [960, 640],
     ] as const) {
       const object = await client.send(
-        new GetObjectCommand({ Bucket: BUCKET, Key: thumbnailKey(key, width) }),
+        new GetObjectCommand({ Bucket: BUCKET, Key: thumbnailKey(image.key, width) }),
       );
       const variant = await bodyOf(object);
       const metadata = await sharp(variant).metadata();

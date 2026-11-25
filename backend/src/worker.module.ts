@@ -9,6 +9,7 @@ import { ImportsModule } from './imports/imports.module.js';
 import { ImportsProcessor } from './imports/imports.processor.js';
 import { SafeHttpClient } from './imports/safe-http.client.js';
 import { MEDIA_QUEUE_NAME } from './media/media.queue.js';
+import { MediaCleanupScheduler } from './media/media-cleanup.scheduler.js';
 import { MediaProcessor } from './media/media.processor.js';
 import { bullMqConnection } from './queues/bullmq.connection.js';
 import { WorkersShutdown } from './queues/workers-shutdown.js';
@@ -51,6 +52,12 @@ import { StorageModule } from './storage/storage.module.js';
     RecipesModule,
     RealtimePublisherModule,
   ],
-  providers: [MediaProcessor, ImportsProcessor, SafeHttpClient, WorkersShutdown],
+  providers: [
+    MediaProcessor,
+    MediaCleanupScheduler,
+    ImportsProcessor,
+    SafeHttpClient,
+    WorkersShutdown,
+  ],
 })
 export class WorkerModule {}

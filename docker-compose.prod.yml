@@ -171,6 +171,8 @@ services:
       - minio_root_password
     environment:
       S3_BUCKET: media
+    volumes:
+      - ./infra/minio/lifecycle.json:/config/lifecycle.json:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -181,6 +183,8 @@ services:
         mc mb --ignore-existing "local/$${S3_BUCKET}"
         # El bucket queda privado: se lee y se escribe solo con URLs prefirmadas.
         mc anonymous set none "local/$${S3_BUCKET}"
+        # Red de seguridad: las subidas que nadie confirma se van solas al día siguiente.
+        mc ilm rule import "local/$${S3_BUCKET}" < /config/lifecycle.json
     restart: 'no'
 
   mailpit:
