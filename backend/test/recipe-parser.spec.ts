@@ -51,6 +51,47 @@ describe('Recipe parser - parseIngredient', () => {
     expect(result).toEqual({ quantity: 10, unit: 'g', name: 'sal' });
   });
 
+  it('parse "1 1/2 tazas de harina" → {quantity: 1.5, unit: "cup", name: "harina"}', () => {
+    const result = parseIngredient('1 1/2 tazas de harina');
+    expect(result).toEqual({ quantity: 1.5, unit: 'cup', name: 'harina' });
+  });
+
+  it('parse "1/2 cucharadita de sal" → {quantity: 0.5, unit: "tsp", name: "sal"}', () => {
+    const result = parseIngredient('1/2 cucharadita de sal');
+    expect(result).toEqual({ quantity: 0.5, unit: 'tsp', name: 'sal' });
+  });
+
+  it('parse "200 g de brócoli" → {quantity: 200, unit: "g", name: "brócoli"}', () => {
+    const result = parseIngredient('200 g de brócoli');
+    expect(result).toEqual({ quantity: 200, unit: 'g', name: 'brócoli' });
+  });
+
+  it('parse "150 ml de leche de coco" → {quantity: 150, unit: "ml", name: "leche de coco"}', () => {
+    const result = parseIngredient('150 ml de leche de coco');
+    expect(result).toEqual({ quantity: 150, unit: 'ml', name: 'leche de coco' });
+  });
+
+  it('parse "una pizca de nuez moscada" → nota explicando unidad no reconocida', () => {
+    const result = parseIngredient('una pizca de nuez moscada');
+    expect(result.note).toBeDefined();
+    expect(result.name).toContain('nuez moscada');
+  });
+
+  it('parse "500 g de harina de fuerza" → {quantity: 500, unit: "g", name: "harina de fuerza"}', () => {
+    const result = parseIngredient('500 g de harina de fuerza');
+    expect(result).toEqual({ quantity: 500, unit: 'g', name: 'harina de fuerza' });
+  });
+
+  it('parse "350 ml de agua" → {quantity: 350, unit: "ml", name: "agua"}', () => {
+    const result = parseIngredient('350 ml de agua');
+    expect(result).toEqual({ quantity: 350, unit: 'ml', name: 'agua' });
+  });
+
+  it('parse "10 g de sal" → {quantity: 10, unit: "g", name: "sal"}', () => {
+    const result = parseIngredient('10 g de sal');
+    expect(result).toEqual({ quantity: 10, unit: 'g', name: 'sal' });
+  });
+
   it('parse texto vacío → {quantity: 0, unit: "unit", name: ""}', () => {
     const result = parseIngredient('');
     expect(result).toEqual({ quantity: 0, unit: 'unit', name: '' });
@@ -61,6 +102,23 @@ describe('Recipe parser - parseIngredient', () => {
     expect(result.note).toBeDefined();
     expect(result.name).toContain('harina');
   });
+
+  // ── Tabla de casos para parseIngredient ──────────────────────────────
+  it.each([
+    ['200 g de arroz', { quantity: 200, unit: 'g', name: 'arroz' }],
+    ['1 1/2 tazas de harina', { quantity: 1.5, unit: 'cup', name: 'harina' }],
+    ['1/2 cucharadita de sal', { quantity: 0.5, unit: 'tsp', name: 'sal' }],
+    ['200 g de brócoli', { quantity: 200, unit: 'g', name: 'brócoli' }],
+    ['150 ml de leche de coco', { quantity: 150, unit: 'ml', name: 'leche de coco' }],
+    ['500 g de harina de fuerza', { quantity: 500, unit: 'g', name: 'harina de fuerza' }],
+    ['350 ml de agua', { quantity: 350, unit: 'ml', name: 'agua' }],
+  ] )(
+    'parse %s → resultado esperado',
+    (input, expected) => {
+      const result = parseIngredient(input);
+      expect(result).toEqual(expected);
+    },
+  );
 });
 
 describe('Recipe parser - extractRecipe', () => {
