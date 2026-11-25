@@ -1,0 +1,809 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Caracterización de la API > despensa > DELETE /api/households/{householdId}/pantry/{name} 1`] = `
+{
+  "body": true,
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > despensa > GET /api/households/{householdId}/pantry 1`] = `
+{
+  "body": [
+    {
+      "_id": "<id:1>",
+      "createdAt": "<timestamp>",
+      "householdId": "<id:2>",
+      "name": "aceite",
+      "quantity": 1,
+      "unit": "l",
+      "updatedAt": "<timestamp>",
+    },
+    {
+      "_id": "<id:3>",
+      "createdAt": "<timestamp>",
+      "householdId": "<id:2>",
+      "name": "sal",
+      "quantity": 500,
+      "unit": "g",
+      "updatedAt": "<timestamp>",
+    },
+  ],
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > despensa > POST /api/households/{householdId}/pantry 1`] = `
+{
+  "body": {
+    "_id": "<id:1>",
+    "createdAt": "<timestamp>",
+    "householdId": "<id:2>",
+    "name": "sal",
+    "quantity": 500,
+    "unit": "g",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > hogares > GET /api/households 1`] = `
+{
+  "body": [
+    {
+      "createdAt": "<timestamp>",
+      "id": "<id:1>",
+      "members": [
+        {
+          "displayName": "Ana",
+          "joinedAt": "<timestamp>",
+          "role": "owner",
+          "userId": "<id:2>",
+        },
+      ],
+      "name": "Hogar de Ana",
+      "timeZone": "UTC",
+      "updatedAt": "<timestamp>",
+    },
+    {
+      "createdAt": "<timestamp>",
+      "id": "<id:3>",
+      "members": [
+        {
+          "displayName": "Ana",
+          "joinedAt": "<timestamp>",
+          "role": "owner",
+          "userId": "<id:2>",
+        },
+      ],
+      "name": "Casa de playa",
+      "timeZone": "UTC",
+      "updatedAt": "<timestamp>",
+    },
+  ],
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > hogares > GET /api/households/{id} 1`] = `
+{
+  "body": {
+    "createdAt": "<timestamp>",
+    "id": "<id:1>",
+    "members": [
+      {
+        "displayName": "Ana",
+        "joinedAt": "<timestamp>",
+        "role": "owner",
+        "userId": "<id:2>",
+      },
+    ],
+    "name": "Hogar de Ana",
+    "timeZone": "UTC",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > hogares > POST /api/households 1`] = `
+{
+  "body": {
+    "createdAt": "<timestamp>",
+    "id": "<id:1>",
+    "members": [
+      {
+        "displayName": "Ana",
+        "joinedAt": "<timestamp>",
+        "role": "owner",
+        "userId": "<id:2>",
+      },
+    ],
+    "name": "Casa de playa",
+    "timeZone": "Europe/Madrid",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 201,
+}
+`;
+
+exports[`Caracterización de la API > hogares > POST /api/households/{id}/invite 1`] = `
+{
+  "body": {
+    "code": "<invite-code>",
+    "expiresAt": "<timestamp>",
+  },
+  "status": 201,
+}
+`;
+
+exports[`Caracterización de la API > hogares > POST /api/households/{id}/leave 1`] = `
+{
+  "body": {},
+  "status": 204,
+}
+`;
+
+exports[`Caracterización de la API > hogares > POST /api/households/join 1`] = `
+{
+  "body": {
+    "createdAt": "<timestamp>",
+    "id": "<id:1>",
+    "members": [
+      {
+        "displayName": "Ana",
+        "joinedAt": "<timestamp>",
+        "role": "owner",
+        "userId": "<id:2>",
+      },
+      {
+        "displayName": "Luis",
+        "joinedAt": "<timestamp>",
+        "role": "member",
+        "userId": "<id:3>",
+      },
+    ],
+    "name": "Hogar de Ana",
+    "timeZone": "UTC",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > lista de la compra > PATCH /api/households/{householdId}/shopping-lists/{weekStart}/items/{itemId} 1`] = `
+{
+  "body": {
+    "_id": "<id:1>",
+    "householdId": "<id:2>",
+    "items": [
+      {
+        "_id": "<id:3>",
+        "checked": true,
+        "checkedBy": "<id:4>",
+        "name": "huevo",
+        "quantity": 6,
+        "source": "plan",
+        "unit": "unit",
+      },
+      {
+        "_id": "<id:5>",
+        "checked": false,
+        "name": "patata",
+        "quantity": 600,
+        "source": "plan",
+        "unit": "g",
+      },
+    ],
+    "version": 2,
+    "weekStart": "<weekStart>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > lista de la compra > POST /api/households/{householdId}/shopping-lists/{weekStart}/generate 1`] = `
+{
+  "body": {
+    "_id": "<id:1>",
+    "householdId": "<id:2>",
+    "items": [
+      {
+        "_id": "<id:3>",
+        "checked": false,
+        "name": "huevo",
+        "quantity": 6,
+        "source": "plan",
+        "unit": "unit",
+      },
+      {
+        "_id": "<id:4>",
+        "checked": false,
+        "name": "patata",
+        "quantity": 600,
+        "source": "plan",
+        "unit": "g",
+      },
+    ],
+    "version": 1,
+    "weekStart": "<weekStart>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > lista de la compra > POST /api/households/{householdId}/shopping-lists/{weekStart}/items 1`] = `
+{
+  "body": {
+    "_id": "<id:1>",
+    "householdId": "<id:2>",
+    "items": [
+      {
+        "_id": "<id:3>",
+        "checked": false,
+        "name": "Leche",
+        "quantity": 1,
+        "source": "manual",
+        "unit": "l",
+      },
+    ],
+    "version": 2,
+    "weekStart": "<weekStart>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > medios e importaciones > POST /api/households/{householdId}/imports 1`] = `
+{
+  "body": {
+    "createdAt": "<timestamp>",
+    "householdId": "<id:2>",
+    "id": "<id:1>",
+    "status": "pending",
+    "url": "https://example.com/recetas/tortilla",
+  },
+  "status": 202,
+}
+`;
+
+exports[`Caracterización de la API > medios e importaciones > POST /api/households/{householdId}/media/upload-url 1`] = `
+{
+  "body": {
+    "expiresAt": "<timestamp>",
+    "fields": {
+      "Content-Type": "image/png",
+      "Policy": "<presign>",
+      "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+      "X-Amz-Credential": "<presign>",
+      "X-Amz-Date": "<presign>",
+      "X-Amz-Signature": "<presign>",
+      "bucket": "recipes-test",
+      "key": "pending/<id:1>/<uuid>.png",
+    },
+    "key": "pending/<id:1>/<uuid>.png",
+    "url": "http://localhost:9000/recipes-test",
+  },
+  "status": 201,
+}
+`;
+
+exports[`Caracterización de la API > plan semanal > GET /api/households/{householdId}/meal-plans/{weekStart} 1`] = `
+{
+  "body": {
+    "_id": "<id:1>",
+    "createdAt": "<timestamp>",
+    "householdId": "<id:2>",
+    "slots": [],
+    "updatedAt": "<timestamp>",
+    "weekStart": "<weekStart>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > plan semanal > PUT /api/households/{householdId}/meal-plans/{weekStart}/slots 1`] = `
+{
+  "body": {
+    "_id": "<id:1>",
+    "createdAt": "<timestamp>",
+    "householdId": "<id:2>",
+    "slots": [
+      {
+        "day": 0,
+        "meal": "lunch",
+        "recipeId": "<id:3>",
+        "servings": 2,
+      },
+    ],
+    "updatedAt": "<timestamp>",
+    "weekStart": "<weekStart>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > raíz y salud > GET /api 1`] = `"Hello World!"`;
+
+exports[`Caracterización de la API > raíz y salud > GET /api/health 1`] = `
+{
+  "body": {
+    "details": {
+      "mongo": {
+        "responseTime": "<ms>",
+        "status": "up",
+      },
+      "redis": {
+        "responseTime": "<ms>",
+        "status": "up",
+      },
+      "storage": {
+        "responseTime": "<ms>",
+        "status": "up",
+      },
+    },
+    "error": {},
+    "info": {
+      "mongo": {
+        "responseTime": "<ms>",
+        "status": "up",
+      },
+      "redis": {
+        "responseTime": "<ms>",
+        "status": "up",
+      },
+      "storage": {
+        "responseTime": "<ms>",
+        "status": "up",
+      },
+    },
+    "status": "ok",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > recetario > DELETE /api/households/{householdId}/recipes/{recipeId} 1`] = `
+{
+  "body": {},
+  "status": 204,
+}
+`;
+
+exports[`Caracterización de la API > recetario > GET /api/households/{householdId}/recipes 1`] = `
+{
+  "body": {
+    "items": [
+      {
+        "cookMinutes": 30,
+        "createdAt": "<timestamp>",
+        "createdBy": "<id:3>",
+        "householdId": "<id:2>",
+        "id": "<id:1>",
+        "ingredients": [
+          {
+            "name": "Patata",
+            "quantity": 600,
+            "unit": "g",
+          },
+          {
+            "name": "Huevo",
+            "quantity": 6,
+            "unit": "unit",
+          },
+        ],
+        "prepMinutes": 15,
+        "servings": 4,
+        "steps": [
+          {
+            "text": "Pela y corta las patatas.",
+          },
+          {
+            "text": "Cuaja el huevo y da la vuelta.",
+          },
+        ],
+        "tags": [
+          "clásica",
+          "huevo",
+        ],
+        "title": "Tortilla de patatas",
+        "updatedAt": "<timestamp>",
+      },
+    ],
+    "nextCursor": null,
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > recetario > GET /api/households/{householdId}/recipes/{recipeId} 1`] = `
+{
+  "body": {
+    "cookMinutes": 30,
+    "createdAt": "<timestamp>",
+    "createdBy": "<id:3>",
+    "householdId": "<id:2>",
+    "id": "<id:1>",
+    "ingredients": [
+      {
+        "name": "Patata",
+        "quantity": 600,
+        "unit": "g",
+      },
+      {
+        "name": "Huevo",
+        "quantity": 6,
+        "unit": "unit",
+      },
+    ],
+    "prepMinutes": 15,
+    "servings": 4,
+    "steps": [
+      {
+        "text": "Pela y corta las patatas.",
+      },
+      {
+        "text": "Cuaja el huevo y da la vuelta.",
+      },
+    ],
+    "tags": [
+      "clásica",
+      "huevo",
+    ],
+    "title": "Tortilla de patatas",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > recetario > PATCH /api/households/{householdId}/recipes/{recipeId} 1`] = `
+{
+  "body": {
+    "cookMinutes": 30,
+    "createdAt": "<timestamp>",
+    "createdBy": "<id:3>",
+    "householdId": "<id:2>",
+    "id": "<id:1>",
+    "ingredients": [
+      {
+        "name": "Patata",
+        "quantity": 600,
+        "unit": "g",
+      },
+      {
+        "name": "Huevo",
+        "quantity": 6,
+        "unit": "unit",
+      },
+    ],
+    "prepMinutes": 15,
+    "servings": 6,
+    "steps": [
+      {
+        "text": "Pela y corta las patatas.",
+      },
+      {
+        "text": "Cuaja el huevo y da la vuelta.",
+      },
+    ],
+    "tags": [
+      "huevo",
+      "clásica",
+    ],
+    "title": "Tortilla de patatas",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > recetario > POST /api/households/{householdId}/recipes 1`] = `
+{
+  "body": {
+    "cookMinutes": 30,
+    "createdAt": "<timestamp>",
+    "createdBy": "<id:3>",
+    "householdId": "<id:2>",
+    "id": "<id:1>",
+    "ingredients": [
+      {
+        "name": "Patata",
+        "quantity": 600,
+        "unit": "g",
+      },
+      {
+        "name": "Huevo",
+        "note": "grandes",
+        "quantity": 6,
+        "unit": "unit",
+      },
+    ],
+    "prepMinutes": 15,
+    "servings": 4,
+    "steps": [
+      {
+        "text": "Pela y corta las patatas.",
+      },
+    ],
+    "tags": [
+      "clásica",
+      "huevo",
+    ],
+    "title": "Tortilla de patatas",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 201,
+}
+`;
+
+exports[`Caracterización de la API > recetario > PUT /api/households/{householdId}/recipes/{recipeId}/image 1`] = `
+{
+  "body": {
+    "cookMinutes": 30,
+    "createdAt": "<timestamp>",
+    "createdBy": "<id:3>",
+    "householdId": "<id:2>",
+    "id": "<id:1>",
+    "image": {
+      "height": 800,
+      "key": "households/<id:2>/<uuid>.png",
+      "largeUrl": "http://localhost:9000/recipes-test/households/<id:2>/<uuid>-960.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=<presign>&X-Amz-Date=<presign>&X-Amz-Expires=300&X-Amz-Signature=<presign>&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+      "originalUrl": "http://localhost:9000/recipes-test/households/<id:2>/<uuid>.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=<presign>&X-Amz-Date=<presign>&X-Amz-Expires=300&X-Amz-Signature=<presign>&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+      "smallUrl": "http://localhost:9000/recipes-test/households/<id:2>/<uuid>-320.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=<presign>&X-Amz-Date=<presign>&X-Amz-Expires=300&X-Amz-Signature=<presign>&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+      "width": 1200,
+    },
+    "ingredients": [
+      {
+        "name": "Patata",
+        "quantity": 600,
+        "unit": "g",
+      },
+      {
+        "name": "Huevo",
+        "quantity": 6,
+        "unit": "unit",
+      },
+    ],
+    "prepMinutes": 15,
+    "servings": 4,
+    "steps": [
+      {
+        "text": "Pela y corta las patatas.",
+      },
+      {
+        "text": "Cuaja el huevo y da la vuelta.",
+      },
+    ],
+    "tags": [
+      "clásica",
+      "huevo",
+    ],
+    "title": "Tortilla de patatas",
+    "updatedAt": "<timestamp>",
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > sesión > GET /api/auth/me 1`] = `
+{
+  "body": {
+    "user": {
+      "displayName": "Ana",
+      "email": "ana@example.com",
+      "id": "<id:1>",
+    },
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > sesión > POST /api/auth/login 1`] = `
+{
+  "body": {
+    "user": {
+      "displayName": "Ana",
+      "email": "ana@example.com",
+      "id": "<id:1>",
+    },
+  },
+  "status": 200,
+}
+`;
+
+exports[`Caracterización de la API > sesión > POST /api/auth/logout 1`] = `
+{
+  "body": {},
+  "status": 204,
+}
+`;
+
+exports[`Caracterización de la API > sesión > POST /api/auth/logout-all 1`] = `
+{
+  "body": {},
+  "status": 204,
+}
+`;
+
+exports[`Caracterización de la API > sesión > POST /api/auth/refresh 1`] = `
+{
+  "body": {},
+  "status": 204,
+}
+`;
+
+exports[`Caracterización de la API > sesión > POST /api/auth/register 1`] = `
+{
+  "body": {
+    "user": {
+      "displayName": "Luis",
+      "email": "luis@example.com",
+      "id": "<id:1>",
+    },
+  },
+  "status": 201,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > CONFLICT: el último miembro no puede salir del hogar 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "CONFLICT",
+      "details": [],
+      "message": "El último miembro no puede salir del hogar",
+    },
+  },
+  "status": 409,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > FORBIDDEN: origen que no es el del frontend 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "FORBIDDEN",
+      "details": [],
+      "message": "Origen de la petición no permitido",
+    },
+  },
+  "status": 403,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > FORBIDDEN: un miembro sin rol de propietario no invita 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "FORBIDDEN",
+      "details": [],
+      "message": "No tienes permisos para realizar esta acción en este hogar",
+    },
+  },
+  "status": 403,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > NOT_FOUND: hogar que no existe para el usuario 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "NOT_FOUND",
+      "details": [],
+      "message": "Hogar no encontrado",
+    },
+  },
+  "status": 404,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > TOKEN_EXPIRED: access token caducado 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "TOKEN_EXPIRED",
+      "details": [],
+      "message": "La sesión ha caducado",
+    },
+  },
+  "status": 401,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > UNAUTHORIZED: sin cookie de sesión 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "UNAUTHORIZED",
+      "details": [],
+      "message": "La sesión no es válida",
+    },
+  },
+  "status": 401,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > VALIDATION_ERROR: cuerpo inválido 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "details": [
+        {
+          "field": "email",
+          "message": "El email no es válido",
+        },
+        {
+          "field": "password",
+          "message": "La contraseña debe tener al menos 8 caracteres",
+        },
+        {
+          "field": "displayName",
+          "message": "El nombre es obligatorio",
+        },
+      ],
+      "message": "Hay errores de validación en la petición",
+    },
+  },
+  "status": 400,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > VALIDATION_ERROR: identificador de hogar que no es un ObjectId 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "details": [
+        {
+          "field": "id",
+          "message": "Debe ser un ObjectId de 24 caracteres hexadecimales",
+        },
+      ],
+      "message": "El parámetro id no es un identificador válido",
+    },
+  },
+  "status": 400,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > códigos que hoy no emite ninguna ruta > INTERNAL_ERROR: HttpException 5xx sin filtrar el mensaje interno 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "INTERNAL_ERROR",
+      "details": [],
+      "message": "Error interno del servidor",
+    },
+  },
+  "status": 502,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > códigos que hoy no emite ninguna ruta > INTERNAL_ERROR: excepción inesperada 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "INTERNAL_ERROR",
+      "details": [],
+      "message": "Error interno del servidor",
+    },
+  },
+  "status": 500,
+}
+`;
+
+exports[`Caracterización de la API > sobre de error > códigos que hoy no emite ninguna ruta > RATE_LIMITED: 429 de un limitador de peticiones 1`] = `
+{
+  "body": {
+    "error": {
+      "code": "RATE_LIMITED",
+      "details": [],
+      "message": "Too Many Requests",
+    },
+  },
+  "status": 429,
+}
+`;
