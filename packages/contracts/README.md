@@ -7,11 +7,16 @@ eventos de Socket.IO, el sobre de errores y el catálogo de unidades de medida.
 import {
   SOCKET_EVENTS,
   UNITS,
+  add,
   isUnit,
+  normalize,
+  scale,
   type ShoppingItemUpdatedPayload,
 } from '@recipe-planner/contracts';
 ```
 
-Solo datos: sin dependencias, sin lógica de servidor y sin acceso a Node ni al DOM. Se compila
-con `npm run build -w @recipe-planner/contracts` y los consumidores leen `dist/` a través de
+Datos y funciones puras: sin dependencias, sin acceso a Node ni al DOM. Las operaciones de
+unidades (`normalize`, `add`, `scale`) solo leen el catálogo. `units-cases.json` reúne los casos
+que comprueban a la vez el backend y el frontend. Se compila con
+`npm run build -w @recipe-planner/contracts` y los consumidores leen `dist/` a través de
 `exports`. Las reglas de qué entra y qué no están en `docs/architecture.md`.

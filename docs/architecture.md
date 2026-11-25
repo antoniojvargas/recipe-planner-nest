@@ -20,6 +20,10 @@ tipos que se pueden ejecutar igual en Node y en el navegador, sin dependencias e
   `tbsp`, `cup`, `unit`, `pinch`), su dimensión (masa, volumen, cantidad) y su factor a la
   unidad base. Lo consumen los DTOs para validar, la web para el selector y el generador de la
   lista de la compra.
+- **Operaciones de unidades**: `normalize`, `add` y `scale` son funciones puras sobre ese
+  catálogo, sin acceso a base de datos, red ni reloj. Viven aquí para que API, worker y web
+  calculen igual; `packages/contracts/units-cases.json` fija los casos que comprueban ambos
+  lados.
 - **Comprobaciones de tipos** como `isUnit()` o `unitsOfDimension()`: recorren solo las
   constantes anteriores.
 - Tipos de dominio estables que ambos lados necesitan tal cual: `WeekStart`, `MealSlot`,
@@ -27,10 +31,9 @@ tipos que se pueden ejecutar igual en Node y en el navegador, sin dependencias e
 
 ### No va
 
-- **Lógica de servidor**: reglas de negocio, `ShoppingListGenerator`, normalización y suma de
-  cantidades (`units.add`, `units.normalize`), escalado de raciones, autorización o cualquier
-  cosa que consulte base de datos, Redis, MinIO o el reloj. Esas funciones viven en
-  `backend/src/common/` y en los servicios; el frontend las recibe ya calculadas por la API.
+- **Lógica de servidor**: reglas de negocio, `ShoppingListGenerator`, autorización o cualquier
+  cosa que consulte base de datos, Redis, MinIO o el reloj. Esas funciones viven en los
+  servicios del backend; el frontend recibe los resultados ya calculados por la API.
 - **Esquemas de persistencia**: modelos y esquemas de Mongoose, índices, nombres de colección.
   La base de datos es un detalle del backend y cambiarla no debe obligar a tocar la web.
 - **Detalles de transporte HTTP**: controladores, rutas de Nest, DTOs con decoradores de

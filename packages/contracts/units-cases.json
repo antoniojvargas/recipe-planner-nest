@@ -1,0 +1,298 @@
+{
+  "normalize": [
+    {
+      "description": "1 g ya está en gramos",
+      "quantity": 1,
+      "unit": "g",
+      "quantityBase": 1,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "250 g se quedan en gramos",
+      "quantity": 250,
+      "unit": "g",
+      "quantityBase": 250,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "2.5 kg son 2500 g",
+      "quantity": 2.5,
+      "unit": "kg",
+      "quantityBase": 2500,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "cero kilos son cero gramos",
+      "quantity": 0,
+      "unit": "kg",
+      "quantityBase": 0,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "750 ml ya están en mililitros",
+      "quantity": 750,
+      "unit": "ml",
+      "quantityBase": 750,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "1.5 l son 1500 ml",
+      "quantity": 1.5,
+      "unit": "l",
+      "quantityBase": 1500,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "2 cucharaditas son 10 ml",
+      "quantity": 2,
+      "unit": "tsp",
+      "quantityBase": 10,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "3 cucharadas son 45 ml",
+      "quantity": 3,
+      "unit": "tbsp",
+      "quantityBase": 45,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "2 tazas son 480 ml",
+      "quantity": 2,
+      "unit": "cup",
+      "quantityBase": 480,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "un cuarto de taza son 60 ml",
+      "quantity": 0.25,
+      "unit": "cup",
+      "quantityBase": 60,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "4 unidades siguen siendo 4 unidades",
+      "quantity": 4,
+      "unit": "unit",
+      "quantityBase": 4,
+      "baseUnit": "unit",
+      "dimension": "count"
+    },
+    {
+      "description": "2 pizcas se cuentan como unidades",
+      "quantity": 2,
+      "unit": "pinch",
+      "quantityBase": 2,
+      "baseUnit": "unit",
+      "dimension": "count"
+    }
+  ],
+  "add": [
+    {
+      "description": "1 kg más 500 g son 1500 g",
+      "left": { "quantity": 1, "unit": "kg" },
+      "right": { "quantity": 500, "unit": "g" },
+      "quantityBase": 1500,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "200 g más 300 g son 500 g",
+      "left": { "quantity": 200, "unit": "g" },
+      "right": { "quantity": 300, "unit": "g" },
+      "quantityBase": 500,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "250 g más 0.25 kg son 500 g",
+      "left": { "quantity": 250, "unit": "g" },
+      "right": { "quantity": 0.25, "unit": "kg" },
+      "quantityBase": 500,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "cero gramos más 5 g son 5 g",
+      "left": { "quantity": 0, "unit": "g" },
+      "right": { "quantity": 5, "unit": "g" },
+      "quantityBase": 5,
+      "baseUnit": "g",
+      "dimension": "mass"
+    },
+    {
+      "description": "2 tazas más 100 ml son 580 ml",
+      "left": { "quantity": 2, "unit": "cup" },
+      "right": { "quantity": 100, "unit": "ml" },
+      "quantityBase": 580,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "medio litro más 2 cucharadas son 530 ml",
+      "left": { "quantity": 0.5, "unit": "l" },
+      "right": { "quantity": 2, "unit": "tbsp" },
+      "quantityBase": 530,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "1 l más 1 ml son 1001 ml",
+      "left": { "quantity": 1, "unit": "l" },
+      "right": { "quantity": 1, "unit": "ml" },
+      "quantityBase": 1001,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "1.5 l más 500 ml son 2000 ml",
+      "left": { "quantity": 1.5, "unit": "l" },
+      "right": { "quantity": 500, "unit": "ml" },
+      "quantityBase": 2000,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "1 cucharadita más 1 cucharadita son 10 ml",
+      "left": { "quantity": 1, "unit": "tsp" },
+      "right": { "quantity": 1, "unit": "tsp" },
+      "quantityBase": 10,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "1 cucharada más 1 cucharadita son 20 ml",
+      "left": { "quantity": 1, "unit": "tbsp" },
+      "right": { "quantity": 1, "unit": "tsp" },
+      "quantityBase": 20,
+      "baseUnit": "ml",
+      "dimension": "volume"
+    },
+    {
+      "description": "3 unidades más 2 pizcas son 5 unidades",
+      "left": { "quantity": 3, "unit": "unit" },
+      "right": { "quantity": 2, "unit": "pinch" },
+      "quantityBase": 5,
+      "baseUnit": "unit",
+      "dimension": "count"
+    },
+    {
+      "description": "1 pizca más 1 unidad son 2 unidades",
+      "left": { "quantity": 1, "unit": "pinch" },
+      "right": { "quantity": 1, "unit": "unit" },
+      "quantityBase": 2,
+      "baseUnit": "unit",
+      "dimension": "count"
+    }
+  ],
+  "incompatible": [
+    {
+      "description": "masa con volumen",
+      "left": { "quantity": 1, "unit": "g" },
+      "right": { "quantity": 1, "unit": "ml" },
+      "message": "No se pueden sumar g y ml: son dimensiones distintas"
+    },
+    {
+      "description": "volumen con cantidad",
+      "left": { "quantity": 1, "unit": "l" },
+      "right": { "quantity": 1, "unit": "unit" },
+      "message": "No se pueden sumar l y unit: son dimensiones distintas"
+    },
+    {
+      "description": "cantidad con masa",
+      "left": { "quantity": 1, "unit": "pinch" },
+      "right": { "quantity": 1, "unit": "kg" },
+      "message": "No se pueden sumar pinch y kg: son dimensiones distintas"
+    },
+    {
+      "description": "tazas con gramos",
+      "left": { "quantity": 2, "unit": "cup" },
+      "right": { "quantity": 1, "unit": "g" },
+      "message": "No se pueden sumar cup y g: son dimensiones distintas"
+    },
+    {
+      "description": "cucharadas con unidades",
+      "left": { "quantity": 1, "unit": "tbsp" },
+      "right": { "quantity": 1, "unit": "unit" },
+      "message": "No se pueden sumar tbsp y unit: son dimensiones distintas"
+    },
+    {
+      "description": "kilos con pizcas",
+      "left": { "quantity": 1, "unit": "kg" },
+      "right": { "quantity": 1, "unit": "pinch" },
+      "message": "No se pueden sumar kg y pinch: son dimensiones distintas"
+    }
+  ],
+  "scale": [
+    {
+      "description": "de 4 a 6 raciones: 200 × 1.5 son 300",
+      "quantity": 200,
+      "factor": 1.5,
+      "quantityScaled": 300
+    },
+    {
+      "description": "de 4 a 6 raciones: 300 × 1.5 son 450",
+      "quantity": 300,
+      "factor": 1.5,
+      "quantityScaled": 450
+    },
+    {
+      "description": "de 4 a 6 raciones: 150 × 1.5 son 225",
+      "quantity": 150,
+      "factor": 1.5,
+      "quantityScaled": 225
+    },
+    {
+      "description": "de 4 a 3 raciones: 10 × 0.75 son 7.5",
+      "quantity": 10,
+      "factor": 0.75,
+      "quantityScaled": 7.5
+    },
+    {
+      "description": "factor cero deja la cantidad en cero",
+      "quantity": 500,
+      "factor": 0,
+      "quantityScaled": 0
+    },
+    {
+      "description": "el resultado se redondea a un decimal",
+      "quantity": 3,
+      "factor": 0.3333,
+      "quantityScaled": 1
+    },
+    {
+      "description": "duplicar una unidad da dos",
+      "quantity": 1,
+      "factor": 2,
+      "quantityScaled": 2
+    },
+    {
+      "description": "333 × 1.1 son 366.3",
+      "quantity": 333,
+      "factor": 1.1,
+      "quantityScaled": 366.3
+    },
+    {
+      "description": "media unidad por tres son 1.5",
+      "quantity": 0.5,
+      "factor": 3,
+      "quantityScaled": 1.5
+    },
+    {
+      "description": "120 × 0.3 son 36",
+      "quantity": 120,
+      "factor": 0.3,
+      "quantityScaled": 36
+    }
+  ]
+}
