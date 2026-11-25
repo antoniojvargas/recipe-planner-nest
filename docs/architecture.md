@@ -383,6 +383,71 @@ estado, el snapshot falla y obliga a decidir si el cambio es el buscado.
 - Para aceptar un cambio: `npx vitest run --config vitest.config.e2e.ts test/characterization.e2e-spec.ts -u`
   y revisar el diff del `.snap` en la revisión.
 
+## Nombres y payloads de eventos Socket.IO
+
+Los nombres y cargas útiles de los eventos de Socket.IO están definidos en
+`packages/contracts/src/events.ts`. Los eventos del namespace `/realtime` son:
+
+- `SESSION_EXPIRED_EVENT = 'session.expired`': avisa que el access token caducó.
+  Carga útil: `{ code: 'TOKEN_EXPIRED', message: string }`.
+- `SOCKET_EVENTS.shoppingItemUpdated = 'shopping.item.updated'`: notifica un cambio
+  de estado de un ítem de la lista de la compra.
+- `SOCKET_EVENTS.shoppingListRegenerated = 'shopping.list.regenerated'`: avisa que la
+  lista fue regenerada por cambios en el plan semanal.
+- `SOCKET_EVENTS.mealPlanUpdated = 'meal-plan.updated'`: notifica huecos actualizados
+  del plan semanal.
+- `SOCKET_EVENTS.importFinished = 'import.finished'`: avisa que una importación terminó
+  exitosamente.
+- `SOCKET_EVENTS.importFailed = 'import.failed'`: avisa que una importación falló,
+  incluyendo el `code` (`IMPORT_FAILED`) y el mensaje de error.
+
+Las interfaces de payload correspondientes están en el mismo archivo:
+`ShoppingItemUpdatedPayload`, `ShoppingListRegeneratedPayload`,
+`MealPlanUpdatedPayload`, `ImportFinishedPayload`, `ImportFailedPayload`.
+
+## Atributos de las tres cookies
+
+La API usa tres cookies de sesión, cuyos atributos están definidos en
+`src/auth/auth.constants.ts` y `src/common/csrf/csrf.constants.ts`:
+
+| Cookie          | `httpOnly` | `sameSite` | `path`              | `maxAge`  | `secure`             |
+| --------------- | ---------- | ---------- | ------------------- | --------- | -------------------- |
+| `access_token`  | `true`     | `lax`      | `/`                 | `15 min`  | `true` en producción |
+| `refresh_token` | `true`     | `lax`      | `/api/auth/refresh` | `30 días` | `true` en producción |
+| `csrf_token`    | `false`    | `lax`      | `/`                 | `30 días` | depende del entorno  |
+
+Los dos primeros son escritos por `setSessionCookies` en
+`src/auth/session-cookies.ts`. La cookie CSRF es escrita por
+`setCsrfCookie` en `src/common/csrf/csrf-cookie.js`. El atributo `secure` se
+conoce desde `APP_ENV` (falso en desarrollo, verdadero en producción).
+
+## Códigos de error de auth
+
+Los códigos de error del sobre compartido `{ error: { code, message, details } }`
+están definidos en `packages/contracts/src/errors.ts` como `ERROR_CODES`:
+
+- `VALIDATION_ERROR` (400): cuerpo de petición inválido.
+- `UNAUTHORIZED` (401): sesión ausente, desconocida o revocada.
+- `TOKEN_EXPIRED` (401): access token caducado; el cliente debe refrescar.
+- `FORBIDDEN` (403): origen CSRF inválido o rol insuficiente.
+- `NOT_FOUND` (404): recurso (hogar, receta, lista, etc.) no existe.
+- `CONFLICT` (409): operación que viola restricciones de negocio (ej. el último
+  miembro no puede salir del hogar).
+- `RATE_LIMITED` (429): throttle global (Redis); no tiene ruta dedicada, se
+  caracteriza mediante `AllExceptionsFilter`.
+- `INTERNAL_ERROR` (500): excepción inesperada; también se caracteriza mediante
+  `AllExceptionsFilter`.
+
+La caracterización de estos códigos en `backend/test/characterization.e2e-spec.ts`
+cubre los 6 primeros mediante peticiones e2e reales, y los dos últimos (`RATE_LIMITED`
+y `INTERNAL_ERROR`) a través del filtro de excepciones global, ya que ninguna ruta
+los produce directamente hoy por día (el throttler no está importado en `AppModule`).
+
+- `IMPORT_FAILED` no viaja en el sobre HTTP: es un estado de trabajo de importación
+  y se publica por Socket.IO (`import.failed`).
+
+- Para ver los snapshots generados: `test/__snapshots__/characterization.e2e-spec.ts.snap`.
+
 ## Salud y dependencias
 
 `GET /api/health` (Terminus) comprueba Mongo, Redis y el bucket de MinIO y responde **200** si
