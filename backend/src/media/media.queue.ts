@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { JobsOptions } from 'bullmq';
 import { IMAGE_EXTENSIONS, MEDIA_ROOT_PREFIX, PENDING_UPLOAD_PREFIX } from './media.constants.js';
 
@@ -27,7 +28,7 @@ export const MEDIA_JOB_OPTIONS = {
   attempts: 3,
   backoff: { type: 'exponential', delay: 1_000 },
   removeOnComplete: { age: 86_400, count: 1_000 },
-  removeOnFail: { age: 604_800 },
+  removeOnFail: { age: 604_800, count: 5_000 },
 } as const satisfies JobsOptions;
 
 /**
@@ -74,6 +75,17 @@ export function thumbnailKey(originalKey: string, width: number): string {
 /** Todas las claves que genera una imagen: el original y cada variante WebP. */
 export function imageObjectKeys(originalKey: string): string[] {
   return [originalKey, ...THUMBNAIL_WIDTHS.map((width) => thumbnailKey(originalKey, width))];
+}
+
+/**
+ * Id determinista del trabajo de miniaturas de una imagen.
+ *
+ * BullMQ descarta un `add` cuyo `jobId` ya existe, así que confirmar dos veces la misma imagen
+ * (dos pestañas, un reintento del navegador) genera un solo trabajo. Se usa un hash porque la
+ * clave lleva `/` y `.` y el id acaba en una clave de Redis; además cabe siempre.
+ */
+export function thumbnailJobId(key: string): string {
+  return `${THUMBNAIL_JOB}-${createHash('sha256').update(key).digest('hex')}`;
 }
 
 /**

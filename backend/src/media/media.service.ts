@@ -34,6 +34,7 @@ import {
   MEDIA_JOB_OPTIONS,
   MEDIA_QUEUE_NAME,
   THUMBNAIL_JOB,
+  thumbnailJobId,
   type MediaJobData,
   type ThumbnailJobData,
 } from './media.queue.js';
@@ -193,7 +194,10 @@ export class MediaService {
 
   /** Encola la generación de las variantes WebP de 320 y 960 px. */
   async enqueueThumbnail(data: ThumbnailJobData): Promise<void> {
-    await this.jobs.add(THUMBNAIL_JOB, data, MEDIA_JOB_OPTIONS);
+    await this.jobs.add(THUMBNAIL_JOB, data, {
+      ...MEDIA_JOB_OPTIONS,
+      jobId: thumbnailJobId(data.key),
+    });
   }
 
   /**

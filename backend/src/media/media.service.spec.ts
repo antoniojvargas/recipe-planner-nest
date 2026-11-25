@@ -22,6 +22,7 @@ import {
   imageObjectKeys,
   MEDIA_QUEUE_NAME,
   THUMBNAIL_JOB,
+  thumbnailJobId,
   thumbnailKey,
   type MediaJobData,
 } from './media.queue.js';
@@ -295,9 +296,27 @@ describe('MediaService', () => {
         attempts: 3,
         backoff: { type: 'exponential', delay: 1_000 },
         removeOnComplete: { age: 86_400, count: 1_000 },
-        removeOnFail: { age: 604_800 },
+        removeOnFail: { age: 604_800, count: 5_000 },
+        jobId: thumbnailJobId(key),
       });
       expect(MEDIA_QUEUE_NAME).toBe('media');
+    });
+
+    it('usa un jobId determinista para que dos confirmaciones de la misma imagen sean un solo trabajo', async () => {
+      const { service, queue } = createDoubles();
+      const data = { householdId, recipeId: 'recipe-1', key };
+
+      await service.enqueueThumbnail(data);
+      await service.enqueueThumbnail(data);
+      await service.enqueueThumbnail({ ...data, key: `${key.replace(/\.png$/, '')}-otra.png` });
+
+      const ids = queue.add.mock.calls.map(
+        (call) => (call[2] as { jobId?: string } | undefined)?.jobId,
+      );
+
+      expect(ids[0]).toBe(ids[1]);
+      expect(ids[0]).toBe(thumbnailJobId(key));
+      expect(ids[2]).not.toBe(ids[0]);
     });
   });
 

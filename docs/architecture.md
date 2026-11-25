@@ -282,7 +282,10 @@ verifica, así que el binario nunca pasa por la API.
   300 s **en cada serialización** (`RecipesService.toResponse`). Las URLs no se guardan en Mongo:
   un enlace filtrado deja de servir en cinco minutos. Firmar es local y barato, sin petición al
   bucket. Las variantes las genera el worker en una cola de BullMQ; el borrado encola las tres
-  claves y es idempotente.
+  claves y es idempotente. El trabajo de miniaturas lleva un `jobId` determinista por clave de
+  imagen (`thumbnailJobId`), así que confirmar dos veces la misma foto —dos pestañas, un
+  reintento del navegador— encola un solo trabajo; la cola se limpia por edad y por número
+  (`removeOnComplete`/`removeOnFail`).
 - **Huérfanos.** Una URL prefirmada que se usa pero nunca se confirma deja un objeto sin receta.
   El worker registra cada hora un trabajo repetible (`media.cleanup-orphans`) que lista
   `pending/` y `households/` con `ListObjectsV2` por páginas, consulta en lote qué claves
@@ -300,8 +303,7 @@ El detalle de la receta ya carga sus datos desde el servidor, pero el listado
 `src/app/(app)/recipes/page.tsx` sigue siendo un placeholder: construye
 `https://minio.example.com/recipes/${recipe.imageKey}` con un `imageKey` que el contrato no
 expone y sin `remotePatterns` en `next.config.ts`. Las URLs firmadas (`smallUrl`, `largeUrl`)
-aparecen solo como tipo en `src/lib/meal-plan.ts`; ningún `<Image>` las consume todavía. Falta
-también un `jobId` determinista al encolar.
+aparecen solo como tipo en `src/lib/meal-plan.ts`; ningún `<Image>` las consume todavía.
 
 ## Importación desde URL y SSRF
 
