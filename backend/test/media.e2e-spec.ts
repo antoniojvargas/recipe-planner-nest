@@ -146,7 +146,7 @@ describe('Media (e2e)', () => {
     const body = response.body as UploadUrlBody;
 
     expect(body.url).toBe('http://localhost:9000/recipes-test');
-    expect(body.key).toMatch(new RegExp(`^households/${householdId}/[0-9a-f-]{36}\\.png$`));
+    expect(body.key).toMatch(new RegExp(`^pending/${householdId}/[0-9a-f-]{36}\\.png$`));
     expect(body.fields.key).toBe(body.key);
     expect(body.fields['Content-Type']).toBe('image/png');
     expect(body.fields['X-Amz-Signature']).toMatch(/^[0-9a-f]{64}$/);

@@ -515,6 +515,7 @@ describe('Aislamiento entre hogares', () => {
       const processor = new MediaProcessor(
         { send } as unknown as S3Client,
         { bucket: 'recipes-test' } as StorageConfig,
+        { findReferencedImageKeys: vi.fn() } as unknown as RecipesRepository,
       );
 
       await expect(

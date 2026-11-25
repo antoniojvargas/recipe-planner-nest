@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import {
+  CopyObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   S3ServiceException,
@@ -24,25 +25,19 @@ import {
   IMAGE_URL_TTL_SECONDS,
   isAllowedImageType,
   MAX_IMAGE_BYTES,
+  pendingUploadPrefix,
   UPLOAD_URL_TTL_SECONDS,
 } from './media.constants.js';
 import {
   DELETE_IMAGE_JOB,
   imageObjectKeys,
+  MEDIA_JOB_OPTIONS,
   MEDIA_QUEUE_NAME,
   THUMBNAIL_JOB,
   type MediaJobData,
   type ThumbnailJobData,
 } from './media.queue.js';
 import { UploadUrlResponse, type SignedImageUrls, type UploadedImage } from './media.types.js';
-
-/** Opciones comunes de los trabajos de medios: reintentos y limpieza de la cola. */
-const MEDIA_JOB_OPTIONS = {
-  attempts: 3,
-  backoff: { type: 'exponential', delay: 1_000 },
-  removeOnComplete: { age: 86_400, count: 1_000 },
-  removeOnFail: { age: 604_800 },
-} as const;
 
 function invalidImage(message: string): AppException {
   return new AppException({
@@ -71,7 +66,7 @@ export class MediaService {
   ) {}
 
   async createUploadUrl(householdId: string, dto: CreateUploadUrlDto): Promise<UploadUrlResponse> {
-    const key = `${householdMediaPrefix(householdId)}${randomUUID()}.${IMAGE_EXTENSIONS[dto.contentType]}`;
+    const key = `${pendingUploadPrefix(householdId)}${randomUUID()}.${IMAGE_EXTENSIONS[dto.contentType]}`;
     const expiresAt = new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1_000);
 
     const { url, fields } = await createPresignedPost(this.publicS3, {
@@ -94,12 +89,19 @@ export class MediaService {
    * sus dimensiones reales para poder guardarlas en la receta. El cuerpo se descarga una sola
    * vez y como mucho son 5 MiB: `sharp` solo necesita la cabecera, pero leer el objeto entero
    * simplifica el flujo y evita streams a medio cerrar.
+   *
+   * Si la clave viene del prefijo pendiente (la que firmó `createUploadUrl`), el objeto se
+   * copia al prefijo definitivo y se devuelve la clave nueva: la receta nunca apunta a una
+   * subida que el ciclo de vida del bucket pueda expirar. La copia deja el original pendiente
+   * en su sitio para que un reintento de la confirmación siga encontrándolo; MinIO lo borra
+   * solo cuando pasa el plazo.
    */
   async inspectImage(householdId: string, key: string): Promise<UploadedImage> {
-    const prefix = householdMediaPrefix(householdId);
+    const pendingPrefix = pendingUploadPrefix(householdId);
+    const finalPrefix = householdMediaPrefix(householdId);
 
-    if (!key.startsWith(prefix)) {
-      throw invalidImage(`La clave debe empezar por ${prefix}`);
+    if (!key.startsWith(pendingPrefix) && !key.startsWith(finalPrefix)) {
+      throw invalidImage(`La clave debe empezar por ${finalPrefix}`);
     }
 
     let head: HeadObjectCommandOutput;
@@ -151,7 +153,21 @@ export class MediaService {
       throw invalidImage('El objeto no es una imagen válida');
     }
 
-    return { key, width, height, size };
+    const finalKey = key.startsWith(pendingPrefix)
+      ? `${finalPrefix}${key.slice(pendingPrefix.length)}`
+      : key;
+
+    if (finalKey !== key) {
+      await this.s3.send(
+        new CopyObjectCommand({
+          Bucket: this.config.bucket,
+          Key: finalKey,
+          CopySource: `${this.config.bucket}/${key}`,
+        }),
+      );
+    }
+
+    return { key: finalKey, width, height, size };
   }
 
   /**

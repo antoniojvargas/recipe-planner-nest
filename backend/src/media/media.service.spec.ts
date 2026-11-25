@@ -1,4 +1,10 @@
-import { HeadObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3';
+import {
+  CopyObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  S3Client,
+  S3ServiceException,
+} from '@aws-sdk/client-s3';
 import type { Queue } from 'bullmq';
 import sharp from 'sharp';
 import type { StorageConfig } from '../config/index.js';
@@ -102,7 +108,7 @@ describe('MediaService', () => {
       const result = await service.createUploadUrl(householdId, dto('image/jpeg', 1024));
 
       expect(result.url).toBe('http://localhost:9000/recipes');
-      expect(result.key).toMatch(new RegExp(`^households/${householdId}/[0-9a-f-]{36}\\.jpg$`));
+      expect(result.key).toMatch(new RegExp(`^pending/${householdId}/[0-9a-f-]{36}\\.jpg$`));
       expect(result.fields.key).toBe(result.key);
       expect(result.fields['Content-Type']).toBe('image/jpeg');
       expect(result.fields['X-Amz-Signature']).toMatch(/^[0-9a-f]{64}$/);
@@ -229,6 +235,52 @@ describe('MediaService', () => {
         size: bytes.length,
       });
       expect(internal.send.mock.calls[0]?.[0]).toBeInstanceOf(HeadObjectCommand);
+    });
+
+    it('promociona la subida pendiente a una clave definitiva al confirmar', async () => {
+      const { service, internal } = createDoubles();
+      const bytes = await png(10, 10);
+      const pendingKey = `pending/${householdId}/foto.png`;
+      internal.send
+        .mockResolvedValueOnce({ ContentLength: bytes.length, ContentType: 'image/png' })
+        .mockResolvedValueOnce(objectBody(bytes))
+        .mockResolvedValueOnce({});
+
+      const image = await service.inspectImage(householdId, pendingKey);
+
+      expect(image.key).toBe(key);
+
+      const copy = internal.send.mock.calls[2]?.[0] as CopyObjectCommand;
+
+      expect(copy).toBeInstanceOf(CopyObjectCommand);
+      expect(copy.input).toMatchObject({
+        Bucket: 'recipes',
+        Key: key,
+        CopySource: `recipes/${pendingKey}`,
+      });
+    });
+
+    it('rechaza una clave pendiente de otro hogar', async () => {
+      const { service, internal } = createDoubles();
+
+      await expect(
+        service.inspectImage(householdId, 'pending/otro-hogar/foto.png'),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(internal.send).not.toHaveBeenCalled();
+    });
+
+    it('acepta una clave ya definitiva sin volver a copiarla', async () => {
+      const { service, internal } = createDoubles();
+      const bytes = await png(10, 10);
+      internal.send
+        .mockResolvedValueOnce({ ContentLength: bytes.length, ContentType: 'image/png' })
+        .mockResolvedValueOnce(objectBody(bytes));
+
+      const image = await service.inspectImage(householdId, key);
+
+      expect(image.key).toBe(key);
+      expect(internal.send).toHaveBeenCalledTimes(2);
+      expect(internal.send.mock.calls[1]?.[0]).toBeInstanceOf(GetObjectCommand);
     });
   });
 

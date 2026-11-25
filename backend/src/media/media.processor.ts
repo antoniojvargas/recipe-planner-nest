@@ -3,31 +3,37 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   type S3Client,
 } from '@aws-sdk/client-s3';
 import type { Job } from 'bullmq';
 import sharp from 'sharp';
 import { storageConfig, type StorageConfig } from '../config/index.js';
+import { RecipesRepository } from '../recipes/recipes.repository.js';
 import { S3_CLIENT } from '../storage/storage.module.js';
-import { householdMediaPrefix } from './media.constants.js';
+import { householdMediaPrefix, ORPHAN_RETENTION_MS } from './media.constants.js';
 import {
   DELETE_IMAGE_JOB,
+  MANAGED_MEDIA_PREFIXES,
+  MEDIA_CLEANUP_JOB,
   MEDIA_QUEUE_NAME,
+  originalKeysForBase,
   THUMBNAIL_JOB,
   THUMBNAIL_WIDTHS,
   thumbnailKey,
+  variantBaseKey,
   type DeleteImageJobData,
   type MediaJobData,
   type ThumbnailJobData,
 } from './media.queue.js';
 
 /**
- * Trabajos pesados de medios: miniaturas y borrado de objetos.
+ * Trabajos pesados de medios: miniaturas, borrado de objetos y barrido de huérfanos.
  *
  * Corre en el proceso `worker`, no en la API: descargar, redimensionar, subir o borrar no debe
- * ocupar el bucle que atiende peticiones. Los dos trabajos son idempotentes, así que un
- * reintento tras un fallo parcial no deja objetos duplicados ni falla por claves ya borradas.
+ * ocupar el bucle que atiende peticiones. Los trabajos son idempotentes, así que un reintento
+ * tras un fallo parcial no deja objetos duplicados ni falla por claves ya borradas.
  */
 @Processor(MEDIA_QUEUE_NAME)
 export class MediaProcessor extends WorkerHost {
@@ -36,6 +42,7 @@ export class MediaProcessor extends WorkerHost {
   constructor(
     @Inject(S3_CLIENT) private readonly s3: S3Client,
     @Inject(storageConfig.KEY) private readonly config: StorageConfig,
+    private readonly recipes: RecipesRepository,
   ) {
     super();
   }
@@ -47,6 +54,9 @@ export class MediaProcessor extends WorkerHost {
         return;
       case DELETE_IMAGE_JOB:
         await this.deleteImages(job.data as DeleteImageJobData);
+        return;
+      case MEDIA_CLEANUP_JOB:
+        await this.cleanupOrphans();
         return;
       default:
         return;
@@ -123,5 +133,104 @@ export class MediaProcessor extends WorkerHost {
     }
 
     this.logger.log(`Borrados ${String(objects.length)} objetos de la receta ${recipeId}`);
+  }
+
+  /**
+   * Borra los objetos que ninguna receta referencia y que llevan más de 24 h en el bucket.
+   *
+   * Cubre el hueco de la subida prefirmada que se usó pero nunca se confirmó: la clave existe
+   * en el bucket y no aparece en Mongo, así que nada la borraría al eliminar una receta. El
+   * listado va por prefijo y por páginas (`ListObjectsV2` devuelve como mucho 1000 claves), y
+   * solo se tocan las raíces gestionadas de medios.
+   *
+   * Antes de borrar se consulta Mongo en lote: si la consulta falla, el trabajo falla y BullMQ
+   * lo reintenta sin haber borrado nada. La regla de ciclo de vida del bucket es la red de
+   * seguridad para las subidas pendientes que este barrido no llegue a ver.
+   */
+  private async cleanupOrphans(): Promise<void> {
+    const cutoff = new Date(Date.now() - ORPHAN_RETENTION_MS);
+    let deleted = 0;
+
+    for (const prefix of MANAGED_MEDIA_PREFIXES) {
+      let token: string | undefined;
+
+      do {
+        const page = await this.s3.send(
+          new ListObjectsV2Command({
+            Bucket: this.config.bucket,
+            Prefix: prefix,
+            ...(token === undefined ? {} : { ContinuationToken: token }),
+          }),
+        );
+
+        const stale = (page.Contents ?? []).flatMap((object) =>
+          object.Key !== undefined &&
+          object.LastModified !== undefined &&
+          object.LastModified < cutoff &&
+          MANAGED_MEDIA_PREFIXES.some((managed) => object.Key?.startsWith(managed) === true)
+            ? [object.Key]
+            : [],
+        );
+
+        deleted += await this.deleteOrphans(stale);
+        token = page.IsTruncated === true ? page.NextContinuationToken : undefined;
+      } while (token !== undefined);
+    }
+
+    this.logger.log(`Barrido de medios: ${String(deleted)} objetos huérfanos borrados`);
+  }
+
+  /** Borra de una página las claves cuyo original no está en ninguna receta. */
+  private async deleteOrphans(keys: string[]): Promise<number> {
+    if (keys.length === 0) {
+      return 0;
+    }
+
+    // Una variante no dice qué extensión tenía su original, así que se prueban las del
+    // catálogo. Las claves que no son variantes se consultan tal cual.
+    const candidates = new Set<string>();
+
+    for (const key of keys) {
+      const base = variantBaseKey(key);
+
+      if (base === undefined) {
+        candidates.add(key);
+      } else {
+        for (const original of originalKeysForBase(base)) {
+          candidates.add(original);
+        }
+      }
+    }
+
+    const referenced = new Set<string>();
+
+    for (const original of await this.recipes.findReferencedImageKeys([...candidates])) {
+      referenced.add(original);
+
+      for (const width of THUMBNAIL_WIDTHS) {
+        referenced.add(thumbnailKey(original, width));
+      }
+    }
+
+    const orphans = keys.filter((key) => !referenced.has(key));
+
+    if (orphans.length === 0) {
+      return 0;
+    }
+
+    const result = await this.s3.send(
+      new DeleteObjectsCommand({
+        Bucket: this.config.bucket,
+        Delete: { Objects: orphans.map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
+
+    for (const error of result.Errors ?? []) {
+      throw new Error(
+        `No se pudo borrar ${error.Key ?? 'un objeto'}: ${error.Message ?? 'error de S3'}`,
+      );
+    }
+
+    return orphans.length;
   }
 }
