@@ -11,7 +11,7 @@ import {
 } from './../src/config/request-id.js';
 import { withFakeInfra } from './support/fake-infra.js';
 
-describe('AppController (e2e)', () => {
+describe('Request ID (e2e)', () => {
   let app: NestFastifyApplication;
 
   beforeEach(async () => {
@@ -28,16 +28,9 @@ describe('AppController (e2e)', () => {
     await app.getHttpAdapter().getInstance().ready();
   });
 
-  it('/api (GET)', () => {
-    return request(app.getHttpServer() as App)
-      .get('/api')
-      .expect(200)
-      .expect('Hello World!');
-  });
-
   it('reutiliza y devuelve el X-Request-Id', async () => {
     const response = await request(app.getHttpServer() as App)
-      .get('/api')
+      .get('/api/health')
       .set(REQUEST_ID_HEADER, 'e2e-request-id')
       .expect(200);
 
@@ -46,7 +39,7 @@ describe('AppController (e2e)', () => {
 
   it('genera un X-Request-Id cuando no llega en la petición', async () => {
     const response = await request(app.getHttpServer() as App)
-      .get('/api')
+      .get('/api/health')
       .expect(200);
 
     expect(response.headers[REQUEST_ID_HEADER]).toMatch(

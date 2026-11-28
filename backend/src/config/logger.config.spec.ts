@@ -7,7 +7,6 @@ const baseConfig: AppConfig = {
   env: 'production',
   logLevel: 'info',
   frontendUrl: 'http://localhost:3001',
-  apiInternalUrl: 'http://backend:3000',
 };
 
 function memoryStream(): { stream: Writable; lines: string[] } {
